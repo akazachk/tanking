@@ -4,11 +4,11 @@ using DelimitedFiles
 using LaTeXStrings
 include("tanking.jl")
 
-function main(do_simulation = true, num_repeats = 20000, results_dir = "../results")
+function main(do_simulation = true, num_repeats = 100000, results_dir = "../results")
 	## Variables that need to be set
 	num_teams = 30 # number of teams
 	num_rounds = 3 # a round consists of each team playing each other team
-	num_steps = 10 # discretization of [0,1] for tanking probability
+	num_steps = 20 # discretization of [0,1] for tanking probability
 	gamma = 0.75 # probability a better-ranked team wins over a worse-ranked team
 
 	## When the (draft) ranking will be set as fraction of number games
@@ -50,7 +50,7 @@ function main(do_simulation = true, num_repeats = 20000, results_dir = "../resul
 			ylab=L"\mbox{Kendall tau distance for non-playoff teams}",
 			title=L"\mbox{Kendall tau distance}",
 			#title=L"\mbox{Kendall tau distance by cutoff and tanking probability}",
-			xticks=(Array(0:1/num_steps:1),["\$$i\$" for i in 0:1/num_steps:1]),
+			xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:0.1:1]),
 			yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
 			legend=:bottomright,
 			legendfont=8,
