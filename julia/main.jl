@@ -12,7 +12,7 @@ function main(do_simulation = true, num_repeats = 100000, results_dir = "../resu
 	gamma = 0.75 # probability a better-ranked team wins over a worse-ranked team
 
 	## When the (draft) ranking will be set as fraction of number games
-	set_ranking = [4/8; 5/8; 6/8; 7/8; 1]
+	set_ranking = [4//8; 5//8; 6//8; 7//8; 1]
 	num_rankings = length(set_ranking)
 	#color_for_cutoff_point = ["c" "b" "m" "r" "k"]
 	## end variables that need to be set
@@ -48,20 +48,27 @@ function main(do_simulation = true, num_repeats = 100000, results_dir = "../resu
 	fig = Plots.plot(show=false,
 			xlab=L"\mbox{Probability of tanking}", 
 			ylab=L"\mbox{Kendall tau distance for non-playoff teams}",
-			title=L"\mbox{Kendall tau distance}",
-			#title=L"\mbox{Kendall tau distance by cutoff and tanking probability}",
+			title=L"\mbox{Kendall tau distance by cutoff and tanking probability}",
 			xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:0.1:1]),
 			yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
 			legend=:bottomright,
-			legendfont=8,
+			legendfont=6,
+			legendtitle=L"\mbox{Draft ranking cutoff}",
 			titlefont=12,
 			tickfont=8,
 			grid=false,
 			display_type=:inline);
 	for r = 1:num_rankings
-		cutoff_game = set_ranking[r]
-		plot!(0:(1/num_steps):1, avg_kend[:,r], 
-				label=latexstring("$cutoff_game", "\\mbox{ of season}"));
+		#cutoff_game = set_ranking[r]
+		curr_label = ""
+		if set_ranking[r] == 1	
+		  #curr_label = latexstring("$tmp", "\\mbox{ through season}")
+			curr_label = L"\mbox{end of season}"
+		else
+			curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}")
+		end
+		plot!(0:(1/num_steps):1, avg_kend[:,r], label=curr_label);
+				#label=latexstring("$cutoff_game", "\\mbox{ through season}"));
 	end
 	savefig(fig, string(results_dir,"/plot",".pdf"));
 	#savefig(fig, "plot.pdf");
