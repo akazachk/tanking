@@ -25,7 +25,7 @@ function main(do_simulation = true, num_repeats = 20000, results_dir = "../resul
 		## Do simulation
 		avg_kend, avg_already_tank = simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking)
 		writedlm(string(results_dir, "/avg_kend.csv"), avg_kend, ',')
-		writedlm(string(results_dir, "/avg_already_tank.csv"), avg_kend, ',')
+		writedlm(string(results_dir, "/avg_already_tank.csv"), avg_already_tank, ',')
 	else
 		avg_kend = readdlm(string(results_dir, "/avg_kend.csv"), ',')
 		avg_already_tank = readdlm(string(results_dir, "/avg_already_tank.csv"), ',')

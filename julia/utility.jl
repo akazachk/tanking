@@ -2,7 +2,7 @@
 # Useful functions #
 ####################
 
-function teamWillWin(i, j, rank, gamma=gamma)
+function teamWillWin(i, j, stats, gamma=gamma)
 	###
 	# teamWillWin
 	#
@@ -13,18 +13,18 @@ function teamWillWin(i, j, rank, gamma=gamma)
 	# When a tanking team plays a non-tanking team, the tanking team always loses
 	# When two tanking teams play each other, the one that is currently better wins
 	# 
-	# rank[:,1] is team "name"
-	# rank[:,2] is num wins
-	# rank[:,3] is remaining
-	# rank[:,4] is critical game (in terms of remaining games)
-	# rank[:,5] is win percentage
-	# rank[:,6] is indicator for whether team tanks
+	# stats[:,1] is team "name"
+	# stats[:,2] is num wins
+	# stats[:,3] is remaining
+	# stats[:,4] is critical game (in terms of remaining games)
+	# stats[:,5] is win percentage
+	# stats[:,6] is indicator for whether team tanks
 	###
-	team_i_tanks = rank[i,3] <= rank[i,4] # team i is past the tanking cutoff point
-	team_j_tanks = rank[j,3] <= rank[j,4] # team j is past the tanking cutoff point
+	team_i_tanks = stats[i,3] <= stats[i,4] # team i is past the tanking cutoff point
+	team_j_tanks = stats[j,3] <= stats[j,4] # team j is past the tanking cutoff point
 	if team_i_tanks && team_j_tanks
 		# Both teams tank
-		if rank[i,5] > rank[j,5] # team i is better
+		if stats[i,5] > stats[j,5] # team i is better
 			return true
 		else # team j is better
 			return false
@@ -62,12 +62,12 @@ function setCriticalGame(num_wins, num_games_remaining, num_team_games, cutoff_a
 	return false
 end # setCriticalGame
 
-function kendtau(rank)
+function kendtau(stats)
 	###
 	# kendtau
 	# Computes Kendell-Tau (Kemeny) distance
 	#
-	# First sort by win percentage (rank[:,5])
+	# First sort by win percentage (stats[:,5])
 	# This yields the noisy ranking
 	# We want to calculate the distance to the true ranking (1,...,n)
 	# Kendell-Tau distance is number of unordered pairs {i,j} for which noisy ranking disagrees with true ranking
@@ -77,13 +77,13 @@ function kendtau(rank)
 	#					||
 	#				(\tau_1(i) > \tau_2(j) && \tau_2(i) < \tau_2(j)) }|
 	###
-	len = size(rank,1)
+	len = size(stats,1)
 	kt = 0
 	tmp = randn(len) # randomize order among teams that have same number of wins
-	noisy_rank = sortslices([rank tmp], dims=1, by = x -> (x[5],x[7]), rev=true)
+	noisy_stats = sortslices([stats tmp], dims=1, by = x -> (x[5],x[7]), rev=true)
 	for m = 1:len
 		for n = m+1:len
-			if noisy_rank[m,1] > noisy_rank[n,1]
+			if noisy_stats[m,1] > noisy_stats[n,1]
 				kt = kt + 1
 			end
 		end
@@ -91,11 +91,52 @@ function kendtau(rank)
 	return kt
 end # kendtau
 
-function sortTeams(rank, best_to_worst = true, win_pct_ind = 5, games_left_ind = 3)
-	sorted = sortslices(rank, dims=1, by = x -> (x[win_pct_ind],-x[games_left_ind]), rev=best_to_worst) # sort descending (best-to-worst)
-	row_index = Array{Int}(undef, size(sorted)[1])
-	for i in 1:size(sorted)[1]
-		row_index[sorted[i,1]] = i
-	end
-	return sorted, row_index
+function sortTeams(stats, best_to_worst = true, win_pct_ind = 5, games_left_ind = 3)
+	sorted = sortslices(stats, dims=1, by = x -> (x[win_pct_ind],-x[games_left_ind]), rev=best_to_worst) # sort descending (best-to-worst)
+	#row_index = Array{Int}(undef, size(sorted)[1])
+	#for i in 1:size(sorted)[1]
+	#	row_index[sorted[i,1]] = i
+	#end
+	#return sorted, row_index
+	return sorted
 end # sortTeams
+
+function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, win_pct_ind = 5, games_left_ind = 3)
+	###
+	# updateRank
+	#
+	# After updating win percentage for team i and j, find their new postions
+	###
+	num_teams = size(stats)[1]
+	old_rank_i = rank_of_team[team_i]
+	win_pct = stats[team_i, win_pct_ind]
+	games_left = stats[team_i, games_left_ind]
+	inc = team_i_wins ? -1 : +1
+	k = old_rank_i + inc
+	should_continue = true
+	while (k > 0 && k < num_teams+1 && should_continue)
+		curr_win_pct = stats[team_in_pos[k], win_pct_ind]
+		curr_games_left = stats[team_in_pos[k], games_left_ind]
+		if team_i_wins
+			should_continue = (win_pct > curr_win_pct) || (win_pct == curr_win_pct && games_left < curr_games_left)
+		else
+			should_continue = (win_pct < curr_win_pct) || (win_pct == curr_win_pct && games_left > curr_games_left)
+		end
+		if should_continue
+			k += inc
+		end
+	end # find new ranking
+	new_rank_i = k - inc # above loop stops at one above/below the new rank of i
+
+	## Update all ranks that need to be updated
+	tmp = team_in_pos[new_rank_i]
+	team_in_pos[new_rank_i] = team_i
+	rank_of_team[team_i] = new_rank_i
+	for i = new_rank_i-inc:-inc:old_rank_i
+		old = team_in_pos[i]
+		team_in_pos[i] = tmp
+		rank_of_team[tmp] = i
+		tmp = old
+	end
+	return rank_of_team, team_in_pos
+end # updateRank
