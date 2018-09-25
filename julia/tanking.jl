@@ -28,6 +28,8 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 	# Assumptions:
 	# 1. No simultaneous games
 	# 2. Teams keep same relative true ranking throughout season
+	# 3. No conferences
+	# 4. Team decides whether to tank the next game after each game they play (not after other games)
 	###
 
 	## Set constants
@@ -71,6 +73,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 	# rank[:,6] is indicator for whether team tanks
 	rank = Matrix{Any}(undef, num_teams, 6)
 	draft_ranking = Array{Any}(undef, num_teams, 6, length(cutoff_game_for_draft))
+	draft_ranking_row_index = Array{Any}(undef, num_teams, length(cutoff_game_for_draft))
 
 	## Begin calculations
 	for step_ind in 1:length(array_of_tanking_percentage)
@@ -105,24 +108,31 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 				for round_game_ind = 1:num_games_per_round
 					game_ind += 1
 
-					# Find cutoff [do this every game - find 15th best team - set that as cutoff]
+					# Find cutoff [do this every game - find last playoff team - set that as cutoff]
 					# Tie-breaking is fewest games left
-					sorted = sortslices(rank, dims=1, by = x -> (x[5],-x[3]), rev=true) # sort descending (best-to-worst)
-					cutoff_avg = sorted[num_teams_in_playoffs, 5]
+					rank, row_index = sortTeams(rank)
+					last_team = num_teams_in_playoffs
+					#last_team = sorted_teams[num_teams_in_playoffs,1]
+					cutoff_avg = rank[last_team, 5]
 
 					# Current teams playing
-					i = games[round_ind, round_game_ind, 1]
-					j = games[round_ind, round_game_ind, 2]
+					orig_i = games[round_ind, round_game_ind, 1]
+					orig_j = games[round_ind, round_game_ind, 1]
+					i = row_index[games[round_ind, round_game_ind, 1]]
+					j = row_index[games[round_ind, round_game_ind, 2]]
 
 					# Set critical game for i,j
 					for k in [i,j]
-						if setCriticalGame(k, rank, num_team_games, cutoff_avg, max_games_remaining)
-							rank[k,4] = rank[k,3]
+						if (rank[k,6] == 1 && rank[k,4] == 0) # check team tanks and critical game is not set
+							if setCriticalGame(rank[k,2], rank[k,3], 
+									num_team_games, cutoff_avg, max_games_remaining)
+								rank[k,4] = rank[k,3]
+							end
 						end
 					end # set critical game for teams i and j
 
 					# Decide who wins the game
-					team_i_wins = teamWillWin(i, j, rank, gamma)
+					team_i_wins = teamWillWin(orig_i, orig_j, rank, gamma)
           rank[i,2] = rank[i,2] + team_i_wins
 					rank[j,2] = rank[j,2] + !team_i_wins
 
@@ -138,6 +148,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 					for r = 1:length(cutoff_game_for_draft) 
 						if game_ind == cutoff_game_for_draft[r]
 							draft_ranking[:,:,r] = rank
+							draft_ranking_row_index[:,r] = row_index
 						end
 					end
 				end # iterate over num_games_per_round
@@ -145,14 +156,11 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 			## end of a season
 
 			## Get non-playoff teams at end of season
-			sorted = sortslices(rank, dims=1, by = x -> (x[5],-x[3]), rev=false) # sort ascending (worst-to-best)
-			bottom = Array{Int64}(undef, num_teams - num_teams_in_playoffs)
-			bottom = sorted[1:(num_teams-num_teams_in_playoffs), 1]
-
+			reverse_sorted, row_index = sortTeams(rank, false)
+			np_index = reverse_sorted[1:num_teams-num_teams_in_playoffs]
 			for r = 1:length(cutoff_game_for_draft)
-				#bottom_teams[:,:,r] = draft_ranking[bottom,:,r]
-				#kendtau(bottom_teams[:,:,r])
-				avg_kend[step_ind, r] += kendtau(draft_ranking[bottom,:,r])
+				curr_row_index = draft_ranking_row_index[np_index,r]
+				avg_kend[step_ind, r] += kendtau(draft_ranking[curr_row_index,:,r])
 				avg_already_tank[step_ind, r] += sum([draft_ranking[i,4,r] > 0 for i in 1:num_teams])
 			end
 		end # do repeats

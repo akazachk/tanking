@@ -1,11 +1,11 @@
+# Needs Plots, DelimitedFiles, GR
 using Plots
 using DelimitedFiles
+using LaTeXStrings
 include("tanking.jl")
 
-function main(do_simulation = true, results_dir = "../results")
+function main(do_simulation = true, num_repeats = 20000, results_dir = "../results")
 	## Variables that need to be set
-	num_repeats = 10000 #10000 #20000
-
 	num_teams = 30 # number of teams
 	num_rounds = 3 # a round consists of each team playing each other team
 	num_steps = 10 # discretization of [0,1] for tanking probability
@@ -34,17 +34,36 @@ function main(do_simulation = true, results_dir = "../results")
 	## Do plotting
 	#pgfplots() # Pkg.add("PGFPlots")
 	#pyplot() # Pkg.add("PyPlot") Pkg.add("PyCall") Pkg.add("LaTeXStrings")
-	gr() # Pkg.add("GR")
+	#gr(dpi=300); # Pkg.add("GR")
+	gr(); # Pkg.add("GR")
+	upscale = 1 # upscaling in resolution
+	fntsm = Plots.font("sans-serif", 8.0 * upscale)
+	fntlg = Plots.font("sans-serif", 12.0 * upscale)
+	#default(titlefont=fntlg, guidefont=fntlg, tickfont=fntsm, legendfont=fntsm)
+	#default(size=(800*upscale,600*upscale)) # plot canvas size
 
-	fig = plot(
-			xlab="Probability of tanking", 
-			ylab="Kendall tau distance for non-playoff teams", 
-			title="Kendall tau distance by cutoff and tanking probability",
+	miny = Int(ceil(findmin(avg_kend)[1]))
+	maxy = Int(floor(findmax(avg_kend)[1]))
+
+	fig = Plots.plot(show=false,
+			xlab=L"\mbox{Probability of tanking}", 
+			ylab=L"\mbox{Kendall tau distance for non-playoff teams}",
+			title=L"\mbox{Kendall tau distance}",
+			#title=L"\mbox{Kendall tau distance by cutoff and tanking probability}",
+			xticks=(Array(0:1/num_steps:1),["\$$i\$" for i in 0:1/num_steps:1]),
+			yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
 			legend=:bottomright,
-			grid=false)
+			legendfont=8,
+			titlefont=12,
+			tickfont=8,
+			grid=false,
+			display_type=:inline);
 	for r = 1:num_rankings
 		cutoff_game = set_ranking[r]
-		plot!(0:(1/num_steps):1, avg_kend[:,r], label="$cutoff_game of season")
+		plot!(0:(1/num_steps):1, avg_kend[:,r], 
+				label=latexstring("$cutoff_game", "\\mbox{ of season}"));
 	end
-	savefig(fig, string(results_dir,"/plot",".png"))
+	savefig(fig, string(results_dir,"/plot",".pdf"));
+	#savefig(fig, "plot.pdf");
+	#save(string(results_dir,"/plot",".pdf"), fig);
 end # main
