@@ -42,8 +42,9 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 	max_games_remaining = (4/5) * num_team_games # a minimum number of games needs to be played before tanking might happen
 
 	cutoff_game_for_draft = [round(set_ranking[i] * num_games) for i in 1:length(set_ranking)]
-	avg_kend = Array{Float64}(undef, num_steps+1, length(set_ranking))
-	avg_already_tank = Array{Float64}(undef, num_steps+1, length(set_ranking))
+	avg_kend = zeros(Float64, num_steps+1, length(set_ranking))
+	avg_already_tank = zeros(Float64, num_steps+1, length(set_ranking))
+	avg_eliminated = zeros(Float64, num_steps+1, num_games)
 
 	## Set up for game order 
 	games = Array{Int64}(undef, num_rounds, num_games_per_round, 2) # games played in each round
@@ -80,6 +81,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 		for rep = 1:num_repeats
 			print("\tRepeat $rep/$num_repeats (ratio $tank_perc)\n")
 			## Set up stats for current repeat
+			num_eliminated = 0
 			for i = 1:num_teams
 				stats[i,1] = i # team name
 				stats[i,2] = 0 # num wins
@@ -128,10 +130,12 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 
 					# Set critical game for i,j
 					for k in [i,j]
-						if (stats[k,6] == 1 && stats[k,4] == 0) # check team tanks and critical game is not set
-							if setCriticalGame(stats[k,2], stats[k,3], 
-									num_team_games, cutoff_avg, max_games_remaining)
-								stats[k,4] = stats[k,3]
+						if stats[k,4] == 0 # check team has not already started tanking
+							if teamIsEliminated(stats[k,2], stats[k,3], num_team_games, cutoff_avg, max_games_remaining)
+								num_eliminated += 1
+								if stats[k,6] == 1 # check if team tanks
+									stats[k,4] = stats[k,3]
+								end
 							end
 						end
 					end # set critical game for teams i and j
@@ -147,6 +151,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 						stats[k,5] = stats[k,2] / (num_team_games - stats[k,3]) # update current win pct
 						rank_of_team, team_in_pos = updateRank(stats, rank_of_team, team_in_pos, k, team_k_wins) # update rank
 					end
+					avg_eliminated[step_ind, game_ind] += num_eliminated / num_repeats
 					#print("($i,$j) Team $i wins? $team_i_wins\n")
 					#display([1:num_teams team_in_pos rank_of_team stats[team_in_pos,5]])
 
@@ -167,17 +172,11 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 			np_index = team_in_pos[num_teams_in_playoffs+1:num_teams]
 			for r = 1:length(cutoff_game_for_draft)
 				#curr_row_index = draft_ranking_row_index[np_index,r]
-				avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r])
-				avg_already_tank[step_ind, r] += sum([draft_ranking[i,4,r] > 0 for i in 1:num_teams])
+				avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r]) / num_repeats
+				avg_already_tank[step_ind, r] += sum([draft_ranking[i,4,r] > 0 for i in 1:num_teams]) / num_repeats
 			end
 		end # do repeats
-	
-		## Compute average statistics over all repeats
-		for r = 1:length(cutoff_game_for_draft)
-			avg_kend[step_ind,r] /= num_repeats
-			avg_already_tank[step_ind,r] /= num_repeats
-		end
 	end # looping over tanking percentages
 
-	return avg_kend, avg_already_tank
+	return avg_kend, avg_already_tank, avg_eliminated
 end # simulate

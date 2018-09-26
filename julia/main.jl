@@ -14,21 +14,32 @@ function main(do_simulation = true, num_repeats = 100000, results_dir = "../resu
 	## When the (draft) ranking will be set as fraction of number games
 	set_ranking = [4//8; 5//8; 6//8; 7//8; 1]
 	num_rankings = length(set_ranking)
+	col = ["red", "orange", "green", "blue", "black"]
+	shape = [:vline, :utriangle, :rect, :x, :circle]
 	#color_for_cutoff_point = ["c" "b" "m" "r" "k"]
 	## end variables that need to be set
 
-	## For output
-	avg_kend = 0 # holds KT distance for each tanking probability and cutoff for draft ranking
-	avg_already_tank = 0
+	## Set constants
+	num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
+	num_games = num_rounds * num_games_per_round
 
+	## For output
+	avg_kend = 0 # [step,cutoff], holds KT distance for each tanking probability and cutoff for draft ranking
+	avg_already_tank = 0 # [step,cutoff], number teams already tanking by the cutoff
+	avg_eliminated = 0 # [step,game], number teams eliminated by each game
+
+	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-		avg_kend, avg_already_tank = simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking)
+		avg_kend, avg_already_tank, avg_eliminated = simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking)
 		writedlm(string(results_dir, "/avg_kend.csv"), avg_kend, ',')
 		writedlm(string(results_dir, "/avg_already_tank.csv"), avg_already_tank, ',')
+		writedlm(string(results_dir, "/avg_eliminated.csv"), avg_eliminated, ',')
 	else
 		avg_kend = readdlm(string(results_dir, "/avg_kend.csv"), ',')
 		avg_already_tank = readdlm(string(results_dir, "/avg_already_tank.csv"), ',')
+		avg_eliminated = readdlm(string(results_dir, "/avg_eliminated.csv"), ',')
+		num_steps = size(avg_eliminated)[1]
 	end
 
 	## Do plotting
@@ -42,16 +53,19 @@ function main(do_simulation = true, num_repeats = 100000, results_dir = "../resu
 	#default(titlefont=fntlg, guidefont=fntlg, tickfont=fntsm, legendfont=fntsm)
 	#default(size=(800*upscale,600*upscale)) # plot canvas size
 
+	## Plot avg_kend (Kendell tau distance)
+	print("Plotting avg_kend: average swap distance\n")
 	miny = Int(ceil(findmin(avg_kend)[1]))
 	maxy = Int(floor(findmax(avg_kend)[1]))
 
 	fig = Plots.plot(show=false,
-			xlab=L"\mbox{Probability of tanking}", 
-			ylab=L"\mbox{Kendall tau distance for non-playoff teams}",
+			xlab=L"\mbox{Probability of tanking once eliminated}", 
+			ylab=L"\mbox{Distance from true ranking of non-playoff teams}",
 			title=L"\mbox{Kendall tau distance by cutoff and tanking probability}",
-			xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:0.1:1]),
+			xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:10:100]),
 			yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
 			legend=:bottomright,
+			#legend=:best,
 			legendfont=6,
 			legendtitle=L"\mbox{Draft ranking cutoff}",
 			titlefont=12,
@@ -67,10 +81,63 @@ function main(do_simulation = true, num_repeats = 100000, results_dir = "../resu
 		else
 			curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}")
 		end
-		plot!(0:(1/num_steps):1, avg_kend[:,r], label=curr_label);
-				#label=latexstring("$cutoff_game", "\\mbox{ through season}"));
+		plot!(0:(1/num_steps):1, avg_kend[:,r], label=curr_label, linecolor=col[r]);
+			#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
 	end
-	savefig(fig, string(results_dir,"/plot",".pdf"));
+	savefig(fig, string(results_dir,"/avg_kend",".pdf"));
 	#savefig(fig, "plot.pdf");
 	#save(string(results_dir,"/plot",".pdf"), fig);
+
+	## Plot avg_already_tank
+	print("Plotting avg_already_tank: average number of tanking teams\n")
+	miny = Int(ceil(findmin(avg_already_tank)[1]))
+	maxy = Int(floor(findmax(avg_already_tank)[1]))
+
+	fig = Plots.plot(show=false,
+			xlab=L"\mbox{Probability of tanking once eliminated}", 
+			ylab=L"\mbox{Average number of tanking teams}",
+			title=L"\mbox{Number of tanking teams by cutoff and tanking probability}",
+			xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:10:100]),
+			yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
+			legend=:best,
+			legendfont=6,
+			legendtitle=L"\mbox{Draft ranking cutoff}",
+			titlefont=12,
+			tickfont=8,
+			grid=false,
+			display_type=:inline);
+	for r = 1:num_rankings
+		curr_label = ""
+		if set_ranking[r] == 1	
+			curr_label = L"\mbox{end of season}"
+		else
+			curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}")
+		end
+		plot!(0:(1/num_steps):1, avg_already_tank[:,r], label=curr_label, linecolor=col[r]);
+			#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
+	end
+	savefig(fig, string(results_dir,"/avg_already_tank",".pdf"));
+
+	## Plot avg_eliminated
+	print("Plotting avg_eliminated: average number of eliminated teams by every game of the season\n")
+	miny = Int(ceil(findmin(avg_eliminated)[1]))
+	maxy = Int(floor(findmax(avg_eliminated)[1]))
+	fig = Plots.plot(show=false,
+			xlab=L"\mbox{Game number}", 
+			ylab=L"\mbox{Number teams eliminated}",
+			title=L"\mbox{Number teams eliminated over time}",
+			xticks=(Array(1:num_games),["\$$i\$" for i in 1:num_games]),
+			yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
+			legend=:best,
+			legendfont=6,
+			legendtitle=L"\mbox{Tanking probability}",
+			titlefont=12,
+			tickfont=8,
+			grid=false,
+			display_type=:inline);
+	for step_ind = 1:num_steps+1
+		tank_perc = (num_steps - 1) * 10
+		plot!(1:num_games, avg_eliminated[step_ind,:], label="\$$tank_perc\$");
+	end
+	savefig(fig, string(results_dir,"/avg_eliminated",".pdf"));
 end # main

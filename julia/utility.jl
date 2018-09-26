@@ -46,9 +46,9 @@ function teamWillWin(i, j, stats, gamma=gamma)
 	end # decide who wins the game
 end # teamWillWin
 
-function setCriticalGame(num_wins, num_games_remaining, num_team_games, cutoff_avg, max_games_remaining)
+function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_avg, max_games_remaining)
 	###
-	# setCriticalGame
+	# teamIsEliminated
 	#
 	# If current playoff cutoff avg remains, 
 	# and team k wins all its remaining games, 
@@ -60,17 +60,17 @@ function setCriticalGame(num_wins, num_games_remaining, num_team_games, cutoff_a
 		end
 	end
 	return false
-end # setCriticalGame
+end # teamIsEliminated
 
 function kendtau(stats)
 	###
 	# kendtau
-	# Computes Kendell-Tau (Kemeny) distance
+	# Computes Kendell tau (Kemeny) distance
 	#
 	# First sort by win percentage (stats[:,5])
 	# This yields the noisy ranking
 	# We want to calculate the distance to the true ranking (1,...,n)
-	# Kendell-Tau distance is number of unordered pairs {i,j} for which noisy ranking disagrees with true ranking
+	# Kendell tau distance is number of unordered pairs {i,j} for which noisy ranking disagrees with true ranking
 	# K(\tau_1, \tau_2) 
 	#		= |{ (i,j) : i < j, 
 	#				(\tau_1(i) < \tau_1(j) && \tau_2(i) > \tau_2(j))
