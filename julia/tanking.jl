@@ -42,7 +42,10 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 	max_games_remaining = (4/5) * num_team_games # a minimum number of games needs to be played before tanking might happen
 
 	cutoff_game_for_draft = [round(set_ranking[i] * num_games) for i in 1:length(set_ranking)]
+
+	## Prepare output
 	avg_kend = zeros(Float64, num_steps+1, length(set_ranking))
+	avg_games_tanked = zeros(Float64, num_steps+1, length(set_ranking))
 	avg_already_tank = zeros(Float64, num_steps+1, length(set_ranking))
 	avg_eliminated = zeros(Float64, num_steps+1, num_games)
 
@@ -65,7 +68,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 	# stats[:,1] is team "name"
 	# stats[:,2] is num wins
 	# stats[:,3] is remaining
-	# stats[:,4] is critical game (in terms of remaining games)
+	# stats[:,4] is when team is eliminated(in terms of remaining games)
 	# stats[:,5] is win percentage
 	# stats[:,6] is indicator for whether team tanks
 	#	stats[:,7] is team rank
@@ -82,11 +85,13 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 			print("\tRepeat $rep/$num_repeats (ratio $tank_perc)\n")
 			## Set up stats for current repeat
 			num_eliminated = 0
+			num_teams_tanking = 0
+			num_games_tanked = 0
 			for i = 1:num_teams
 				stats[i,1] = i # team name
 				stats[i,2] = 0 # num wins
 				stats[i,3] = num_team_games # num games left
-				stats[i,4] = 0 # critical game (in terms of how many left)
+				stats[i,4] = 0 # when team is eliminated (in terms of how many left)
 				stats[i,5] = 0.0 # win percentage
 				if rand() > tank_perc
 					stats[i,6] = 0 # will not tank
@@ -128,20 +133,24 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 					#row_i = row_index[games[round_ind, round_game_ind, 1]]
 					#row_j = row_index[games[round_ind, round_game_ind, 2]]
 
-					# Set critical game for i,j
+					# Set critical game for i,j (game that team is eliminated)
 					for k in [i,j]
 						if stats[k,4] == 0 # check team has not already started tanking
 							if teamIsEliminated(stats[k,2], stats[k,3], num_team_games, cutoff_avg, max_games_remaining)
+								stats[k,4] = stats[k,3]
 								num_eliminated += 1
-								if stats[k,6] == 1 # check if team tanks
-									stats[k,4] = stats[k,3]
-								end
+								num_teams_tanking += stats[k,6] == 1
 							end
 						end
 					end # set critical game for teams i and j
 
 					# Decide who wins the game
 					team_i_wins = teamWillWin(i, j, stats, gamma)
+
+					# Check tanking
+					if (stats[i,4] + stats[j,4] > 0)
+					  num_games_tanked += 1
+					end
 
 					# Do updates
 					for k in [i,j]
@@ -159,6 +168,8 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 					for r = 1:length(cutoff_game_for_draft) 
 						if game_ind == cutoff_game_for_draft[r]
 							draft_ranking[:,:,r] = stats
+							avg_already_tank[step_ind, r] += num_teams_tanking / num_repeats
+							avg_games_tanked[step_ind, r] += num_games_tanked / num_repeats
 							#draft_ranking_row_index[:,r] = row_index
 						end
 					end
@@ -167,16 +178,12 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 			## end of a season
 
 			## Get non-playoff teams at end of season
-			#reverse_sorted, row_index = sortTeams(stats, false)
-			#np_index = reverse_sorted[1:num_teams-num_teams_in_playoffs]
 			np_index = team_in_pos[num_teams_in_playoffs+1:num_teams]
 			for r = 1:length(cutoff_game_for_draft)
-				#curr_row_index = draft_ranking_row_index[np_index,r]
 				avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r]) / num_repeats
-				avg_already_tank[step_ind, r] += sum([draft_ranking[i,4,r] > 0 for i in 1:num_teams]) / num_repeats
 			end
 		end # do repeats
 	end # looping over tanking percentages
 
-	return avg_kend, avg_already_tank, avg_eliminated
+	return avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated
 end # simulate
