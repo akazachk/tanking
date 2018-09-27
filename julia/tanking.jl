@@ -140,7 +140,6 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 								stats[k,4] = stats[k,3]
 								num_eliminated += 1
 								num_teams_tanking += stats[k,6] == 1
-								print(k, " is tanking? ", teamIsTanking(k,stats),"\n")
 							end
 						end
 					end # set critical game for teams i and j
