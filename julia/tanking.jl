@@ -140,6 +140,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 								stats[k,4] = stats[k,3]
 								num_eliminated += 1
 								num_teams_tanking += stats[k,6] == 1
+								print(k, " is tanking? ", teamIsTanking(k,stats),"\n")
 							end
 						end
 					end # set critical game for teams i and j
@@ -155,8 +156,8 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 					# Do updates
 					for k in [i,j]
 						team_k_wins = (k == i) ? team_i_wins : !team_i_wins
-          	stats[k,2] += team_k_wins
-						stats[k,3] -= - 1 # one fewer game remaining
+          	stats[k,2] = stats[k,2] + team_k_wins
+						stats[k,3] = stats[k,3] - 1 # one fewer game remaining
 						stats[k,5] = stats[k,2] / (num_team_games - stats[k,3]) # update current win pct
 						rank_of_team, team_in_pos = updateRank(stats, rank_of_team, team_in_pos, k, team_k_wins) # update rank
 					end
