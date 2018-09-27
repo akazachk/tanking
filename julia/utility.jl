@@ -2,6 +2,10 @@
 # Useful functions #
 ####################
 
+function teamIsTanking(i, stats)
+	return stats[i,6] == 1 && stats[i,3] <= stats[i,4]
+end # teamIsTanking
+
 function teamWillWin(i, j, stats, gamma=gamma)
 	###
 	# teamWillWin
@@ -20,8 +24,8 @@ function teamWillWin(i, j, stats, gamma=gamma)
 	# stats[:,5] is win percentage
 	# stats[:,6] is indicator for whether team tanks
 	###
-	team_i_tanks = stats[i,6] == 1 && stats[i,3] <= stats[i,4] # team i is past the tanking cutoff point
-	team_j_tanks = stats[j,6] == 1 && stats[j,3] <= stats[j,4] # team j is past the tanking cutoff point
+	team_i_tanks = teamIsTanking(i, stats) #stats[i,6] == 1 && stats[i,3] <= stats[i,4] # team i is past the tanking cutoff point
+	team_j_tanks = teamIsTanking(j, stats) #stats[j,6] == 1 && stats[j,3] <= stats[j,4] # team j is past the tanking cutoff point
 	if team_i_tanks && team_j_tanks
 		# Both teams tank
 		if stats[i,5] > stats[j,5] # team i is better
