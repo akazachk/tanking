@@ -105,13 +105,12 @@ function sortTeams(stats, best_to_worst = true, win_pct_ind = 5, games_left_ind 
 	return sorted
 end # sortTeams
 
-function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, win_pct_ind = 5, games_left_ind = 3)
+function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, num_teams, win_pct_ind = 5, games_left_ind = 3)
 	###
 	# updateRank
 	#
 	# After updating win percentage for team i and j, find their new postions
 	###
-	num_teams = size(stats)[1]
 	old_rank_i = rank_of_team[team_i]
 	win_pct = stats[team_i, win_pct_ind]
 	games_left = stats[team_i, games_left_ind]

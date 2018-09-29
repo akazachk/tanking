@@ -50,13 +50,14 @@ function main(do_simulation = true, num_repeats = 100000, do_plotting=true, resu
 		## Do plotting
 		#pgfplots() # Pkg.add("PGFPlots")
 		#pyplot() # Pkg.add("PyPlot") Pkg.add("PyCall") Pkg.add("LaTeXStrings")
-		gr(dpi=300); # Pkg.add("GR")
+		gr(dpi=200); # Pkg.add("GR")
 		#gr(); # Pkg.add("GR")
 		upscale = 1 # upscaling in resolution
 		fntsm = Plots.font("sans-serif", 8.0 * upscale)
 		fntlg = Plots.font("sans-serif", 12.0 * upscale)
+		ext = ".svg"
 		#default(titlefont=fntlg, guidefont=fntlg, tickfont=fntsm, legendfont=fntsm)
-		#default(size=(800*upscale,600*upscale)) # plot canvas size
+		default(size=(600*upscale,400*upscale)) # plot canvas size
 
 		## Plot avg_kend (Kendell tau distance)
 		print("Plotting avg_kend: average swap distance\n")
@@ -64,15 +65,20 @@ function main(do_simulation = true, num_repeats = 100000, do_plotting=true, resu
 		maxy = Int(floor(findmax(avg_kend)[1]))
 
 		fig = Plots.plot(show=false,
-										xlab=L"\mbox{Probability of tanking once eliminated}", 
+										#title=L"\mbox{Fidelity of ranking by cutoff and tanking probability}",
+										title=L"\mbox{Accuracy of ranking}",
+										#xlab=L"\mbox{Percentage of tanking teams}", 
+										xlab=L"\mbox{Probability of tanking}", 
+										#ylab=latexstring("Test1","\\mbox{}\\\\","Test2"),
+										#ylab=latexstring("\\mbox{Kendell tau distance from}", "\\\\", "\\mbox{true ranking of non-playoff teams}"),
 										ylab=L"\mbox{Distance from true ranking of non-playoff teams}",
-										title=L"\mbox{Fidelity of ranking by cutoff and tanking probability}",
-										xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:10:100]),
+										#xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:10:100]),
+										xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:0.1:1]),
 										yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
 										legend=:bottomright,
 										#legend=:best,
 										legendfont=6,
-										legendtitle=L"\mbox{Draft ranking cutoff}",
+										legendtitle=L"\mbox{Draft ranking breakpoint}",
 										titlefont=12,
 										tickfont=8,
 										grid=false);
@@ -88,9 +94,7 @@ function main(do_simulation = true, num_repeats = 100000, do_plotting=true, resu
 			plot!(0:(1/num_steps):1, avg_kend[:,r], label=curr_label, linecolor=col[r]);
 							#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
 		end
-		savefig(fig, string(results_dir,"/avg_kend",".pdf"));
-		#savefig(fig, "plot.pdf");
-		#save(string(results_dir,"/plot",".pdf"), fig);
+		savefig(fig, string(results_dir,"/avg_kend",ext));
 
 		## Plot avg_games_tanked (# games tanked by draft ranking cutoff)
 		print("Plotting avg_games_tanked: average number of games tanked\n")
@@ -98,15 +102,17 @@ function main(do_simulation = true, num_repeats = 100000, do_plotting=true, resu
 		maxy = Int(floor(findmax(avg_games_tanked)[1]))
 		inc = (maxy - miny) / 5
 		fig = Plots.plot(show=false,
-										xlab=L"\mbox{Probability of tanking once eliminated}", 
+										title=L"\mbox{Total games tanked}",
+										#xlab=L"\mbox{Percentage of tanking teams}", 
+										xlab=L"\mbox{Probability of tanking}", 
 										ylab=L"\mbox{Number of tanked games}",
-										title=L"\mbox{Total games tanked by cutoff and tanking probability}",
-										xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:10:100]),
+										#xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:10:100]),
+										xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:0.1:1]),
 										yticks=(Array(miny:inc:maxy),[@sprintf("\$%.0f\$", i) for i in miny:inc:maxy]),
-										legend=:bottomright,
+										legend=:topleft,
 										#legend=:best,
 										legendfont=6,
-										legendtitle=L"\mbox{Draft ranking cutoff}",
+										legendtitle=L"\mbox{Draft ranking breakpoint}",
 										titlefont=12,
 										tickfont=8,
 										grid=false);
@@ -120,21 +126,23 @@ function main(do_simulation = true, num_repeats = 100000, do_plotting=true, resu
 			plot!(0:(1/num_steps):1, avg_games_tanked[:,r], label=curr_label, linecolor=col[r]);
 							#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
 		end
-		savefig(fig, string(results_dir,"/avg_games_tanked",".pdf"));
+		savefig(fig, string(results_dir,"/avg_games_tanked",ext));
 
 		## Plot avg_already_tank
 		print("Plotting avg_already_tank: average number of tanking teams\n")
 		miny = Int(ceil(findmin(avg_already_tank)[1]))
 		maxy = Int(floor(findmax(avg_already_tank)[1]))
 		fig = Plots.plot(show=false,
-										xlab=L"\mbox{Probability of tanking once eliminated}", 
+										title=L"\mbox{Number of tanking teams}",
+										#xlab=L"\mbox{Percentage of tanking teams}", 
+										xlab=L"\mbox{Probability of tanking}", 
 										ylab=L"\mbox{Average number of tanking teams}",
-										title=L"\mbox{Number of tanking teams by cutoff and tanking probability}",
-										xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:10:100]),
+										#xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:10:100]),
+										xticks=(Array(0:0.1:1),["\$$i\$" for i in 0:0.1:1]),
 										yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
 										legend=:topleft,
 										legendfont=6,
-										legendtitle=L"\mbox{Draft ranking cutoff}",
+										legendtitle=L"\mbox{Draft ranking breakpoint}",
 										titlefont=12,
 										tickfont=8,
 										grid=false);
@@ -148,7 +156,7 @@ function main(do_simulation = true, num_repeats = 100000, do_plotting=true, resu
 			plot!(0:(1/num_steps):1, avg_already_tank[:,r], label=curr_label, linecolor=col[r]);
 							#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
 		end
-		savefig(fig, string(results_dir,"/avg_already_tank",".pdf"));
+		savefig(fig, string(results_dir,"/avg_already_tank",ext));
 
 		## Plot avg_eliminated
 		print("Plotting avg_eliminated: average number of eliminated teams by every game of the season\n")
@@ -156,9 +164,9 @@ function main(do_simulation = true, num_repeats = 100000, do_plotting=true, resu
 		maxy = Int(floor(findmax(avg_eliminated)[1]))
 		inc = num_games / 5
 		fig = Plots.plot(show=false,
+										title=L"\mbox{Number teams eliminated over time}",
 										xlab=L"\mbox{Percent through season}", 
 										ylab=L"\mbox{Number teams eliminated}",
-										title=L"\mbox{Number teams eliminated over time}",
 										xticks=(Array(0:inc:num_games),[@sprintf("\$%.0f\$", (100*i/num_games)) for i in 0:inc:num_games]),
 										yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
 										#legend=:topleft,
@@ -173,6 +181,6 @@ function main(do_simulation = true, num_repeats = 100000, do_plotting=true, resu
 			#plot!(1:num_games, avg_eliminated[step_ind,:], label="\$$tank_perc\$");
 		plot!(1:num_games, sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1), linetype=:bar);
 		#plot!(1:num_games, sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1));
-		savefig(fig, string(results_dir,"/avg_eliminated",".pdf"));
+		savefig(fig, string(results_dir,"/avg_eliminated",ext));
 	end # if do_plotting
 end # main

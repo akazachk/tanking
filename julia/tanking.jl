@@ -158,7 +158,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
           	stats[k,2] = stats[k,2] + team_k_wins
 						stats[k,3] = stats[k,3] - 1 # one fewer game remaining
 						stats[k,5] = stats[k,2] / (num_team_games - stats[k,3]) # update current win pct
-						rank_of_team, team_in_pos = updateRank(stats, rank_of_team, team_in_pos, k, team_k_wins) # update rank
+						rank_of_team, team_in_pos = updateRank(stats, rank_of_team, team_in_pos, k, team_k_wins, num_teams) # update rank
 					end
 					avg_eliminated[step_ind, game_ind] += num_eliminated / num_repeats
 					#print("($i,$j) Team $i wins? $team_i_wins\n")
