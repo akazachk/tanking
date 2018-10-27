@@ -3,7 +3,7 @@ using Plots
 using DelimitedFiles
 using LaTeXStrings
 using Printf
-include("tanking.jl")
+include("simulate.jl")
 
 function main(do_simulation = true, num_repeats = 100000, do_plotting=true, results_dir = "../results")
 	## Variables that need to be set

@@ -48,6 +48,7 @@ function teamWillWin(i, j, stats, gamma=gamma)
 			return false
 		end
 	end # decide who wins the game
+	return
 end # teamWillWin
 
 function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_avg, max_games_remaining)
