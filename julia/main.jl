@@ -4,8 +4,12 @@ using DelimitedFiles
 using LaTeXStrings
 using Printf
 include("simulate.jl")
+include("parse.jl")
 
-function main(do_simulation = true, num_repeats = 100000, do_plotting=true, results_dir = "../results")
+## When the (draft) ranking will be set as fraction of number games
+set_ranking = [4//8; 5//8; 6//8; 7//8; 1]
+
+function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=true, results_dir = "../results")
 	## Variables that need to be set
 	num_teams = 30 # number of teams
 	num_rounds = 3 # a round consists of each team playing each other team
@@ -13,7 +17,6 @@ function main(do_simulation = true, num_repeats = 100000, do_plotting=true, resu
 	gamma = 0.75 # probability a better-ranked team wins over a worse-ranked team
 
 	## When the (draft) ranking will be set as fraction of number games
-	set_ranking = [4//8; 5//8; 6//8; 7//8; 1]
 	num_rankings = length(set_ranking)
 	col = ["red", "orange", "green", "blue", "black"]
 	shape = [:vline, :utriangle, :rect, :x, :circle]
@@ -183,4 +186,35 @@ function main(do_simulation = true, num_repeats = 100000, do_plotting=true, resu
 		#plot!(1:num_games, sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1));
 		savefig(fig, string(results_dir,"/avg_eliminated",ext));
 	end # if do_plotting
-end # main
+	return
+end # main_simulate
+
+function main_parse(data_dir="../data", results_dir="../results")
+	num_eliminated_at_cutoff1314, num_games_tanked_at_cutoff1314, stats1314, critical_game1314 = parseNBASeason("games1314.csv", set_ranking, data_dir)
+	num_eliminated_at_cutoff1415, num_games_tanked_at_cutoff1415, stats1415, critical_game1415 = parseNBASeason("games1415.csv", set_ranking, data_dir)
+	num_eliminated_at_cutoff1516, num_games_tanked_at_cutoff1516, stats1516, critical_game1516 = parseNBASeason("games1516.csv", set_ranking, data_dir)
+	num_eliminated_at_cutoff1617, num_games_tanked_at_cutoff1617, stats1617, critical_game1617 = parseNBASeason("games1617.csv", set_ranking, data_dir)
+	num_eliminated_at_cutoff1718, num_games_tanked_at_cutoff1718, stats1718, critical_game1718 = parseNBASeason("games1718.csv", set_ranking, data_dir)
+
+	print("Year 2013-2014\n")
+	print("num teams eliminated: ",num_eliminated_at_cutoff1314,"\n")
+	print("num possible games tanked: ",num_games_tanked_at_cutoff1314,"\n")
+
+	print("\nYear 2014-2015\n")
+	print("num teams eliminated: ",num_eliminated_at_cutoff1415,"\n")
+	print("num possible games tanked: ",num_games_tanked_at_cutoff1415,"\n")
+
+	print("\nYear 2015-2016\n")
+	print("num teams eliminated: ",num_eliminated_at_cutoff1516,"\n")
+	print("num possible games tanked: ",num_games_tanked_at_cutoff1516,"\n")
+
+	print("\nYear 2016-2017\n")
+	print("num teams eliminated: ",num_eliminated_at_cutoff1617,"\n")
+	print("num possible games tanked: ",num_games_tanked_at_cutoff1617,"\n")
+
+	print("\nYear 2017-2018\n")
+	print("num teams eliminated: ",num_eliminated_at_cutoff1718,"\n")
+	print("num possible games tanked: ",num_games_tanked_at_cutoff1718,"\n")
+
+	return
+end # main_parse
