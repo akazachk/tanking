@@ -39,7 +39,7 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 	## Prepare output
 	num_eliminated = 0
 	num_games_tanked = 0
-	#num_eliminated_by_game = zeros(Int, num_games)
+	num_eliminated_by_game = zeros(Int, num_games)
 	num_eliminated_at_cutoff = zeros(Int,length(set_ranking))
 	num_games_tanked_at_cutoff = zeros(Int,length(set_ranking))
 
@@ -149,7 +149,7 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 				num_games_tanked_at_cutoff[r] = num_games_tanked
 			end
 		end
-		#num_eliminated_by_game[game_ind] = num_eliminated
+		num_eliminated_by_game[game_ind] = num_eliminated
 
 		#print("Game ",game_ind,": ",curr_home_name," (",hometeam,") vs ",curr_away_name," (",awayteam,"). Winner: ",winning_team,"\n")
 	end # iterate over rows
@@ -169,5 +169,5 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 	#print("Teams not in the playoffs in the east and their win pct:\n\t", teams[np_index_east], "\n\t", stats[np_index_east,win_pct_ind],"\n"); 
 	#print("Teams not in the playoffs in the west and their win pct:\n\t", teams[np_index_west], "\n\t", stats[np_index_west,win_pct_ind],"\n"); 
 
-	return num_eliminated_at_cutoff, num_games_tanked_at_cutoff, stats, critical_game
+	return num_eliminated_by_game, num_games_tanked_at_cutoff, stats, critical_game
 end # parse

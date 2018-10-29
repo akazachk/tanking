@@ -163,14 +163,14 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 		savefig(fig, string(results_dir,"/avg_already_tank",ext));
 
 		## Plot avg_eliminated
-		print("Plotting avg_eliminated: average number of eliminated teams by every game of the season\n")
+		print("Plotting avg_eliminated: average number of effectively eliminated teams by every game of the season\n")
 		miny = Int(ceil(findmin(avg_eliminated)[1]))
 		maxy = Int(floor(findmax(avg_eliminated)[1]))
 		inc = num_games / 5
 		fig = Plots.plot(show=false,
-										title=L"\mbox{Number teams eliminated over time}",
+										title=L"\mbox{Number teams effectively eliminated over time}",
 										xlab=L"\mbox{Percent through season}", 
-										ylab=L"\mbox{Number teams eliminated}",
+										ylab=L"\mbox{Number teams effectively eliminated}",
 										xticks=(Array(0:inc:num_games),[@sprintf("\$%.0f\$", (100*i/num_games)) for i in 0:inc:num_games]),
 										yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
 										#legend=:topleft,
@@ -220,6 +220,8 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 	if (do_plotting)
 		ind = [3,4,5]
 		num_years=5
+		labels = [L"2013-2014", L"2014-2015", L"2015-2016", L"2016-2017", L"2017-2018"]
+		col_labels = ["red", "orange", "green", "blue", "black"]
 
 		## Plot # games tanked
 		print("Plotting num_games_tanked: number of games (possibly) tanked by the breakpoint mark\n")
@@ -263,47 +265,74 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 										show=false)
 		savefig(fig, string(results_dir,"/nba_num_games_tanked",ext));
 
-		# Print number of teams eliminated
-		print("Plotting num_teams eliminated: number of eliminated teams by the breakpoint mark\n")
-		#num_teams_eliminated = zeros(Int, num_years, length(set_ranking))
-		#num_teams_eliminated[1,:] = num_teams_eliminated_1314
-		#num_teams_eliminated[2,:] = num_teams_eliminated_1415
-		#num_teams_eliminated[3,:] = num_teams_eliminated_1516
-		#num_teams_eliminated[4,:] = num_teams_eliminated_1617
-		#num_teams_eliminated[5,:] = num_teams_eliminated_1718
+		## Plot number of teams eliminated
+		print("Plotting num_teams_eliminated: number of effectively eliminated teams by every game of the season\n")
+		num_games = 15 * 82;
 		num_teams_eliminated = hcat(num_teams_eliminated_1314, num_teams_eliminated_1415, num_teams_eliminated_1516, num_teams_eliminated_1617, num_teams_eliminated_1718)
 		num_teams_eliminated = num_teams_eliminated'
-		#print(num_teams_eliminated,"\n")
-
-		num_teams_eliminated_stacked = zeros(Int, num_years, length(set_ranking))
-		num_teams_eliminated_stacked[:,1] = num_teams_eliminated[:,1]
-		num_teams_eliminated_stacked[:,2] = num_teams_eliminated[:,2] - num_teams_eliminated[:,1]
-		num_teams_eliminated_stacked[:,3] = num_teams_eliminated[:,3] - num_teams_eliminated[:,2]
-		num_teams_eliminated_stacked[:,4] = num_teams_eliminated[:,4] - num_teams_eliminated[:,3]
-		num_teams_eliminated_stacked[:,5] = num_teams_eliminated[:,5] - num_teams_eliminated[:,4]
-
 		miny = Int(ceil(findmin(num_teams_eliminated)[1]))
 		maxy = Int(floor(findmax(num_teams_eliminated)[1]))
-		inc = (maxy - miny) / 5
-		ctg = repeat(vcat([latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}") for r in ind if r < length(set_ranking)], L"\mbox{end of season}"), inner=num_years)
-		fig = groupedbar(num_teams_eliminated[:,ind], 
-										xticks=(Array(1:num_years),["\$13-14\$","\$14-15\$","\$15-16\$","\$16-17\$","\$17-18\$"]),
-										#yticks=(Array(miny:inc:maxy),[@sprintf("\$%d\$", i) for i in miny:inc:maxy]),
-										group=ctg,
-										lw=0,
-										#bar_position=:dodge,
-										bar_position=:stack,
-										title=L"\mbox{Number of teams eliminated by breakpoint mark}",
-										xlab=L"\mbox{Season}", 
-										ylab=L"\mbox{Number of teams eliminated}",
-										legend=:best,
+		inc = num_games / 5
+		fig = Plots.plot(show=false,
+										title=L"\mbox{Number teams effectively eliminated over time}",
+										xlab=L"\mbox{Percent through season}", 
+										ylab=L"\mbox{Number teams effectively eliminated}",
+										xticks=(Array(0:inc:num_games),[@sprintf("\$%.0f\$", (100*i/num_games)) for i in 0:inc:num_games]),
+										yticks=(Array(miny:maxy),["\$$i\$" for i in miny:maxy]),
+										legend=:topleft,
 										legendfont=6,
-										legendtitle=L"\mbox{Draft ranking breakpoint}",
+										legendtitle=L"\mbox{Season}",
 										titlefont=12,
 										tickfont=8,
-										grid=false,
-										show=false)
+										grid=false);
+		for s = 1:size(num_teams_eliminated)[1]
+			curr_num_games = length(num_teams_eliminated[s,:])
+			curr_label = labels[s]
+			plot!(1:curr_num_games, num_teams_eliminated[s,:], label=curr_label, linecolor=col_labels[s]);
+		end
 		savefig(fig, string(results_dir,"/nba_num_teams_eliminated",ext));
+
+		# Print number of teams eliminated
+#		print("Plotting num_teams_eliminated: number of eliminated teams by the breakpoint mark\n")
+#		#num_teams_eliminated = zeros(Int, num_years, length(set_ranking))
+#		#num_teams_eliminated[1,:] = num_teams_eliminated_1314
+#		#num_teams_eliminated[2,:] = num_teams_eliminated_1415
+#		#num_teams_eliminated[3,:] = num_teams_eliminated_1516
+#		#num_teams_eliminated[4,:] = num_teams_eliminated_1617
+#		#num_teams_eliminated[5,:] = num_teams_eliminated_1718
+#		num_teams_eliminated = hcat(num_teams_eliminated_1314, num_teams_eliminated_1415, num_teams_eliminated_1516, num_teams_eliminated_1617, num_teams_eliminated_1718)
+#		num_teams_eliminated = num_teams_eliminated'
+#		#print(num_teams_eliminated,"\n")
+#
+#		num_teams_eliminated_stacked = zeros(Int, num_years, length(set_ranking))
+#		num_teams_eliminated_stacked[:,1] = num_teams_eliminated[:,1]
+#		num_teams_eliminated_stacked[:,2] = num_teams_eliminated[:,2] - num_teams_eliminated[:,1]
+#		num_teams_eliminated_stacked[:,3] = num_teams_eliminated[:,3] - num_teams_eliminated[:,2]
+#		num_teams_eliminated_stacked[:,4] = num_teams_eliminated[:,4] - num_teams_eliminated[:,3]
+#		num_teams_eliminated_stacked[:,5] = num_teams_eliminated[:,5] - num_teams_eliminated[:,4]
+#
+#		miny = Int(ceil(findmin(num_teams_eliminated)[1]))
+#		maxy = Int(floor(findmax(num_teams_eliminated)[1]))
+#		inc = floor((maxy - miny) / 5)
+#		ctg = repeat(vcat([latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}") for r in ind if r < length(set_ranking)], L"\mbox{end of season}"), inner=num_years)
+#		fig = groupedbar(num_teams_eliminated[:,ind], 
+#										xticks=(Array(1:num_years),["\$13-14\$","\$14-15\$","\$15-16\$","\$16-17\$","\$17-18\$"]),
+#										yticks=(Array(miny:inc:maxy),[@sprintf("\$%d\$", i) for i in miny:inc:maxy]),
+#										group=ctg,
+#										lw=0,
+#										bar_position=:dodge,
+#										#bar_position=:stack,
+#										title=L"\mbox{Number of teams effectively eliminated by breakpoint mark}",
+#										xlab=L"\mbox{Season}", 
+#										ylab=L"\mbox{Number of teams eliminated}",
+#										legend=:best,
+#										legendfont=6,
+#										legendtitle=L"\mbox{Draft ranking breakpoint}",
+#										titlefont=12,
+#										tickfont=8,
+#										grid=false,
+#										show=false)
+#		savefig(fig, string(results_dir,"/nba_num_teams_eliminated",ext));
 	end
 
 	return
