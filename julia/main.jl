@@ -8,14 +8,16 @@ include("simulate.jl")
 include("parse.jl")
 
 ## When the (draft) ranking will be set as fraction of number games
-set_ranking = [4//8; 5//8; 6//8; 7//8; 1]
+#set_ranking = [4//8; 5//8; 6//8; 7//8; 1]
+set_ranking = [1//2; 2//3; 3//4; 5//6; 7//8; 1]
 num_rankings = length(set_ranking)
-shape = [:vline, :utriangle, :rect, :x, :circle]
-col = ["red", "orange", "green", "blue", "black"]
+shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
+col = ["red", "orange", "green", "blue", "violet", "black"]
 #color_for_cutoff_point = ["c" "b" "m" "r" "k"]
 
 ## For plotting
 ext = ".svg"
+lowext = "_low.png"
 
 function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=true, results_dir = "../results")
 	## Variables that need to be set
@@ -99,6 +101,7 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 							#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
 		end
 		savefig(fig, string(results_dir,"/avg_kend",ext));
+		savefig(fig, string(results_dir,"/avg_kend",lowext));
 
 		## Plot avg_games_tanked (# games tanked by draft ranking breakpoint)
 		print("Plotting avg_games_tanked: average number of games tanked\n")
@@ -131,6 +134,7 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 							#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
 		end
 		savefig(fig, string(results_dir,"/avg_games_tanked",ext));
+		savefig(fig, string(results_dir,"/avg_games_tanked",lowext));
 
 		## Plot avg_already_tank
 		print("Plotting avg_already_tank: average number of tanking teams\n")
@@ -161,6 +165,7 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 							#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
 		end
 		savefig(fig, string(results_dir,"/avg_already_tank",ext));
+		savefig(fig, string(results_dir,"/avg_already_tank",lowext));
 
 		## Plot avg_eliminated
 		print("Plotting avg_eliminated: average number of effectively eliminated teams by every game of the season\n")
@@ -186,6 +191,7 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 		plot!(1:num_games, sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1), linetype=:bar);
 		#plot!(1:num_games, sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1));
 		savefig(fig, string(results_dir,"/avg_eliminated",ext));
+		savefig(fig, string(results_dir,"/avg_eliminated",lowext));
 	end # if do_plotting
 	return
 end # main_simulate
@@ -264,6 +270,7 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 										grid=false,
 										show=false)
 		savefig(fig, string(results_dir,"/nba_num_games_tanked",ext));
+		savefig(fig, string(results_dir,"/nba_num_games_tanked",lowext));
 
 		## Plot number of teams eliminated
 		print("Plotting num_teams_eliminated: number of effectively eliminated teams by every game of the season\n")
@@ -291,6 +298,7 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 			plot!(1:curr_num_games, num_teams_eliminated[s,:], label=curr_label, linecolor=col_labels[s]);
 		end
 		savefig(fig, string(results_dir,"/nba_num_teams_eliminated",ext));
+		savefig(fig, string(results_dir,"/nba_num_teams_eliminated",lowext));
 
 		# Print number of teams eliminated
 #		print("Plotting num_teams_eliminated: number of eliminated teams by the breakpoint mark\n")

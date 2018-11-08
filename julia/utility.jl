@@ -14,8 +14,13 @@ function teamWillWin(i, j, stats, gamma=gamma)
 	#
 	# Method 1:
 	# When two non-tanking teams play each other, the better team wins with probability gamma
-	# When a tanking team plays a non-tanking team, the tanking team always loses
-	# When two tanking teams play each other, the one that is currently better wins
+	# When a tanking team plays a non-tanking team, the tanking team always loses; equivalent to setting gamma = 1
+	# NB: a better model may be when the tanking team does so successfully with "some" probability
+	# 2018/11/08: When two tanking teams play each other, it is treated 
+	# old way: When two tanking teams play each other, the one that is currently better wins
+	#
+	# Method 2 (not implemented):
+	# Use Bradley-Terry model
 	# 
 	# stats[:,1] is team "name"
 	# stats[:,2] is num wins
@@ -26,27 +31,34 @@ function teamWillWin(i, j, stats, gamma=gamma)
 	###
 	team_i_tanks = teamIsTanking(i, stats) #stats[i,6] == 1 && stats[i,3] <= stats[i,4] # team i is past the tanking cutoff point
 	team_j_tanks = teamIsTanking(j, stats) #stats[j,6] == 1 && stats[j,3] <= stats[j,4] # team j is past the tanking cutoff point
-	if team_i_tanks && team_j_tanks
-		# Both teams tank
-		if stats[i,5] > stats[j,5] # team i is better
-			return true
-		else # team j is better
-			return false
-		end
-	elseif team_i_tanks
-		# Only team i tanks
-		return false
-	elseif team_j_tanks
-		# Only team j tanks
-		return true
-	else
-		# Neither team is tanking
+	if (team_i_tanks && team_j_tanks) || (!team_i_tanks && !team_j_tanks)
+		# Neither team is tanking, or both are; we treat this the same, as non-tanking
 		# Thus team i (< j) wins with probability gamma
 		if rand() < gamma
 			return true
 		else
 			return false
 		end
+		# Both teams tank
+		#if stats[i,5] > stats[j,5] # team i is better
+		#	return true
+		#else # team j is better
+		#	return false
+		#end
+	elseif team_i_tanks
+		# Only team i tanks
+		return false
+	elseif team_j_tanks
+		# Only team j tanks
+		return true
+	#else
+		# Neither team is tanking
+		# Thus team i (< j) wins with probability gamma
+		#if rand() < gamma
+		#	return true
+		#else
+		#	return false
+		#end
 	end # decide who wins the game
 	return
 end # teamWillWin
