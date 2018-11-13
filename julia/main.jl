@@ -18,6 +18,7 @@ col = ["red", "orange", "green", "blue", "violet", "black"]
 ## For plotting
 ext = ".svg"
 lowext = "_low.png"
+gr(dpi=200); # Pkg.add("GR")
 
 function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=true, results_dir = "../results")
 	## Variables that need to be set
@@ -57,7 +58,6 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 		## Do plotting
 		#pgfplots() # Pkg.add("PGFPlots")
 		#pyplot() # Pkg.add("PyPlot") Pkg.add("PyCall") Pkg.add("LaTeXStrings")
-		gr(dpi=200); # Pkg.add("GR")
 		#gr(); # Pkg.add("GR")
 		upscale = 1 # upscaling in resolution
 		fntsm = Plots.font("sans-serif", 8.0 * upscale)
@@ -224,7 +224,8 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 	print("num possible games tanked: ",num_games_tanked_1718,"\n")
 
 	if (do_plotting)
-		ind = [3,4,5]
+		ind = [3,5,6]
+		@assert ( length(set_ranking) in ind )
 		num_years=5
 		labels = [L"2013-2014", L"2014-2015", L"2015-2016", L"2016-2017", L"2017-2018"]
 		col_labels = ["red", "orange", "green", "blue", "black"]
@@ -247,6 +248,7 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 		num_games_tanked_stacked[:,3] = num_games_tanked[:,3] - num_games_tanked[:,2]
 		num_games_tanked_stacked[:,4] = num_games_tanked[:,4] - num_games_tanked[:,3]
 		num_games_tanked_stacked[:,5] = num_games_tanked[:,5] - num_games_tanked[:,4]
+		#print("num games tanked stacked: ",num_games_tanked_stacked[:,ind],"\n")
 
 		miny = Int(ceil(findmin(num_games_tanked)[1]))
 		maxy = Int(floor(findmax(num_games_tanked)[1]))
