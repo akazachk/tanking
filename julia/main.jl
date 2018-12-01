@@ -347,3 +347,80 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 
 	return
 end # main_parse
+
+function rankings_are_noisy(results_dir="../results")
+	num_steps = 50; # number of subdivisions of [0.5,1]
+	prob = 0.5:0.5/num_steps:1;
+	num_teams = 30;
+	num_repeats = 100;
+	num_rounds_set = [1 2 3 4 5 10 100 1000];
+	num_games_per_round = Int(num_teams * (num_teams - 1) / 2);
+
+	avg_kend = zeros(Float64, num_steps+1, length(num_rounds_set));
+
+	for step_ind = 1:num_steps+1
+		gamma = prob[step_ind];
+		for num_rounds_ind in 1:length(num_rounds_set)
+			num_rounds = num_rounds_set[num_rounds_ind];
+			for rep = 1:num_repeats
+				stats = zeros(Int, num_teams, 2);
+				for i = 1:num_teams
+					stats[i,1] = i;
+					stats[i,2] = 0;
+				end
+
+				for round_ind = 1:num_rounds
+					for i = 1:num_teams
+						for j = i+1:num_teams
+							if rand() < gamma
+							  team_i_wins = true
+							else
+								team_i_wins = false
+							end
+
+							# Do updates
+							for k in [i,j]
+								team_k_wins = (k == i) ? team_i_wins : !team_i_wins
+								stats[k,2] = stats[k,2] + team_k_wins
+							end
+						end
+					end
+				end # loop over rounds
+
+				## Calculate Kendell tau distance for this round
+				avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats,2) / num_repeats
+			end # loop over repeats
+		end # loop over num_rounds_set
+	end # loop over steps
+
+  ## Plot noisy ranking
+	print("Plotting noisy_ranking: shows low fidelity of ranking unless teams play each other many times\n")
+	miny = Int(ceil(findmin(avg_kend)[1]));
+	incy = 50 #Int(floor((maxy - miny) / 5))
+	maxy = Int(floor(findmax(avg_kend)[1]));
+	maxy = Int(ceil(maxy/incy)*incy)
+	minx = 0.5
+	incx = 0.1
+	maxx = 1
+
+	fig = Plots.plot(show=false,
+									title=L"\mbox{Accuracy of ranking}",
+									xlab=L"\mbox{Probability better team wins}", 
+									ylab=L"\mbox{Distance from true ranking}",
+									xticks=(Array(minx:incx:maxx),["\$$i\$" for i in minx:incx:maxx]),
+									yticks=(Array(miny:incy:maxy),["\$$i\$" for i in miny:incy:maxy]),
+									legend=:topright,
+									legendfont=6,
+									legendtitle=L"\mbox{Rounds}",
+									titlefont=12,
+									tickfont=8,
+									grid=false);
+	for r = 1:length(num_rounds_set)
+		curr_label = latexstring(num_rounds_set[r])
+		plot!(prob, avg_kend[:,r], label=curr_label);
+						#linecolor=col[r]);
+						#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
+	end
+	savefig(fig, string(results_dir,"/noisy_ranking",ext));
+	savefig(fig, string(results_dir,"/noisy_ranking",lowext));
+end # rankings_are_noisy

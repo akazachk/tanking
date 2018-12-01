@@ -79,12 +79,12 @@ function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_
 	return false
 end # teamIsEliminated
 
-function kendtau(stats)
+function kendtau(stats, win_pct_ind = 5)
 	###
 	# kendtau
 	# Computes Kendell tau (Kemeny) distance
 	#
-	# First sort by win percentage (stats[:,5])
+	# First sort by win percentage (stats[:,win_pct_ind])
 	# This yields the noisy ranking
 	# We want to calculate the distance to the true ranking (1,...,n)
 	# Kendell tau distance is number of unordered pairs {i,j} for which noisy ranking disagrees with true ranking
@@ -95,9 +95,10 @@ function kendtau(stats)
 	#				(\tau_1(i) > \tau_2(j) && \tau_2(i) < \tau_2(j)) }|
 	###
 	len = size(stats,1)
+	num_stats = size(stats,2)
 	kt = 0
 	tmp = randn(len) # randomize order among teams that have same number of wins
-	noisy_stats = sortslices([stats tmp], dims=1, by = x -> (x[5],x[7]), rev=true)
+	noisy_stats = sortslices([stats tmp], dims=1, by = x -> (x[win_pct_ind],x[num_stats+1]), rev=true)
 	for m = 1:len
 		for n = m+1:len
 			if noisy_stats[m,1] > noisy_stats[n,1]
