@@ -2,6 +2,7 @@
 *.pyc
 *.swp
 .DS_Store
-.png
-.pdf
-.svg
+*.png
+*.pdf
+*.svg
+*.eps
