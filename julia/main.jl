@@ -10,7 +10,7 @@ AXIS_TITLE_FONTSIZE=10
 TICK_LABEL_FONTSIZE=8
 LEGEND_FONTSIZE=8
 LEGEND_TITLE_FONTSIZE=8
-DPI_DEFAULT=200
+DPI=200
 
 ## For plotting
 use_pyplot = true
@@ -23,9 +23,9 @@ if !use_pyplot
 	#ext = ".svg"
 	using Plots
 	using StatPlots
-	#gr(dpi=DPI_DEFAULT); # Pkg.add("GR")
-	pyplot(dpi=DPI_DEFAULT)
-	#pgfplots(dpi=DPI_DEFAULT)
+	#gr(dpi=DPI); # Pkg.add("GR")
+	pyplot(dpi=DPI)
+	#pgfplots(dpi=DPI)
 
 	# Set defaults
 	default(tick_direction=:out)
@@ -54,12 +54,12 @@ else
 	rc("lines", linewidth=1 * upscale)
 	rc("lines", solid_capstyle="round")
 	#rc("figure", figsize=[6.4,4.8] * upscale)
-	rc("figure", figsize=[6*upscale,4*upscale])
+	rc("figure", figsize=[6*upscale,4*upscale]) # note that axes may change depending on label size
 	#rc("figure", figsize=[6*1.5,4*1.5])
 	rc("savefig", transparent=false)
 	rc("savefig", bbox="tight")
-	rc("savefig", pad_inches=0.0015 * upscale)
-	rc("savefig", dpi=DPI_DEFAULT)
+	rc("savefig", pad_inches=0.0015 * upscale) # to allow for g,y,f to be not cut off
+	rc("savefig", dpi=DPI)
 end
 
 
@@ -140,7 +140,8 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 				end
 				plot(0:(1/num_steps):1, avg_kend[:,r], label=curr_label, color=col[r])
 			end
-			legend(bbox_to_anchor=[.65,.95],loc="upper left", title=legendtitlestring) 
+			#legend(bbox_to_anchor=[.65,.95],loc="upper left", title=legendtitlestring) 
+			legend(bbox_to_anchor=[0,.95],loc="upper left", title=legendtitlestring) 
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
 			close()
@@ -647,6 +648,11 @@ function rankings_are_noisy(do_simulation=true, results_dir="../results")
 		legend(loc="upper right", title=legendtitlestring)
 		PyPlot.savefig(fname)
 		PyPlot.savefig(fname_low)
+
+		#size = fig[:get_size_inches]()
+		#print("Which should result in a ", DPI*size[1], " x ", DPI*size[2], " image")
+
+		close()
 	else
 		fig = Plots.plot(show=false,
 										title=titlestring,
