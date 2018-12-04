@@ -29,12 +29,11 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 	# 1. No simultaneous games
 	# 2. Teams keep same relative true ranking throughout season
 	# 3. No conferences
-	# 4. Team decides whether to tank the next game after each game they play (not after other games)
 	###
 
 	## Set constants
 	step_size = 1 / num_steps
-	array_of_tanking_percentage = 0:step_size:1
+	array_of_tanking_probabilities = 0:step_size:1
 	num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
 	num_games = num_rounds * num_games_per_round
 	num_team_games = num_rounds * (num_teams - 1)
@@ -78,8 +77,8 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 	#draft_ranking_row_index = Array{Any}(undef, num_teams, length(cutoff_game_for_draft))
 
 	## Begin calculations
-	for step_ind in 1:length(array_of_tanking_percentage)
-		tank_perc = array_of_tanking_percentage[step_ind]
+	for step_ind in 1:length(array_of_tanking_probabilities)
+		tank_perc = array_of_tanking_probabilities[step_ind]
 		print("Simulating season with $tank_perc ratio of teams tanking\n")
 		for rep = 1:num_repeats
 			print("\tRepeat $rep/$num_repeats (ratio $tank_perc)\n")

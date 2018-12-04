@@ -16,7 +16,7 @@ function teamWillWin(i, j, stats, gamma=gamma)
 	# When two non-tanking teams play each other, the better team wins with probability gamma
 	# When a tanking team plays a non-tanking team, the tanking team always loses; equivalent to setting gamma = 1
 	# NB: a better model may be when the tanking team does so successfully with "some" probability
-	# 2018/11/08: When two tanking teams play each other, it is treated 
+	# 2018/11/08: When two tanking teams play each other, it is treated as though neither is tanking
 	# old way: When two tanking teams play each other, the one that is currently better wins
 	#
 	# Method 2 (not implemented):

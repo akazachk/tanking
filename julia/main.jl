@@ -5,14 +5,13 @@ using Printf
 include("simulate.jl")
 include("parse.jl")
 
+## For plotting
 TITLE_FONTSIZE=10
 AXIS_TITLE_FONTSIZE=10
 TICK_LABEL_FONTSIZE=8
 LEGEND_FONTSIZE=8
 LEGEND_TITLE_FONTSIZE=8
 DPI=200
-
-## For plotting
 use_pyplot = true
 ext_folder = "pdf"
 lowext_folder = "png"
@@ -61,7 +60,6 @@ else
 	rc("savefig", pad_inches=0.0015 * upscale) # to allow for g,y,f to be not cut off
 	rc("savefig", dpi=DPI)
 end
-
 
 ## When the (draft) ranking will be set as fraction of number games
 #set_ranking = [4//8; 5//8; 6//8; 7//8; 1]
@@ -354,25 +352,32 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 	num_teams_eliminated_1617, num_games_tanked_1617, stats1617, critical_game1617 = parseNBASeason("games1617.csv", set_ranking, data_dir)
 	num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718 = parseNBASeason("games1718.csv", set_ranking, data_dir)
 
-	print("Year 2013-2014\n")
-	print("num teams eliminated: ",num_teams_eliminated_1314,"\n")
-	print("num possible games tanked: ",num_games_tanked_1314,"\n")
+	# Retrieve data for avg_eliminated
+	avg_eliminated = readdlm(string(results_dir, "/avg_eliminated.csv"), ',')
+	num_steps = size(avg_eliminated)[1] - 1
+	avg_eliminated = sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1)
 
-	print("\nYear 2014-2015\n")
-	print("num teams eliminated: ",num_teams_eliminated_1415,"\n")
-	print("num possible games tanked: ",num_games_tanked_1415,"\n")
+	if false
+		print("Year 2013-2014\n")
+		print("num teams eliminated: ",num_teams_eliminated_1314,"\n")
+		print("num possible games tanked: ",num_games_tanked_1314,"\n")
 
-	print("\nYear 2015-2016\n")
-	print("num teams eliminated: ",num_teams_eliminated_1516,"\n")
-	print("num possible games tanked: ",num_games_tanked_1516,"\n")
+		print("\nYear 2014-2015\n")
+		print("num teams eliminated: ",num_teams_eliminated_1415,"\n")
+		print("num possible games tanked: ",num_games_tanked_1415,"\n")
 
-	print("\nYear 2016-2017\n")
-	print("num teams eliminated: ",num_teams_eliminated_1617,"\n")
-	print("num possible games tanked: ",num_games_tanked_1617,"\n")
+		print("\nYear 2015-2016\n")
+		print("num teams eliminated: ",num_teams_eliminated_1516,"\n")
+		print("num possible games tanked: ",num_games_tanked_1516,"\n")
 
-	print("\nYear 2017-2018\n")
-	print("num teams eliminated: ",num_teams_eliminated_1718,"\n")
-	print("num possible games tanked: ",num_games_tanked_1718,"\n")
+		print("\nYear 2016-2017\n")
+		print("num teams eliminated: ",num_teams_eliminated_1617,"\n")
+		print("num possible games tanked: ",num_games_tanked_1617,"\n")
+
+		print("\nYear 2017-2018\n")
+		print("num teams eliminated: ",num_teams_eliminated_1718,"\n")
+		print("num possible games tanked: ",num_games_tanked_1718,"\n")
+	end
 
 	if (do_plotting)
 		ind = [3,5,6] # needs to be ascending
@@ -471,8 +476,8 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 		num_teams_eliminated = hcat(num_teams_eliminated_1314, num_teams_eliminated_1415, num_teams_eliminated_1516, num_teams_eliminated_1617, num_teams_eliminated_1718)
 		num_teams_eliminated = num_teams_eliminated'
 
-		minx = 1
-		maxx = num_games
+		minx = 1 / num_games
+		maxx = num_games / num_games
 		incx = (maxx - minx) / 5
 		miny = Int(ceil(findmin(num_teams_eliminated)[1]))
 		maxy = Int(floor(findmax(num_teams_eliminated)[1]))
@@ -491,12 +496,15 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 			xlabel(xlabelstring)
 			ylabel(ylabelstring)
 			xticks(Array(minx:incx:maxx), [@sprintf("%.0f", (100*i/maxx)) for i in minx:incx:maxx])
+			#xticks(Array(minx:incx:maxx))
 			yticks(Array(miny:incy:maxy))
 			for s = 1:size(num_teams_eliminated)[1]
 				curr_num_games = length(num_teams_eliminated[s,:])
 				curr_label = labels[s]
-				plot(1:curr_num_games, num_teams_eliminated[s,:], label=curr_label, color=col_labels[s]);
+				plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), num_teams_eliminated[s,:], label=curr_label, color=col_labels[s]);
 			end
+			curr_num_games = length(avg_eliminated)
+			plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), avg_eliminated, label="simulated", color="cyan", linestyle="dashed")
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)

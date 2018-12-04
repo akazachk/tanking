@@ -87,27 +87,11 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 		hometeam = searchsortedfirst(teams, curr_home_name) 
 		awayteam = searchsortedfirst(teams, curr_away_name)
 
-		## Decide who wins the game
+		## Check who wins the game
 		home_score = df[row, home_score_ind]
 		away_score = df[row, away_score_ind]
 		winning_team = (home_score > away_score) ? hometeam : awayteam
 		losing_team = (home_score > away_score) ? awayteam : hometeam
-
-		## Do updates
-		for k in [hometeam, awayteam]
-			teamcounter[k] = teamcounter[k] + 1
-			team_k_wins = (k == winning_team) ? true : false
-			stats[k,wins_ind] = stats[k,wins_ind] + team_k_wins # one more win
-			stats[k,losses_ind] = stats[k,losses_ind] + !team_k_wins # one more loss
-			stats[k,games_left_ind] = stats[k,games_left_ind] - 1 # one fewer game remaining
-			stats[k,win_pct_ind] = stats[k,wins_ind] / teamcounter[k] # update current win pct
-			results[k,teamcounter[k]] = team_k_wins
-			if is_east[k]
-				rank_of_team, team_in_pos_east = updateRank(stats, rank_of_team, team_in_pos_east, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind) # update rank
-			else
-				rank_of_team, team_in_pos_west = updateRank(stats, rank_of_team, team_in_pos_west, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind) # update rank
-			end
-		end
 
 		## Critical game computation
 		## "If I win all my remaining games, and the cutoff for making the playoffs does not change, will I make the playoffs?"
@@ -137,7 +121,7 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 			end
 		end
 
-		## Check tanking
+		## Check if this game is tanked
 		if (critical_game[hometeam,1] + critical_game[awayteam,1]) > 0
 			num_games_tanked += 1
 		end
@@ -150,6 +134,22 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 			end
 		end
 		num_eliminated_by_game[game_ind] = num_eliminated
+
+		## Do updates
+		for k in [hometeam, awayteam]
+			teamcounter[k] = teamcounter[k] + 1
+			team_k_wins = (k == winning_team) ? true : false
+			stats[k,wins_ind] = stats[k,wins_ind] + team_k_wins # one more win
+			stats[k,losses_ind] = stats[k,losses_ind] + !team_k_wins # one more loss
+			stats[k,games_left_ind] = stats[k,games_left_ind] - 1 # one fewer game remaining
+			stats[k,win_pct_ind] = stats[k,wins_ind] / teamcounter[k] # update current win pct
+			results[k,teamcounter[k]] = team_k_wins
+			if is_east[k]
+				rank_of_team, team_in_pos_east = updateRank(stats, rank_of_team, team_in_pos_east, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind) # update rank
+			else
+				rank_of_team, team_in_pos_west = updateRank(stats, rank_of_team, team_in_pos_west, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind) # update rank
+			end
+		end
 
 		#print("Game ",game_ind,": ",curr_home_name," (",hometeam,") vs ",curr_away_name," (",awayteam,"). Winner: ",winning_team,"\n")
 	end # iterate over rows
