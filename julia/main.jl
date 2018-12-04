@@ -587,13 +587,16 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 	return
 end; # main_parse
 
-function rankings_are_noisy(do_simulation=true, results_dir="../results")
+function rankings_are_noisy(do_simulation=true, num_repeats=1000, do_plotting=true,  results_dir="../results")
+	## Variables that need to be set
+	num_rounds_set = [1 2 3 4 5 10 100 1000];
 	num_steps = 50; # number of subdivisions of [0.5,1]
 	prob = 0.5:0.5/num_steps:1;
-	num_repeats = 1000;
-	num_rounds_set = [1 2 3 4 5 10 100 1000];
+
+	## Set constants
 	num_games_per_round = Int(num_teams * (num_teams - 1) / 2);
 
+	## For output
 	avg_kend = zeros(Float64, num_steps+1, length(num_rounds_set));
 
 	if do_simulation
@@ -635,63 +638,65 @@ function rankings_are_noisy(do_simulation=true, results_dir="../results")
 		writedlm(string(results_dir, "/noisy_ranking", csvext), avg_kend, ',')
 	else
 		avg_kend = readdlm(string(results_dir, "/noisy_ranking", csvext), ',')
-	end
+	end # if do_simulation
 
-  ## Plot noisy ranking
-	print("Plotting noisy_ranking: shows low fidelity of ranking unless teams play each other many times\n")
-	minx = 0.5
-	incx = 0.1
-	maxx = 1
-	miny = Int(ceil(findmin(avg_kend)[1]));
-	incy = 50 #Int(floor((maxy - miny) / 5))
-	maxy = Int(floor(findmax(avg_kend)[1]));
-	#maxy = Int(ceil(maxy/incy)*incy)
-	titlestring = L"\mbox{Accuracy of ranking}"
-	xlabelstring = L"\mbox{Probability better team wins}"
-	ylabelstring = L"\mbox{Distance from true ranking}"
-	legendtitlestring = L"\mbox{Rounds}"
-	fname_stub = "noisy_ranking"
-	fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
-	fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
+	if do_plotting
+		## Plot noisy ranking
+		print("Plotting noisy_ranking: shows low fidelity of ranking unless teams play each other many times\n")
+		minx = 0.5
+		incx = 0.1
+		maxx = 1
+		miny = Int(ceil(findmin(avg_kend)[1]));
+		incy = 50 #Int(floor((maxy - miny) / 5))
+		maxy = Int(floor(findmax(avg_kend)[1]));
+		#maxy = Int(ceil(maxy/incy)*incy)
+		titlestring = L"\mbox{Accuracy of ranking}"
+		xlabelstring = L"\mbox{Probability better team wins}"
+		ylabelstring = L"\mbox{Distance from true ranking}"
+		legendtitlestring = L"\mbox{Rounds}"
+		fname_stub = "noisy_ranking"
+		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
+		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-	if use_pyplot
-		fig = figure(frameon=false)
-		title(titlestring)
-		xlabel(xlabelstring)
-		ylabel(ylabelstring)
-		xticks(Array(minx:incx:maxx))
-		yticks(Array(miny:incy:maxy))
-		for r = 1:length(num_rounds_set)
-			curr_label = latexstring(num_rounds_set[r])
-			plot(prob, avg_kend[:,r], label=curr_label);
+		if use_pyplot
+			fig = figure(frameon=false)
+			title(titlestring)
+			xlabel(xlabelstring)
+			ylabel(ylabelstring)
+			xticks(Array(minx:incx:maxx))
+			yticks(Array(miny:incy:maxy))
+			for r = 1:length(num_rounds_set)
+				curr_label = latexstring(num_rounds_set[r])
+				plot(prob, avg_kend[:,r], label=curr_label);
+			end
+			legend(loc="upper right", title=legendtitlestring)
+			PyPlot.savefig(fname)
+			PyPlot.savefig(fname_low)
+
+			#size = fig[:get_size_inches]()
+			#print("Which should result in a ", DPI*size[1], " x ", DPI*size[2], " image")
+
+			close()
+		else
+			fig = Plots.plot(show=false,
+											title=titlestring,
+											xlab=xlabelstring,
+											ylab=ylabelstring,
+											legendtitle=legendtitlestring,
+											xticks=(Array(minx:incx:maxx)),
+											yticks=(Array(miny:incy:maxy)),
+											#xticks=(Array(minx:incx:maxx),["\$$i\$" for i in minx:incx:maxx]),
+											#yticks=(Array(miny:incy:maxy),["\$$i\$" for i in miny:incy:maxy]),
+											#legendtitle=L"\mbox{Rounds}",
+											legend=:topright)
+			for r = 1:length(num_rounds_set)
+				curr_label = latexstring(num_rounds_set[r])
+				plot!(prob, avg_kend[:,r], label=curr_label);
+								#linecolor=col[r]);
+								#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
+			end
+			Plots.savefig(fname)
+			Plots.savefig(fname_low)
 		end
-		legend(loc="upper right", title=legendtitlestring)
-		PyPlot.savefig(fname)
-		PyPlot.savefig(fname_low)
-
-		#size = fig[:get_size_inches]()
-		#print("Which should result in a ", DPI*size[1], " x ", DPI*size[2], " image")
-
-		close()
-	else
-		fig = Plots.plot(show=false,
-										title=titlestring,
-										xlab=xlabelstring,
-										ylab=ylabelstring,
-										legendtitle=legendtitlestring,
-										xticks=(Array(minx:incx:maxx)),
-										yticks=(Array(miny:incy:maxy)),
-										#xticks=(Array(minx:incx:maxx),["\$$i\$" for i in minx:incx:maxx]),
-										#yticks=(Array(miny:incy:maxy),["\$$i\$" for i in miny:incy:maxy]),
-										#legendtitle=L"\mbox{Rounds}",
-										legend=:topright)
-		for r = 1:length(num_rounds_set)
-			curr_label = latexstring(num_rounds_set[r])
-			plot!(prob, avg_kend[:,r], label=curr_label);
-							#linecolor=col[r]);
-							#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
-		end
-		Plots.savefig(fname)
-		Plots.savefig(fname_low)
-	end
+	end # if do_plotting
 end; # rankings_are_noisy
