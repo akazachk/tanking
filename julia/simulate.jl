@@ -6,7 +6,7 @@
 ###
 include("utility.jl")
 
-function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking)
+function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_ranking)
 	###
 	# Simulates a season
 	#
@@ -77,6 +77,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 	#draft_ranking_row_index = Array{Any}(undef, num_teams, length(cutoff_game_for_draft))
 
 	## Begin calculations
+	win_pct_ind = 5
 	for step_ind in 1:length(array_of_tanking_probabilities)
 		tank_perc = array_of_tanking_probabilities[step_ind]
 		print("Simulating season with $tank_perc ratio of teams tanking\n")
@@ -91,7 +92,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 				stats[i,2] = 0 # num wins
 				stats[i,3] = num_team_games # num games left
 				stats[i,4] = 0 # when team is eliminated (in terms of how many left)
-				stats[i,5] = 0.0 # win percentage
+				stats[i,win_pct_ind] = 0.0 # win percentage
 				if rand() > tank_perc
 					stats[i,6] = 0 # will not tank
 				else
@@ -124,7 +125,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 					#last_team = num_teams_in_playoffs
 					#last_team = sorted_teams[num_teams_in_playoffs,1]
 					last_team = team_in_pos[num_teams_in_playoffs]
-					cutoff_avg = stats[last_team, 5]
+					cutoff_avg = stats[last_team,win_pct_ind]
 
 					# Current teams playing
 					i = games[round_ind, round_game_ind, 1]
@@ -144,7 +145,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 					end # set critical game for teams i and j
 
 					# Decide who wins the game
-					team_i_wins = teamWillWin(i, j, stats, gamma)
+					team_i_wins = teamWillWin(i, j, stats, gamma, true_ranking)
 
 					# Check tanking
 					if teamIsTanking(i, stats) || teamIsTanking(j, stats) #(stats[i,6] * stats[i,4] + stats[j,6] * stats[j,4] > 0)
@@ -156,12 +157,12 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 						team_k_wins = (k == i) ? team_i_wins : !team_i_wins
           	stats[k,2] = stats[k,2] + team_k_wins
 						stats[k,3] = stats[k,3] - 1 # one fewer game remaining
-						stats[k,5] = stats[k,2] / (num_team_games - stats[k,3]) # update current win pct
+						stats[k,win_pct_ind] = stats[k,2] / (num_team_games - stats[k,3]) # update current win pct
 						rank_of_team, team_in_pos = updateRank(stats, rank_of_team, team_in_pos, k, team_k_wins, num_teams) # update rank
 					end
 					avg_eliminated[step_ind, game_ind] += num_eliminated / num_repeats
 					#print("($i,$j) Team $i wins? $team_i_wins\n")
-					#display([1:num_teams team_in_pos rank_of_team stats[team_in_pos,5]])
+					#display([1:num_teams team_in_pos rank_of_team stats[team_in_pos,win_pct_ind]])
 
 					# When the cutoff for choosing a playoff ranking has been reached, set the ranking
 					for r = 1:length(cutoff_game_for_draft) 
@@ -179,7 +180,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 			## Get non-playoff teams at end of season
 			np_index = team_in_pos[num_teams_in_playoffs+1:num_teams]
 			for r = 1:length(cutoff_game_for_draft)
-				avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r]) / num_repeats
+				avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r], win_pct_ind, true_ranking) / num_repeats
 			end
 		end # do repeats
 	end # looping over tanking percentages

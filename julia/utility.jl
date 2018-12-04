@@ -6,11 +6,31 @@ function teamIsTanking(i, stats)
 	return stats[i,6] == 1 && stats[i,3] <= stats[i,4]
 end # teamIsTanking
 
-function teamWillWin(i, j, stats, gamma=gamma)
+function teamIsBetter(i, j, true_ranking = 1:30)
+	i_spot = -1
+	j_spot = -1
+	for ind in 1:size(true_ranking)[1]
+		if i in true_ranking[ind]
+			i_spot = ind
+		end
+		if j in true_ranking[ind]
+			j_spot = ind
+		end
+	end
+	if i_spot < j_spot
+		return 1
+	elseif i_spot > j_spot
+		return -1
+	else
+		return 0
+	end
+end # teamIsBetter
+
+function teamWillWin(i, j, stats, gamma=gamma, true_ranking=1:30)
 	###
 	# teamWillWin
 	#
-	# We assume that the true ranking is 1, ..., n
+	# gamma is the probability the better team wins
 	#
 	# Method 1:
 	# When two non-tanking teams play each other, the better team wins with probability gamma
@@ -31,9 +51,19 @@ function teamWillWin(i, j, stats, gamma=gamma)
 	###
 	team_i_tanks = teamIsTanking(i, stats) #stats[i,6] == 1 && stats[i,3] <= stats[i,4] # team i is past the tanking cutoff point
 	team_j_tanks = teamIsTanking(j, stats) #stats[j,6] == 1 && stats[j,3] <= stats[j,4] # team j is past the tanking cutoff point
+
+	# Figure out which team is better and update gamma correspondingly
+	better_team = teamIsBetter(i, j, true_ranking)
+	if better_team == 0
+		# If they are the same ranking then they have an equal chance of winning
+		gamma = 0.5
+	elseif better_team == -1
+		gamma = 1 - gamma
+	end
+	
 	if (team_i_tanks && team_j_tanks) || (!team_i_tanks && !team_j_tanks)
 		# Neither team is tanking, or both are; we treat this the same, as non-tanking
-		# Thus team i (< j) wins with probability gamma
+		# Thus team i (< j) wins with probability gamma (if i is indeed better than j)
 		if rand() < gamma
 			return true
 		else
@@ -79,7 +109,7 @@ function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_
 	return false
 end # teamIsEliminated
 
-function kendtau(stats, win_pct_ind = 5)
+function kendtau(stats, win_pct_ind = 5, true_ranking = 1:30)
 	###
 	# kendtau
 	# Computes Kendell tau (Kemeny) distance
@@ -99,9 +129,9 @@ function kendtau(stats, win_pct_ind = 5)
 	kt = 0
 	tmp = randn(len) # randomize order among teams that have same number of wins
 	noisy_stats = sortslices([stats tmp], dims=1, by = x -> (x[win_pct_ind],x[num_stats+1]), rev=true)
-	for m = 1:len
-		for n = m+1:len
-			if noisy_stats[m,1] > noisy_stats[n,1]
+	for i = 1:len
+		for j = i+1:len
+			if teamIsBetter(noisy_stats[i,1], noisy_stats[j,1], true_ranking) == -1 #noisy_stats[i,1] > noisy_stats[j,1]
 				kt = kt + 1
 			end
 		end

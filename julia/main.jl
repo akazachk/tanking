@@ -5,7 +5,27 @@ using Printf
 include("simulate.jl")
 include("parse.jl")
 
+## When the (draft) ranking will be set as fraction of number games
+#set_ranking = [4//8; 5//8; 6//8; 7//8; 1]
+set_ranking = [1//2; 2//3; 3//4; 5//6; 7//8; 1]
+num_rankings = length(set_ranking)
+shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
+col = ["red", "orange", "green", "blue", "violet", "black"]
+#color_for_cutoff_point = ["c" "b" "m" "r" "k"]
+num_teams = 30 # number of teams
+ranking_type=""
+true_ranking = 1:num_teams
+csvext = ".csv"
+ranking_type="_ties"
+true_ranking = [[i:i+4] for i in 1:5:num_teams-4]
+csvext = string(ranking_type,".csv")
+
 ## For plotting
+DO_PLOTTING=true
+environment = read(`uname`, String)
+if chomp(environment) != "Darwin"
+	DO_PLOTTING=false
+end
 TITLE_FONTSIZE=10
 AXIS_TITLE_FONTSIZE=10
 TICK_LABEL_FONTSIZE=8
@@ -15,8 +35,8 @@ DPI=200
 use_pyplot = true
 ext_folder = "pdf"
 lowext_folder = "png"
-ext = string(".",ext_folder)
-lowext = string("_low.",lowext_folder)
+ext = string(ranking_type,".",ext_folder)
+lowext = string(ranking_type,"_low",".",lowext_folder)
 upscale = 1 # upscaling in resolution
 if !use_pyplot
 	#ext = ".svg"
@@ -37,41 +57,34 @@ if !use_pyplot
 	#fntlg = Plots.font("sans-serif", 12.0 * upscale)
 	#default(titlefont=fntlg, guidefont=fntlg, tickfont=fntsm, legendfont=fntsm)
 else
-	using PyCall
-	pygui(:qt5) # others do not work on mac
-	using PyPlot
-	rc("text", usetex=true)
-	rc("font", family="serif")
-	rc("axes.spines", right=false, top=false)
-	rc("axes", titlesize=TITLE_FONTSIZE * upscale)
-	rc("axes", labelsize=AXIS_TITLE_FONTSIZE * upscale)
-	rc("xtick", labelsize=TICK_LABEL_FONTSIZE * upscale)
-	rc("ytick", labelsize=TICK_LABEL_FONTSIZE * upscale)
-	rc("legend", fontsize=LEGEND_FONTSIZE * upscale)
-	rc("legend", title_fontsize=LEGEND_TITLE_FONTSIZE * upscale)
-	rc("legend", labelspacing=0.25)
-	rc("lines", linewidth=1 * upscale)
-	rc("lines", solid_capstyle="round")
-	#rc("figure", figsize=[6.4,4.8] * upscale)
-	rc("figure", figsize=[6*upscale,4*upscale]) # note that axes may change depending on label size
-	#rc("figure", figsize=[6*1.5,4*1.5])
-	rc("savefig", transparent=false)
-	rc("savefig", bbox="tight")
-	rc("savefig", pad_inches=0.0015 * upscale) # to allow for g,y,f to be not cut off
-	rc("savefig", dpi=DPI)
+	if DO_PLOTTING
+		using PyCall
+		pygui(:qt5) # others do not work on mac
+		using PyPlot
+		rc("text", usetex=true)
+		rc("font", family="serif")
+		rc("axes.spines", right=false, top=false)
+		rc("axes", titlesize=TITLE_FONTSIZE * upscale)
+		rc("axes", labelsize=AXIS_TITLE_FONTSIZE * upscale)
+		rc("xtick", labelsize=TICK_LABEL_FONTSIZE * upscale)
+		rc("ytick", labelsize=TICK_LABEL_FONTSIZE * upscale)
+		rc("legend", fontsize=LEGEND_FONTSIZE * upscale)
+		rc("legend", title_fontsize=LEGEND_TITLE_FONTSIZE * upscale)
+		rc("legend", labelspacing=0.25)
+		rc("lines", linewidth=1 * upscale)
+		rc("lines", solid_capstyle="round")
+		#rc("figure", figsize=[6.4,4.8] * upscale)
+		rc("figure", figsize=[6*upscale,4*upscale]) # note that axes may change depending on label size
+		#rc("figure", figsize=[6*1.5,4*1.5])
+		rc("savefig", transparent=false)
+		rc("savefig", bbox="tight")
+		rc("savefig", pad_inches=0.0015 * upscale) # to allow for g,y,f to be not cut off
+		rc("savefig", dpi=DPI)
+	end
 end
-
-## When the (draft) ranking will be set as fraction of number games
-#set_ranking = [4//8; 5//8; 6//8; 7//8; 1]
-set_ranking = [1//2; 2//3; 3//4; 5//6; 7//8; 1]
-num_rankings = length(set_ranking)
-shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
-col = ["red", "orange", "green", "blue", "violet", "black"]
-#color_for_cutoff_point = ["c" "b" "m" "r" "k"]
 
 function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=true, results_dir = "../results")
 	## Variables that need to be set
-	num_teams = 30 # number of teams
 	num_rounds = 3 # a round consists of each team playing each other team
 	num_steps = 20 # discretization of [0,1] for tanking probability
 	gamma = 0.75 # probability a better-ranked team wins over a worse-ranked team
@@ -90,16 +103,16 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated = simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking)
-		writedlm(string(results_dir, "/avg_kend.csv"), avg_kend, ',')
-		writedlm(string(results_dir, "/avg_games_tanked.csv"), avg_games_tanked, ',')
-		writedlm(string(results_dir, "/avg_already_tank.csv"), avg_already_tank, ',')
-		writedlm(string(results_dir, "/avg_eliminated.csv"), avg_eliminated, ',')
+		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated = simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_ranking)
+		writedlm(string(results_dir, "/avg_kend", csvext), avg_kend, ',')
+		writedlm(string(results_dir, "/avg_games_tanked", csvext), avg_games_tanked, ',')
+		writedlm(string(results_dir, "/avg_already_tank", csvext), avg_already_tank, ',')
+		writedlm(string(results_dir, "/avg_eliminated", csvext), avg_eliminated, ',')
 	else
-		avg_kend = readdlm(string(results_dir, "/avg_kend.csv"), ',')
-		avg_games_tanked = readdlm(string(results_dir, "/avg_games_tanked.csv"), ',')
-		avg_already_tank = readdlm(string(results_dir, "/avg_already_tank.csv"), ',')
-		avg_eliminated = readdlm(string(results_dir, "/avg_eliminated.csv"), ',')
+		avg_kend = readdlm(string(results_dir, "/avg_kend", csvext), ',')
+		avg_games_tanked = readdlm(string(results_dir, "/avg_games_tanked", csvext), ',')
+		avg_already_tank = readdlm(string(results_dir, "/avg_already_tank", csvext), ',')
+		avg_eliminated = readdlm(string(results_dir, "/avg_eliminated", csvext), ',')
 		num_steps = size(avg_kend)[1] - 1
 	end
 
@@ -353,7 +366,7 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 	num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718 = parseNBASeason("games1718.csv", set_ranking, data_dir)
 
 	# Retrieve data for avg_eliminated
-	avg_eliminated = readdlm(string(results_dir, "/avg_eliminated.csv"), ',')
+	avg_eliminated = readdlm(string(results_dir, "/avg_eliminated", csvext), ',')
 	num_steps = size(avg_eliminated)[1] - 1
 	avg_eliminated = sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1)
 
@@ -577,7 +590,6 @@ end; # main_parse
 function rankings_are_noisy(do_simulation=true, results_dir="../results")
 	num_steps = 50; # number of subdivisions of [0.5,1]
 	prob = 0.5:0.5/num_steps:1;
-	num_teams = 30;
 	num_repeats = 1000;
 	num_rounds_set = [1 2 3 4 5 10 100 1000];
 	num_games_per_round = Int(num_teams * (num_teams - 1) / 2);
@@ -616,13 +628,13 @@ function rankings_are_noisy(do_simulation=true, results_dir="../results")
 					end # loop over rounds
 
 					## Calculate Kendell tau distance for this round
-					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats,2) / num_repeats
+					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats,2,true_ranking) / num_repeats
 				end # loop over repeats
 			end # loop over num_rounds_set
 		end # loop over steps
-		writedlm(string(results_dir, "/noisy_ranking.csv"), avg_kend, ',')
+		writedlm(string(results_dir, "/noisy_ranking", csvext), avg_kend, ',')
 	else
-		avg_kend = readdlm(string(results_dir, "/noisy_ranking.csv"), ',')
+		avg_kend = readdlm(string(results_dir, "/noisy_ranking", csvext), ',')
 	end
 
   ## Plot noisy ranking
