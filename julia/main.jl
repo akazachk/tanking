@@ -23,6 +23,10 @@ MODE = 3
 ranking_type = ""
 true_strength = []
 csvext = ".csv"
+ext_folder = "pdf"
+lowext_folder = "png"
+ext = string(ranking_type,".",ext_folder)
+lowext = string(ranking_type,"_low",".",lowext_folder)
 
 function set_mode(mode=MODE)
 	if mode == 0
@@ -31,18 +35,15 @@ function set_mode(mode=MODE)
 		# 1 \succ 2 \succ \cdots \succ 30
 		global ranking_type="" #"_strict"
 		global true_strength = num_teams:-1:1
-		global csvext = string(ranking_type,".csv")
 	elseif mode == 2
 		# [1,5] \succ [6,10] \succ \cdots \succ [26,30]
 		global ranking_type="_ties"
 		global true_strength = [Int(ceil(i/5)) for i in num_teams:-1:1] # allows for ties # old: [i:i+4 for i in 1:5:num_teams-4]
-		global csvext = string(ranking_type,".csv")
 	elseif mode == 3
 		# uniform distribution (same as beta(1,1))
 		# essentially perfectly imbalanced
 		global ranking_type="_BT_uniform"
 		global true_strength = rand(30,1)
-		global csvext = string(ranking_type,".csv")
 	elseif mode == 4
 		# TODO not implemented
 		# nonuniform distribution, beta(2,2), or maybe we should do some kind of bimodal distribution
@@ -51,8 +52,10 @@ function set_mode(mode=MODE)
 		beta = 5
 		global ranking_type="_BT_unbalanced"
 		global true_strength = rand(30,1)
-		global csvext = string(ranking_type,".csv")
 	end
+	global csvext = string(ranking_type,".csv")
+	global ext = string(ranking_type,".",ext_folder)
+	global lowext = string(ranking_type,"_low",".",lowext_folder)
 end # set_mode
 
 ## For plotting
@@ -68,10 +71,6 @@ LEGEND_FONTSIZE=8
 LEGEND_TITLE_FONTSIZE=8
 DPI=200
 use_pyplot = true
-ext_folder = "pdf"
-lowext_folder = "png"
-ext = string(ranking_type,".",ext_folder)
-lowext = string(ranking_type,"_low",".",lowext_folder)
 upscale = 1 # upscaling in resolution
 if !use_pyplot
 	#ext = ".svg"
