@@ -653,11 +653,7 @@ function rankings_are_noisy(do_simulation=true, num_repeats=1000, do_plotting=tr
 					for round_ind = 1:num_rounds
 						for i = 1:num_teams
 							for j = i+1:num_teams
-								if rand() < gamma
-									team_i_wins = true
-								else
-									team_i_wins = false
-								end
+								team_i_wins = teamWillWinNoTanking(i,j,gamma,true_strength,mode)
 
 								# Do updates
 								for k in [i,j]

@@ -31,6 +31,29 @@ function teamIsBetter(i, j, true_strength = 30:-1:1, mode=1)
 	end
 end # teamIsBetter
 
+function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
+	# Figure out which team is better and update gamma correspondingly
+	better_team = teamIsBetter(i, j, true_strength, mode)
+	if mode == 1 || mode == 2
+		# if better_team == 1, keep gamma as it is
+		if better_team == 0
+			# If they are the same ranking then they have an equal chance of winning
+			gamma = 0.5
+		elseif better_team == -1
+			gamma = 1 - gamma
+		end
+	elseif mode == 3 || mode == 4
+		gamma = better_team
+	end
+		
+	# team i (< j) wins with probability gamma (if i is indeed better than j)
+	if rand() < gamma
+		return true
+	else
+		return false
+	end
+end # teamWillWinNoTanking
+
 function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=1)
 	###
 	# teamWillWin
@@ -60,30 +83,11 @@ function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=1)
 	team_i_tanks = teamIsTanking(i, stats) #stats[i,6] == 1 && stats[i,3] <= stats[i,4] # team i is past the tanking cutoff point
 	team_j_tanks = teamIsTanking(j, stats) #stats[j,6] == 1 && stats[j,3] <= stats[j,4] # team j is past the tanking cutoff point
 
-	# Figure out which team is better and update gamma correspondingly
-	better_team = teamIsBetter(i, j, true_strength, mode)
-	if mode == 1 || mode == 2
-		# if better_team == 1, keep gamma as it is
-		if better_team == 0
-			# If they are the same ranking then they have an equal chance of winning
-			gamma = 0.5
-		elseif better_team == -1
-			gamma = 1 - gamma
-		end
-	elseif mode == 3 || mode == 4
-		gamma = better_team
-	end
-		
 	if (team_i_tanks && team_j_tanks) || (!team_i_tanks && !team_j_tanks)
 		# Neither team is tanking, or both are; we treat this the same, as non-tanking
-		# Thus team i (< j) wins with probability gamma (if i is indeed better than j)
-		if rand() < gamma
-			return true
-		else
-			return false
-		end
-		# Both teams tank
-		#if stats[i,5] > stats[j,5] # team i is better
+		return teamWillWinNoTanking(i, j, gamma, true_strength, mode)
+		# Old version for when both teams tank was based on which team is better
+		#if stats[i,5] > stats[j,5] # team i is better (currently)
 		#	return true
 		#else # team j is better
 		#	return false
@@ -94,14 +98,6 @@ function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=1)
 	elseif team_j_tanks
 		# Only team j tanks
 		return true
-	#else
-		# Neither team is tanking
-		# Thus team i (< j) wins with probability gamma
-		#if rand() < gamma
-		#	return true
-		#else
-		#	return false
-		#end
 	end # decide who wins the game
 	return
 end # teamWillWin
