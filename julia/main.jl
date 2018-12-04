@@ -17,7 +17,7 @@ ranking_type=""
 true_ranking = 1:num_teams
 csvext = ".csv"
 ranking_type="_ties"
-true_ranking = [[i:i+4] for i in 1:5:num_teams-4]
+true_ranking = [i:i+4 for i in 1:5:num_teams-4]
 csvext = string(ranking_type,".csv")
 
 ## For plotting

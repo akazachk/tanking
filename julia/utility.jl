@@ -131,7 +131,9 @@ function kendtau(stats, win_pct_ind = 5, true_ranking = 1:30)
 	noisy_stats = sortslices([stats tmp], dims=1, by = x -> (x[win_pct_ind],x[num_stats+1]), rev=true)
 	for i = 1:len
 		for j = i+1:len
-			if teamIsBetter(noisy_stats[i,1], noisy_stats[j,1], true_ranking) == -1 #noisy_stats[i,1] > noisy_stats[j,1]
+			better_team = teamIsBetter(noisy_stats[i,1], noisy_stats[j,1], true_ranking)
+			#print("i: ", noisy_stats[i,1], "\tj: ", noisy_stats[j,1], "\tteamIsBetter: ",better_team,"\n")
+			if better_team == -1 #noisy_stats[i,1] > noisy_stats[j,1]
 				kt = kt + 1
 			end
 		end
