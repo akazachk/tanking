@@ -6,7 +6,7 @@
 ###
 include("utility.jl")
 
-function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_ranking)
+function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_strength, mode)
 	###
 	# Simulates a season
 	#
@@ -145,7 +145,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 					end # set critical game for teams i and j
 
 					# Decide who wins the game
-					team_i_wins = teamWillWin(i, j, stats, gamma, true_ranking)
+					team_i_wins = teamWillWin(i, j, stats, gamma, true_strength, mode)
 
 					# Check tanking
 					if teamIsTanking(i, stats) || teamIsTanking(j, stats) #(stats[i,6] * stats[i,4] + stats[j,6] * stats[j,4] > 0)
@@ -180,7 +180,7 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 			## Get non-playoff teams at end of season
 			np_index = team_in_pos[num_teams_in_playoffs+1:num_teams]
 			for r = 1:length(cutoff_game_for_draft)
-				avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r], win_pct_ind, true_ranking) / num_repeats
+				avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r], win_pct_ind, true_strength, mode) / num_repeats
 			end
 		end # do repeats
 	end # looping over tanking percentages

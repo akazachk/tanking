@@ -13,12 +13,47 @@ shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
 col = ["red", "orange", "green", "blue", "violet", "black"]
 #color_for_cutoff_point = ["c" "b" "m" "r" "k"]
 num_teams = 30 # number of teams
-ranking_type=""
-true_ranking = 1:num_teams
+
+## Set ranking type
+# 1: strict: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
+# 2: ties: [1,5] \succ [6,10] \succ \cdots \succ [26,30]
+# 3: BT_uniform: Bradley-Terry, each team gets a strength score from U[0,1]
+# 4: BT_unbalanced: Bradley-Terry, nonuniform distribution of strengths, using Beta(alpha = 2, beta = 5)
+MODE = 3
+ranking_type = ""
+true_strength = []
 csvext = ".csv"
-ranking_type="_ties"
-true_ranking = [i:i+4 for i in 1:5:num_teams-4]
-csvext = string(ranking_type,".csv")
+
+function set_mode(mode=MODE)
+	if mode == 0
+		cssvext = ".csv"
+	elseif mode == 1
+		# 1 \succ 2 \succ \cdots \succ 30
+		global ranking_type="" #"_strict"
+		global true_strength = num_teams:-1:1
+		global csvext = string(ranking_type,".csv")
+	elseif mode == 2
+		# [1,5] \succ [6,10] \succ \cdots \succ [26,30]
+		global ranking_type="_ties"
+		global true_strength = [Int(ceil(i/5)) for i in num_teams:-1:1] # allows for ties # old: [i:i+4 for i in 1:5:num_teams-4]
+		global csvext = string(ranking_type,".csv")
+	elseif mode == 3
+		# uniform distribution (same as beta(1,1))
+		# essentially perfectly imbalanced
+		global ranking_type="_BT_uniform"
+		global true_strength = rand(30,1)
+		global csvext = string(ranking_type,".csv")
+	elseif mode == 4
+		# TODO not implemented
+		# nonuniform distribution, beta(2,2), or maybe we should do some kind of bimodal distribution
+		# more weight on middle teams, smaller probability of very weak or very strong teams
+		alpha = 2
+		beta = 5
+		global ranking_type="_BT_unbalanced"
+		global true_strength = rand(30,1)
+		global csvext = string(ranking_type,".csv")
+	end
+end # set_mode
 
 ## For plotting
 DO_PLOTTING=true
@@ -83,7 +118,9 @@ else
 	end
 end
 
-function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=true, results_dir = "../results")
+function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=true, mode=MODE, results_dir = "../results")
+	set_mode(mode)
+
 	## Variables that need to be set
 	num_rounds = 3 # a round consists of each team playing each other team
 	num_steps = 20 # discretization of [0,1] for tanking probability
@@ -103,7 +140,7 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated = simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_ranking)
+		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated = simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_strength, mode)
 		writedlm(string(results_dir, "/avg_kend", csvext), avg_kend, ',')
 		writedlm(string(results_dir, "/avg_games_tanked", csvext), avg_games_tanked, ',')
 		writedlm(string(results_dir, "/avg_already_tank", csvext), avg_already_tank, ',')
@@ -358,7 +395,9 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 	return
 end; # main_simulate
 
-function main_parse(do_plotting=true, data_dir="../data", results_dir="../results")
+function main_parse(do_plotting=true, mode=MODE, data_dir="../data", results_dir="../results")
+	set_mode(mode)
+
 	num_teams_eliminated_1314, num_games_tanked_1314, stats1314, critical_game1314 = parseNBASeason("games1314.csv", set_ranking, data_dir)
 	num_teams_eliminated_1415, num_games_tanked_1415, stats1415, critical_game1415 = parseNBASeason("games1415.csv", set_ranking, data_dir)
 	num_teams_eliminated_1516, num_games_tanked_1516, stats1516, critical_game1516 = parseNBASeason("games1516.csv", set_ranking, data_dir)
@@ -587,7 +626,9 @@ function main_parse(do_plotting=true, data_dir="../data", results_dir="../result
 	return
 end; # main_parse
 
-function rankings_are_noisy(do_simulation=true, num_repeats=1000, do_plotting=true,  results_dir="../results")
+function rankings_are_noisy(do_simulation=true, num_repeats=1000, do_plotting=true, mode=MODE, results_dir="../results")
+	set_mode(mode)
+
 	## Variables that need to be set
 	num_rounds_set = [1 2 3 4 5 10 100 1000];
 	num_steps = 50; # number of subdivisions of [0.5,1]
@@ -631,7 +672,7 @@ function rankings_are_noisy(do_simulation=true, num_repeats=1000, do_plotting=tr
 					end # loop over rounds
 
 					## Calculate Kendell tau distance for this round
-					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats,2,true_ranking) / num_repeats
+					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats,2,true_strength,mode) / num_repeats
 				end # loop over repeats
 			end # loop over num_rounds_set
 		end # loop over steps

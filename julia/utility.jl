@@ -6,40 +6,46 @@ function teamIsTanking(i, stats)
 	return stats[i,6] == 1 && stats[i,3] <= stats[i,4]
 end # teamIsTanking
 
-function teamIsBetter(i, j, true_ranking = 1:30)
-	i_spot = -1
-	j_spot = -1
-	for ind in 1:size(true_ranking)[1]
-		if i in true_ranking[ind]
-			i_spot = ind
+function teamIsBetter(i, j, true_strength = 30:-1:1, mode=1)
+	###
+	# teamIsBetter
+	#
+	# mode = 1: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
+	# mode = 2: there may be ties in the teams, e.g., [1,5] \succ [6,10] \succ \cdots \succ [26,30]
+	# mode = 3: use Bradley-Terry model, computing the probabilty team i beats team j via exponential score functions
+	###
+	team_i_str = true_strength[i]
+	team_j_str = true_strength[i]
+	if mode == 1 || mode == 2
+		if team_i_str > team_j_str
+			return 1
+		elseif team_i_str < team_j_str
+			return -1
+		else
+			return 0
 		end
-		if j in true_ranking[ind]
-			j_spot = ind
-		end
-	end
-	if i_spot < j_spot
-		return 1
-	elseif i_spot > j_spot
-		return -1
-	else
-		return 0
+	elseif mode == 3 || mode == 4
+		return exp(team_i_str) / (exp(team_i_str) + exp(team_j_str))
 	end
 end # teamIsBetter
 
-function teamWillWin(i, j, stats, gamma=gamma, true_ranking=1:30)
+function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=1)
 	###
 	# teamWillWin
 	#
 	# gamma is the probability the better team wins
+	# mode = 1: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
+	# mode = 2: there may be ties in the teams, e.g., [1,5] \succ [6,10] \succ \cdots \succ [26,30]
+	# mode = 3: use Bradley-Terry model, computing the probabilty team i beats team j via exponential score functions
 	#
-	# Method 1:
+	# Modes 1/2:
 	# When two non-tanking teams play each other, the better team wins with probability gamma
 	# When a tanking team plays a non-tanking team, the tanking team always loses; equivalent to setting gamma = 1
 	# NB: a better model may be when the tanking team does so successfully with "some" probability
 	# 2018/11/08: When two tanking teams play each other, it is treated as though neither is tanking
 	# old way: When two tanking teams play each other, the one that is currently better wins
 	#
-	# Method 2 (not implemented):
+	# Mode 3: 
 	# Use Bradley-Terry model
 	# 
 	# stats[:,1] is team "name"
@@ -53,14 +59,19 @@ function teamWillWin(i, j, stats, gamma=gamma, true_ranking=1:30)
 	team_j_tanks = teamIsTanking(j, stats) #stats[j,6] == 1 && stats[j,3] <= stats[j,4] # team j is past the tanking cutoff point
 
 	# Figure out which team is better and update gamma correspondingly
-	better_team = teamIsBetter(i, j, true_ranking)
-	if better_team == 0
-		# If they are the same ranking then they have an equal chance of winning
-		gamma = 0.5
-	elseif better_team == -1
-		gamma = 1 - gamma
+	better_team = teamIsBetter(i, j, true_strength, mode)
+	if mode == 1 || mode == 2
+		# if better_team == 1, keep gamma as it is
+		if better_team == 0
+			# If they are the same ranking then they have an equal chance of winning
+			gamma = 0.5
+		elseif better_team == -1
+			gamma = 1 - gamma
+		end
+	elseif mode == 3 || mode == 4
+		gamma = better_team
 	end
-	
+		
 	if (team_i_tanks && team_j_tanks) || (!team_i_tanks && !team_j_tanks)
 		# Neither team is tanking, or both are; we treat this the same, as non-tanking
 		# Thus team i (< j) wins with probability gamma (if i is indeed better than j)
@@ -109,7 +120,7 @@ function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_
 	return false
 end # teamIsEliminated
 
-function kendtau(stats, win_pct_ind = 5, true_ranking = 1:30)
+function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=1)
 	###
 	# kendtau
 	# Computes Kendell tau (Kemeny) distance
@@ -131,7 +142,7 @@ function kendtau(stats, win_pct_ind = 5, true_ranking = 1:30)
 	noisy_stats = sortslices([stats tmp], dims=1, by = x -> (x[win_pct_ind],x[num_stats+1]), rev=true)
 	for i = 1:len
 		for j = i+1:len
-			better_team = teamIsBetter(noisy_stats[i,1], noisy_stats[j,1], true_ranking)
+			better_team = teamIsBetter(noisy_stats[i,1], noisy_stats[j,1], true_strength, mode)
 			#print("i: ", noisy_stats[i,1], "\tj: ", noisy_stats[j,1], "\tteamIsBetter: ",better_team,"\n")
 			if better_team == -1 #noisy_stats[i,1] > noisy_stats[j,1]
 				kt = kt + 1
