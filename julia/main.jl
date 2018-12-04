@@ -115,7 +115,7 @@ else
 	end
 end
 
-function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=true, mode=MODE, results_dir = "../results")
+function main_simulate(;do_simulation = true, num_repeats = 100000, do_plotting=true, mode=MODE, results_dir = "../results")
 	set_mode(mode)
 
 	## Variables that need to be set
@@ -392,7 +392,7 @@ function main_simulate(do_simulation = true, num_repeats = 100000, do_plotting=t
 	return
 end; # main_simulate
 
-function main_parse(do_plotting=true, mode=MODE, data_dir="../data", results_dir="../results")
+function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_dir="../results")
 	set_mode(mode)
 
 	num_teams_eliminated_1314, num_games_tanked_1314, stats1314, critical_game1314 = parseNBASeason("games1314.csv", set_ranking, data_dir)
@@ -623,7 +623,7 @@ function main_parse(do_plotting=true, mode=MODE, data_dir="../data", results_dir
 	return
 end; # main_parse
 
-function rankings_are_noisy(do_simulation=true, num_repeats=1000, do_plotting=true, mode=MODE, results_dir="../results")
+function rankings_are_noisy(;do_simulation=true, num_repeats=1000, do_plotting=true, mode=MODE, results_dir="../results")
 	set_mode(mode)
 
 	## Variables that need to be set
