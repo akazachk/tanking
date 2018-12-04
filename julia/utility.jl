@@ -15,7 +15,7 @@ function teamIsBetter(i, j, true_strength = 30:-1:1, mode=1)
 	# mode = 3: use Bradley-Terry model, computing the probabilty team i beats team j via exponential score functions
 	###
 	team_i_str = true_strength[i]
-	team_j_str = true_strength[i]
+	team_j_str = true_strength[j]
 	if mode == 1 || mode == 2
 		if team_i_str > team_j_str
 			return 1
@@ -24,7 +24,9 @@ function teamIsBetter(i, j, true_strength = 30:-1:1, mode=1)
 		else
 			return 0
 		end
-	elseif mode == 3 || mode == 4
+	elseif mode == 3
+		return (team_i_str) / ((team_i_str) + (team_j_str))
+	elseif mode == 4
 		return exp(team_i_str) / (exp(team_i_str) + exp(team_j_str))
 	end
 end # teamIsBetter
@@ -143,13 +145,13 @@ function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=1)
 	for i = 1:len
 		for j = i+1:len
 			better_team = teamIsBetter(noisy_stats[i,1], noisy_stats[j,1], true_strength, mode)
-			#print("i: ", noisy_stats[i,1], "\tj: ", noisy_stats[j,1], "\tteamIsBetter: ",better_team,"\n")
 			out_of_order = false
 			if mode == 1 || mode == 2
 				out_of_order = (better_team == -1)
 			elseif mode == 3 || mode == 4
 				out_of_order = (better_team < 0.5 - 1e-7)
 			end
+			#print("i: ", noisy_stats[i,1], "\tj: ", noisy_stats[j,1], "\tteamIsBetter: ",better_team,"\n")
 			if out_of_order
 				kt = kt + 1
 			end
