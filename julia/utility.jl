@@ -144,7 +144,7 @@ function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=1)
 	noisy_stats = sortslices([stats tmp], dims=1, by = x -> (x[win_pct_ind],x[num_stats+1]), rev=true)
 	for i = 1:len
 		for j = i+1:len
-			better_team = teamIsBetter(noisy_stats[i,1], noisy_stats[j,1], true_strength, mode)
+			better_team = teamIsBetter(Int(noisy_stats[i,1]), Int(noisy_stats[j,1]), true_strength, mode)
 			out_of_order = false
 			if mode == 1 || mode == 2
 				out_of_order = (better_team == -1)
