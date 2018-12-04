@@ -144,7 +144,13 @@ function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=1)
 		for j = i+1:len
 			better_team = teamIsBetter(noisy_stats[i,1], noisy_stats[j,1], true_strength, mode)
 			#print("i: ", noisy_stats[i,1], "\tj: ", noisy_stats[j,1], "\tteamIsBetter: ",better_team,"\n")
-			if better_team == -1 #noisy_stats[i,1] > noisy_stats[j,1]
+			out_of_order = false
+			if mode == 1 || mode == 2
+				out_of_order = (better_team == -1)
+			elseif mode == 3 || mode == 4
+				out_of_order = (better_team < 0.5 - 1e-7)
+			end
+			if out_of_order
 				kt = kt + 1
 			end
 		end
