@@ -160,7 +160,7 @@ function main_simulate(;do_simulation = true, num_repeats = 100000, do_plotting=
 		incy = 1
 		maxy = Int(ceil(findmax(avg_kend)[1]))
 		#titlestring=L"\mbox{Fidelity of ranking by breapoint and tanking probability}"
-		titlestring = L"\mbox{Accuracy of ranking}"
+		titlestring = L"\mbox{Accuracy of ranking of non-playoff teams}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Distance from true ranking of non-playoff teams}"
 		legendtitlestring = L"\mbox{Draft ranking breakpoint}"
@@ -686,7 +686,7 @@ function rankings_are_noisy(;do_simulation=true, num_repeats=1000, do_plotting=t
 		#maxy = Int(ceil(maxy/incy)*incy)
 		titlestring = L"\mbox{Accuracy of ranking}"
 		xlabelstring = L"\mbox{Probability better team wins}"
-		ylabelstring = L"\mbox{Distance from true ranking}"
+		ylabelstring = L"\mbox{Distance from true ranking of all teams}"
 		legendtitlestring = L"\mbox{Rounds}"
 		fname_stub = "noisy_ranking"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
