@@ -6,7 +6,7 @@
 ###
 include("utility.jl")
 
-function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_strength, mode)
+function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_strength, mode)
 	###
 	# Simulates a season
 	#
@@ -37,7 +37,6 @@ function simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_rank
 	num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
 	num_games = num_rounds * num_games_per_round
 	num_team_games = num_rounds * (num_teams - 1)
-	num_teams_in_playoffs = Int(2^ceil(log(2, num_teams / 2)))
 	max_games_remaining = (4/5) * num_team_games # a minimum number of games needs to be played before tanking might happen
 
 	cutoff_game_for_draft = [round(set_ranking[i] * num_games) for i in 1:length(set_ranking)]

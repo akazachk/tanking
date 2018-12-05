@@ -13,6 +13,7 @@ shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
 col = ["red", "orange", "green", "blue", "violet", "black"]
 #color_for_cutoff_point = ["c" "b" "m" "r" "k"]
 num_teams = 30 # number of teams
+num_teams_in_playoffs = Int(2^ceil(log(2, num_teams / 2)))
 
 ## Set ranking type
 # 1: strict: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
@@ -137,7 +138,7 @@ function main_simulate(;do_simulation = true, num_repeats = 100000, do_plotting=
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated = simulate(num_teams, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_strength, mode)
+		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_strength, mode)
 		writedlm(string(results_dir, "/avg_kend", csvext), avg_kend, ',')
 		writedlm(string(results_dir, "/avg_games_tanked", csvext), avg_games_tanked, ',')
 		writedlm(string(results_dir, "/avg_already_tank", csvext), avg_already_tank, ',')
@@ -665,7 +666,7 @@ function rankings_are_noisy(;do_simulation=true, num_repeats=1000, do_plotting=t
 					end # loop over rounds
 
 					## Calculate Kendell tau distance for this round
-					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats,2,true_strength,mode) / num_repeats
+					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats, 2, true_strength, mode, num_teams - num_teams_in_playoffs) / num_repeats
 				end # loop over repeats
 			end # loop over num_rounds_set
 		end # loop over steps
@@ -684,7 +685,7 @@ function rankings_are_noisy(;do_simulation=true, num_repeats=1000, do_plotting=t
 		incy = 50 #Int(floor((maxy - miny) / 5))
 		maxy = Int(floor(findmax(avg_kend)[1]));
 		#maxy = Int(ceil(maxy/incy)*incy)
-		titlestring = L"\mbox{Accuracy of ranking}"
+		titlestring = L"\mbox{Accuracy of ranking without tanking}"
 		xlabelstring = L"\mbox{Probability better team wins}"
 		ylabelstring = L"\mbox{Distance from true ranking of all teams}"
 		legendtitlestring = L"\mbox{Rounds}"

@@ -118,7 +118,7 @@ function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_
 	return false
 end # teamIsEliminated
 
-function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=1)
+function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=1, min_rank=1)
 	###
 	# kendtau
 	# Computes Kendell tau (Kemeny) distance
@@ -138,7 +138,7 @@ function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=1)
 	kt = 0
 	tmp = randn(len) # randomize order among teams that have same number of wins
 	noisy_stats = sortslices([stats tmp], dims=1, by = x -> (x[win_pct_ind],x[num_stats+1]), rev=true)
-	for i = 1:len
+	for i = min_rank:len
 		for j = i+1:len
 			better_team = teamIsBetter(Int(noisy_stats[i,1]), Int(noisy_stats[j,1]), true_strength, mode)
 			out_of_order = false
