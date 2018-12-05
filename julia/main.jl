@@ -33,7 +33,7 @@ function set_mode(mode=MODE)
 		cssvext = ".csv"
 	elseif mode == 1
 		# 1 \succ 2 \succ \cdots \succ 30
-		global ranking_type="" #"_strict"
+		global ranking_type="_strict"
 		global true_strength = num_teams:-1:1
 	elseif mode == 2
 		# [1,5] \succ [6,10] \succ \cdots \succ [26,30]
