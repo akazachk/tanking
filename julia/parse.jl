@@ -69,6 +69,7 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 	end
 
 	## Set up initial ranking
+	h2h = zeros(Int, num_teams, num_teams)
 	rank_of_team = Array{Int}(undef, num_teams)
 	rank_of_team[east_teams] = sortperm(randn(num_teams_per_conf))
 	rank_of_team[west_teams] = sortperm(randn(num_teams_per_conf))
@@ -92,6 +93,7 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 		away_score = df[row, away_score_ind]
 		winning_team = (home_score > away_score) ? hometeam : awayteam
 		losing_team = (home_score > away_score) ? awayteam : hometeam
+		h2h[winning_team,losing_team] = h2h[winning_team,losing_team] + 1
 
 		## Critical game computation
 		## "If I win all my remaining games, and the cutoff for making the playoffs does not change, will I make the playoffs?"
@@ -145,9 +147,9 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 			stats[k,win_pct_ind] = stats[k,wins_ind] / teamcounter[k] # update current win pct
 			results[k,teamcounter[k]] = team_k_wins
 			if is_east[k]
-				rank_of_team, team_in_pos_east = updateRank(stats, rank_of_team, team_in_pos_east, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind) # update rank
+				rank_of_team, team_in_pos_east = updateRank(stats, rank_of_team, team_in_pos_east, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind, h2h) # update rank
 			else
-				rank_of_team, team_in_pos_west = updateRank(stats, rank_of_team, team_in_pos_west, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind) # update rank
+				rank_of_team, team_in_pos_west = updateRank(stats, rank_of_team, team_in_pos_west, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind, h2h) # update rank
 			end
 		end
 

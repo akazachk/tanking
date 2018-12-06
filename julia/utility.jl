@@ -118,11 +118,33 @@ function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_
 	return false
 end # teamIsEliminated
 
+function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=1, min_rank=1)
+	len = size(sorted_ranking,1)
+	kt = 0
+	for i = min_rank:len
+		for j = i+1:len
+			better_team = teamIsBetter(Int(sorted_ranking[i]), Int(sorted_ranking[j]), true_strength, mode)
+			out_of_order = false
+			if mode == 1 || mode == 2
+				out_of_order = (better_team == -1)
+			elseif mode == 3 || mode == 4
+				out_of_order = (better_team < 0.5 - 1e-7)
+			end
+			#print("i: ", sorted_ranking[i], "\tj: ", sorted_ranking[j], "\tteamIsBetter: ",better_team,"\n")
+			if out_of_order
+				kt = kt + 1
+			end
+		end
+	end
+	return kt
+end # kendtau_sorted
+
 function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=1, min_rank=1)
 	###
 	# kendtau
 	# Computes Kendell tau (Kemeny) distance
 	#
+	# Column 1 should be index of the team
 	# First sort by win percentage (stats[:,win_pct_ind])
 	# This yields the noisy ranking
 	# We want to calculate the distance to the true ranking (1,...,n)
@@ -135,25 +157,9 @@ function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=1, min_ra
 	###
 	len = size(stats,1)
 	num_stats = size(stats,2)
-	kt = 0
 	tmp = randn(len) # randomize order among teams that have same number of wins
-	noisy_stats = sortslices([stats tmp], dims=1, by = x -> (x[win_pct_ind],x[num_stats+1]), rev=true)
-	for i = min_rank:len
-		for j = i+1:len
-			better_team = teamIsBetter(Int(noisy_stats[i,1]), Int(noisy_stats[j,1]), true_strength, mode)
-			out_of_order = false
-			if mode == 1 || mode == 2
-				out_of_order = (better_team == -1)
-			elseif mode == 3 || mode == 4
-				out_of_order = (better_team < 0.5 - 1e-7)
-			end
-			#print("i: ", noisy_stats[i,1], "\tj: ", noisy_stats[j,1], "\tteamIsBetter: ",better_team,"\n")
-			if out_of_order
-				kt = kt + 1
-			end
-		end
-	end
-	return kt
+	sorted_ranking = sortslices([stats tmp], dims=1, by = x -> (x[win_pct_ind],x[num_stats+1]), rev=true)
+	return kendtau_sorted(sorted_ranking[:,1], true_strength, mode, min_rank)
 end # kendtau
 
 function sortTeams(stats, best_to_worst = true, win_pct_ind = 5, games_left_ind = 3)
@@ -166,11 +172,16 @@ function sortTeams(stats, best_to_worst = true, win_pct_ind = 5, games_left_ind 
 	return sorted
 end # sortTeams
 
-function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, num_teams, win_pct_ind = 5, games_left_ind = 3)
+function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, num_teams, win_pct_ind = 5, games_left_ind = 3, h2h = [])
 	###
 	# updateRank
 	#
 	# After updating win percentage for team i and j, find their new postions
+	# Tie breaking is as follows:
+	# 1. win pct
+	# 2. if tied, then head-to-head record
+	# 3. if tied, then fewest games left
+	# 4. if tied, then flip an unbiased coin
 	###
 	old_rank_i = rank_of_team[team_i]
 	win_pct = stats[team_i, win_pct_ind]
@@ -179,12 +190,20 @@ function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, num_t
 	k = old_rank_i + inc
 	should_continue = true
 	while (k > 0 && k < num_teams+1 && should_continue)
-		curr_win_pct = stats[team_in_pos[k], win_pct_ind]
-		curr_games_left = stats[team_in_pos[k], games_left_ind]
+		team_j = team_in_pos[k]
+		curr_win_pct = stats[team_j, win_pct_ind]
+		curr_games_left = stats[team_j, games_left_ind]
+		ivj = (size(h2h,1) > 0) ? h2h[team_i,team_j] - h2h[team_j,team_i] : 0
 		if team_i_wins
-			should_continue = (win_pct > curr_win_pct) || (win_pct == curr_win_pct && games_left < curr_games_left)
+			should_continue = (win_pct > curr_win_pct) || 
+												(win_pct == curr_win_pct && ivj > 0) ||
+												(win_pct == curr_win_pct && ivj == 0 && games_left < curr_games_left) ||
+												(win_pct == curr_win_pct && ivj == 0 && games_left == curr_games_left && rand() > 1/2)
 		else
-			should_continue = (win_pct < curr_win_pct) || (win_pct == curr_win_pct && games_left > curr_games_left)
+			should_continue = (win_pct < curr_win_pct) || 
+												(win_pct == curr_win_pct && ivj < 0) ||
+												(win_pct == curr_win_pct && ivj == 0 && games_left > curr_games_left) ||
+												(win_pct == curr_win_pct && ivj == 0 && games_left == curr_games_left && rand() > 1/2)
 		end
 		if should_continue
 			k += inc

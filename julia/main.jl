@@ -121,8 +121,8 @@ function main_simulate(;do_simulation = true, num_repeats = 100000, do_plotting=
 
 	## Variables that need to be set
 	num_rounds = 3 # a round consists of each team playing each other team
-	num_steps = 100 # discretization of [0,1] for tanking probability
-	gamma = 0.75 # probability a better-ranked team wins over a worse-ranked team
+	num_steps = 20 # discretization of [0,1] for tanking probability
+	gamma = 0.67 # probability a better-ranked team wins over a worse-ranked team
 	## end variables that need to be set
 
 	## Set constants
@@ -134,20 +134,26 @@ function main_simulate(;do_simulation = true, num_repeats = 100000, do_plotting=
 	avg_games_tanked = 0 # [step,cutoff], number games tanked by cutoff
 	avg_already_tank = 0 # [step,cutoff], number teams already tanking by the cutoff
 	avg_eliminated = 0 # [step,game], number teams eliminated by each game
+	avg_kend_gold = 0 # ranking based on number of wins since elimination point
+	avg_kend_lenten = 0 # ranking in order of first-to-eliminated
 
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_strength, mode)
+		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_strength, mode)
 		writedlm(string(results_dir, "/avg_kend", csvext), avg_kend, ',')
 		writedlm(string(results_dir, "/avg_games_tanked", csvext), avg_games_tanked, ',')
 		writedlm(string(results_dir, "/avg_already_tank", csvext), avg_already_tank, ',')
 		writedlm(string(results_dir, "/avg_eliminated", csvext), avg_eliminated, ',')
+		writedlm(string(results_dir, "/avg_kend_gold", csvext), avg_kend_gold, ',')
+		writedlm(string(results_dir, "/avg_kend_lenten", csvext), avg_kend_lenten, ',')
 	else
 		avg_kend = readdlm(string(results_dir, "/avg_kend", csvext), ',')
 		avg_games_tanked = readdlm(string(results_dir, "/avg_games_tanked", csvext), ',')
 		avg_already_tank = readdlm(string(results_dir, "/avg_already_tank", csvext), ',')
 		avg_eliminated = readdlm(string(results_dir, "/avg_eliminated", csvext), ',')
+		avg_kend_gold = readdlm(string(results_dir, "/avg_kend_gold", csvext), ',')
+		avg_kend_lenten = readdlm(string(results_dir, "/avg_kend_lenten", csvext), ',')
 		num_steps = size(avg_kend)[1] - 1
 	end
 
@@ -735,3 +741,11 @@ function rankings_are_noisy(;do_simulation=true, num_repeats=1000, do_plotting=t
 		end
 	end # if do_plotting
 end; # rankings_are_noisy
+
+function tanking_unit_tests()
+	test_ranking = 1:num_teams
+	test_strength = 1:num_teams
+	@assert ( kendtau_sorted(test_ranking, test_strength, 1) == Int(num_teams * (num_teams-1) / 2) )
+	test_strength = num_teams:-1:1
+	@assert ( kendtau_sorted(test_ranking, test_strength, 1) == 0 )
+end # tanking_unit_tests
