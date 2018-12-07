@@ -85,7 +85,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 		tank_perc = array_of_tanking_probabilities[step_ind]
 		print("Simulating season with $tank_perc ratio of teams tanking\n")
 		for rep = 1:num_repeats
-			print("\tRepeat $rep/$num_repeats (ratio $tank_perc)\n")
+			print("\tRepeat $rep/$num_repeats (ratio $tank_perc, avg_kend $(avg_kend[step_ind,:]))\n")
 			## Set up stats for current repeat
 			num_eliminated = 0
 			num_teams_tanking = 0
@@ -111,7 +111,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 			end
 			h2h = zeros(Int, num_teams, num_teams)
 			num_wins_since_elim = zeros(Int, num_teams)
-			elimination_index = zeros(Int, num_teams) # when was this team eliminated
+			elimination_index = zeros(Int, num_teams) # game when was this team eliminated
 
 			## Set random game order for this repeat
 			for round_ind = 1:num_rounds
@@ -146,7 +146,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 								stats[k,4] = stats[k,games_left_ind]
 								num_eliminated += 1
 								num_teams_tanking += stats[k,6] == 1
-								elimination_index[k] = num_eliminated
+								elimination_index[k] = game_ind
 							end
 						end
 					end # set critical game for teams i and j
@@ -174,7 +174,6 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 							num_wins_since_elim[k] = num_wins_since_elim[k] + 1
 						end
 					end
-					avg_eliminated[step_ind, game_ind] += num_eliminated / num_repeats
 					#print("($i,$j) Team $i wins? $team_i_wins\n")
 					#display([1:num_teams team_in_pos rank_of_team stats[team_in_pos,win_pct_ind]])
 
@@ -198,10 +197,11 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 								stats[k,4] = stats[k,games_left_ind]
 								num_eliminated += 1
 								num_teams_tanking += stats[k,6] == 1
-								elimination_index[k] = num_eliminated
+								elimination_index[k] = game_ind
 							end
 						end
 					end # set critical game for teams i and j
+					avg_eliminated[step_ind, game_ind] += num_eliminated / num_repeats
 				end # iterate over num_games_per_round
 			end # iterate over rounds
 			## end of a season
@@ -217,33 +217,35 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 				#avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r], win_pct_ind, true_strength, mode) / num_repeats
 			end
 
-			## Also compute Kendall tau distance for the Gold and Lenten methods
-			ranking_gold = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
-			ranking_gold[:,1] = np_index
-			ranking_gold[:,2] = -1 * num_wins_since_elim[np_index] # negative because teams with more wins need to be ranked worse (as they are given a _higher_ draft pick)
-			avg_kend_gold += kendtau(ranking_gold, 2, true_strength, mode) / num_repeats
+			if (tank_perc == 0.0)
+				## Also compute Kendall tau distance for the Gold and Lenten methods
+				ranking_gold = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
+				ranking_gold[:,1] = np_index
+				ranking_gold[:,2] = -1 * num_wins_since_elim[np_index] # negative because teams with more wins need to be ranked worse (as they are given a _higher_ draft pick)
+				avg_kend_gold += kendtau(ranking_gold, 2, true_strength, mode) / num_repeats
 
-			## For the Lenten ranking, we need to double check that the teams we said are eliminated did not make the playoffs
-			## Note that if a team is mathematically eliminated, then it is also effectively eliminated; the problem is the converse
-			## For this experiment, it is ``okay'' if we rank a team that is effectively eliminated before another
-			## if in reality it ends up being _mathematically_ eliminated after the other
-			## What do we do with the teams that do not make the playoffs, but were never effectively eliminated?
-			## We will rank them in reverse order as they stand at the end of the season
-			tmp_elim_index = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
-			tmp_elim_index[:,1] = np_index
-			tmp_elim_index[:,2] = elimination_index[np_index] # not using negative, because we will sort high-to-low later
-			for elim_ind = 1:num_teams - num_teams_in_playoffs
-				if tmp_elim_index[elim_ind,2] == 0 # was never eliminated
-					# Team was not eliminated but did not make the playoffs
-					# It is so far unranked from Lenten perspective
-					# Should be ranked higher than teams eliminated earlier
-					# Among the teams not eliminated, pretend that higher rank at end of season means it was eliminated later
-					curr_team_ind = tmp_elim_index[elim_ind,1]
-					tmp_elim_index[elim_ind,2] = num_eliminated + 1 + (num_teams - rank_of_team[curr_team_ind])
+				## For the Lenten ranking, we need to double check that the teams we said are eliminated did not make the playoffs
+				## Note that if a team is mathematically eliminated, then it is also effectively eliminated; the problem is the converse
+				## For this experiment, it is ``okay'' if we rank a team that is effectively eliminated before another
+				## if in reality it ends up being _mathematically_ eliminated after the other
+				## What do we do with the teams that do not make the playoffs, but were never effectively eliminated?
+				## We will rank them in reverse order as they stand at the end of the season
+				tmp_elim_index = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
+				tmp_elim_index[:,1] = np_index
+				tmp_elim_index[:,2] = elimination_index[np_index] # not using negative, because we will sort high-to-low later
+				for elim_ind = 1:num_teams - num_teams_in_playoffs
+					if tmp_elim_index[elim_ind,2] == 0 # was never eliminated
+						# Team was not eliminated but did not make the playoffs
+						# It is so far unranked from Lenten perspective
+						# Should be ranked higher than teams eliminated earlier
+						# Among the teams not eliminated, pretend that higher rank at end of season means it was eliminated later
+						curr_team_ind = tmp_elim_index[elim_ind,1]
+						tmp_elim_index[elim_ind,2] = num_games + 1 + (num_teams - rank_of_team[curr_team_ind])
+					end
 				end
+				ranking_lenten = sortslices(tmp_elim_index, dims=1, by = x -> x[2], rev=true) # descending; having a higher elimination index means Lenten ranks the team higher (since it was eliminated later), i.e., it has a worse draft pick
+				avg_kend_lenten += kendtau_sorted(ranking_lenten[:,1], true_strength, mode) / num_repeats
 			end
-			ranking_lenten = sortslices(tmp_elim_index, dims=1, by = x -> x[2], rev=true) # descending; having a higher elimination index means Lenten ranks the team higher (since it was eliminated later), i.e., it has a worse draft pick
-			avg_kend_lenten += kendtau_sorted(ranking_lenten[:,1], true_strength, mode) / num_repeats
 		end # do repeats
 	end # looping over tanking percentages
 
