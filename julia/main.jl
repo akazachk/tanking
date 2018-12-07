@@ -1,3 +1,12 @@
+##########################################
+# Reducing Tanking Incentives in the NBA #
+##########################################
+# Aleksandr M. Kazachkov
+# Shai Vardi
+###
+# December 2018
+###
+
 ## Required dependencies
 using DelimitedFiles
 using LaTeXStrings
@@ -116,13 +125,13 @@ else
 	end
 end
 
-function main_simulate(;do_simulation = true, num_repeats = 100000, do_plotting=true, mode=MODE, results_dir = "../results")
+function main_simulate(;do_simulation = true, num_replications = 100000, do_plotting=true, mode=MODE, results_dir = "../results")
 	set_mode(mode)
 
 	## Variables that need to be set
 	num_rounds = 3 # a round consists of each team playing each other team
 	num_steps = 20 # discretization of [0,1] for tanking probability
-	gamma = 0.67 # probability a better-ranked team wins over a worse-ranked team
+	gamma = 0.75 # probability a better-ranked team wins over a worse-ranked team
 	## end variables that need to be set
 
 	## Set constants
@@ -140,7 +149,7 @@ function main_simulate(;do_simulation = true, num_repeats = 100000, do_plotting=
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_strength, mode)
+		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, set_ranking, true_strength, mode)
 		writedlm(string(results_dir, "/avg_kend", csvext), avg_kend, ',')
 		writedlm(string(results_dir, "/avg_games_tanked", csvext), avg_games_tanked, ',')
 		writedlm(string(results_dir, "/avg_already_tank", csvext), avg_already_tank, ',')
@@ -630,7 +639,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 	return
 end; # main_parse
 
-function rankings_are_noisy(;do_simulation=true, num_repeats=1000, do_plotting=true, mode=MODE, results_dir="../results")
+function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plotting=true, mode=MODE, results_dir="../results")
 	set_mode(mode)
 
 	## Variables that need to be set
@@ -650,7 +659,7 @@ function rankings_are_noisy(;do_simulation=true, num_repeats=1000, do_plotting=t
 			gamma = prob[step_ind];
 			for num_rounds_ind in 1:length(num_rounds_set)
 				num_rounds = num_rounds_set[num_rounds_ind];
-				for rep = 1:num_repeats
+				for rep = 1:num_replications
 					stats = zeros(Int, num_teams, 2);
 					for i = 1:num_teams
 						stats[i,1] = i;
@@ -672,8 +681,8 @@ function rankings_are_noisy(;do_simulation=true, num_repeats=1000, do_plotting=t
 					end # loop over rounds
 
 					## Calculate Kendell tau distance for this round
-					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats, 2, true_strength, mode, num_teams - num_teams_in_playoffs) / num_repeats
-				end # loop over repeats
+					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats, 2, true_strength, mode, num_teams - num_teams_in_playoffs) / num_replications
+				end # loop over replications
 			end # loop over num_rounds_set
 		end # loop over steps
 		writedlm(string(results_dir, "/noisy_ranking", csvext), avg_kend, ',')

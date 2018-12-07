@@ -6,7 +6,7 @@
 ###
 include("utility.jl")
 
-function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num_steps, gamma, set_ranking, true_strength, mode)
+function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, set_ranking, true_strength, mode)
 	###
 	# Simulates a season
 	#
@@ -19,16 +19,18 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 	# to have a win percentage at least as good as the last playoff team
 	# (assuming that cutoff win percentage remains the same)
 	#
-	# When two non-tanking teams play each other, the better team wins with probability gamma
+	# mode = 1 or 2:
+	# When two non-tanking teams or two tanking teams play each other, the better team wins with probability gamma
 	# When a tanking team plays a non-tanking team, the tanking team always loses
-	# When two tanking teams play each other, the one that is currently better wins
-	#
-	# We assume the "true" ranking is 1,...,n
+	# 
+	# mode = 3 or 4:
+	# Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game
 	#
 	# Assumptions:
 	# 1. No simultaneous games
 	# 2. Teams keep same relative true ranking throughout season
-	# 3. No conferences
+	# 3. No conferences / divisions
+	# 4. No home/away games
 	###
 
 	## Set constants
@@ -84,8 +86,8 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 	for step_ind in 1:length(array_of_tanking_probabilities)
 		tank_perc = array_of_tanking_probabilities[step_ind]
 		print("Simulating season with $tank_perc ratio of teams tanking\n")
-		for rep = 1:num_repeats
-			print("\tRepeat $rep/$num_repeats (ratio $tank_perc, avg_kend $(avg_kend[step_ind,:]))\n")
+		for rep = 1:num_replications
+			print("\tRepeat $rep/$num_replications (ratio $tank_perc, avg_kend $(avg_kend[step_ind,:]))\n")
 			## Set up stats for current repeat
 			num_eliminated = 0
 			num_teams_tanking = 0
@@ -181,8 +183,8 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 					for r = 1:length(cutoff_game_for_draft) 
 						if game_ind == cutoff_game_for_draft[r]
 							draft_rank_of_team[:,r] = rank_of_team
-							avg_already_tank[step_ind, r] += num_teams_tanking / num_repeats
-							avg_games_tanked[step_ind, r] += num_games_tanked / num_repeats
+							avg_already_tank[step_ind, r] += num_teams_tanking / num_replications
+							avg_games_tanked[step_ind, r] += num_games_tanked / num_replications
 							#draft_ranking[:,:,r] = stats
 							#draft_ranking_row_index[:,r] = row_index
 						end
@@ -201,7 +203,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 							end
 						end
 					end # set critical game for teams i and j
-					avg_eliminated[step_ind, game_ind] += num_eliminated / num_repeats
+					avg_eliminated[step_ind, game_ind] += num_eliminated / num_replications
 				end # iterate over num_games_per_round
 			end # iterate over rounds
 			## end of a season
@@ -213,8 +215,8 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 				tmp_stats[:,1] = np_index
 				tmp_stats[:,2] = draft_rank_of_team[np_index, r]
 				sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
-				avg_kend[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode) / num_repeats
-				#avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r], win_pct_ind, true_strength, mode) / num_repeats
+				avg_kend[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode) / num_replications
+				#avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r], win_pct_ind, true_strength, mode) / num_replications
 			end
 
 			if (tank_perc == 0.0)
@@ -222,7 +224,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 				ranking_gold = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
 				ranking_gold[:,1] = np_index
 				ranking_gold[:,2] = -1 * num_wins_since_elim[np_index] # negative because teams with more wins need to be ranked worse (as they are given a _higher_ draft pick)
-				avg_kend_gold += kendtau(ranking_gold, 2, true_strength, mode) / num_repeats
+				avg_kend_gold += kendtau(ranking_gold, 2, true_strength, mode) / num_replications
 
 				## For the Lenten ranking, we need to double check that the teams we said are eliminated did not make the playoffs
 				## Note that if a team is mathematically eliminated, then it is also effectively eliminated; the problem is the converse
@@ -244,9 +246,9 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_repeats, num
 					end
 				end
 				ranking_lenten = sortslices(tmp_elim_index, dims=1, by = x -> x[2], rev=true) # descending; having a higher elimination index means Lenten ranks the team higher (since it was eliminated later), i.e., it has a worse draft pick
-				avg_kend_lenten += kendtau_sorted(ranking_lenten[:,1], true_strength, mode) / num_repeats
+				avg_kend_lenten += kendtau_sorted(ranking_lenten[:,1], true_strength, mode) / num_replications
 			end
-		end # do repeats
+		end # do replications
 	end # looping over tanking percentages
 
 	return avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten
