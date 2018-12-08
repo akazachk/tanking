@@ -6,7 +6,7 @@
 ###
 include("utility.jl")
 
-function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, set_ranking, true_strength, mode)
+function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, set_ranking, true_strength, mode, return_h2h=false)
 	###
 	# Simulates a season
 	#
@@ -45,6 +45,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 
 	## Prepare output
 	avg_kend = zeros(Float64, num_steps+1, length(set_ranking))
+	#avg_kend_h2h = zeros(Float64, num_steps+1, length(set_ranking))
 	avg_games_tanked = zeros(Float64, num_steps+1, length(set_ranking))
 	avg_already_tank = zeros(Float64, num_steps+1, length(set_ranking))
 	avg_eliminated = zeros(Float64, num_steps+1, num_games)
@@ -79,6 +80,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 	win_pct_ind = 5
 	stats = Matrix{Any}(undef, num_teams, size_of_stats)
 	draft_rank_of_team = Array{Any}(undef, num_teams, length(cutoff_game_for_draft))
+	#draft_rank_of_team_h2h = Array{Any}(undef, num_teams, length(cutoff_game_for_draft))
 	#draft_ranking = Array{Any}(undef, num_teams, size_of_stats, length(cutoff_game_for_draft))
 	#draft_ranking_row_index = Array{Any}(undef, num_teams, length(cutoff_game_for_draft))
 
@@ -87,7 +89,9 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 		tank_perc = array_of_tanking_probabilities[step_ind]
 		print("Simulating season with $tank_perc ratio of teams tanking\n")
 		for rep = 1:num_replications
-			print("\tRepeat $rep/$num_replications (ratio $tank_perc, avg_kend $(avg_kend[step_ind,:]))\n")
+			print("\tRepeat $rep/$num_replications (ratio $tank_perc, \n")
+			print("\t\tavg_kend \t$(avg_kend[step_ind,:]))\n")
+			#print("\t\tavg_kend_h2h \t$(avg_kend_h2h[step_ind,:])\n")
 			## Set up stats for current repeat
 			num_eliminated = 0
 			num_teams_tanking = 0
@@ -108,10 +112,16 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 			## Set up initial ranking
 			rank_of_team = sortperm(randn(num_teams)) # initial ranking (returns rank of team i)
 			team_in_pos = Array{Int}(undef, num_teams) # inverse ranking (returns team that is in position i)
+			#rank_of_team_h2h = sortperm(randn(num_teams)) #rank_of_team # initial ranking (returns rank of team i)
+			#team_in_pos_h2h = Array{Int}(undef, num_teams) # inverse ranking (returns team that is in position i)
 			for i = 1:num_teams
 				team_in_pos[rank_of_team[i]] = i
+				#team_in_pos_h2h[rank_of_team_h2h[i]] = i
 			end
-			h2h = zeros(Int, num_teams, num_teams)
+			h2h = []
+			if return_h2h
+				h2h = zeros(Int, num_teams, num_teams)
+			end
 			num_wins_since_elim = zeros(Int, num_teams)
 			elimination_index = zeros(Int, num_teams) # game when was this team eliminated
 
@@ -155,8 +165,10 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 
 					# Decide who wins the game
 					team_i_wins = teamWillWin(i, j, stats, gamma, true_strength, mode)
-					h2h[i,j] = h2h[i,j] + team_i_wins
-					h2h[j,i] = h2h[j,i] + !team_i_wins
+					if return_h2h
+						h2h[i,j] = h2h[i,j] + team_i_wins
+						h2h[j,i] = h2h[j,i] + !team_i_wins
+					end
 
 					# Check tanking
 					if teamIsTanking(i, stats) || teamIsTanking(j, stats) #(stats[i,6] * stats[i,4] + stats[j,6] * stats[j,4] > 0)
@@ -170,6 +182,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 						stats[k,games_left_ind] = stats[k,games_left_ind] - 1 # one fewer game remaining
 						stats[k,win_pct_ind] = stats[k,2] / (num_team_games - stats[k,games_left_ind]) # update current win pct
 						rank_of_team, team_in_pos = updateRank(stats, rank_of_team, team_in_pos, k, team_k_wins, num_teams, win_pct_ind, games_left_ind, h2h) # update rank
+						#rank_of_team_h2h, team_in_pos_h2h = updateRank(stats, rank_of_team_h2h, team_in_pos_h2h, k, team_k_wins, num_teams, win_pct_ind, games_left_ind, h2h) # update rank
 						
 						# If team k wins and has been eliminated
 						if team_k_wins && teamIsEliminated(stats[k,2], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
@@ -183,6 +196,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 					for r = 1:length(cutoff_game_for_draft) 
 						if game_ind == cutoff_game_for_draft[r]
 							draft_rank_of_team[:,r] = rank_of_team
+							#draft_rank_of_team_h2h[:,r] = rank_of_team_h2h
 							avg_already_tank[step_ind, r] += num_teams_tanking / num_replications
 							avg_games_tanked[step_ind, r] += num_games_tanked / num_replications
 							#draft_ranking[:,:,r] = stats
@@ -210,6 +224,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 
 			## Get non-playoff teams at end of season
 			np_index = team_in_pos[num_teams_in_playoffs+1:num_teams]
+			#np_index_h2h = team_in_pos_h2h[num_teams_in_playoffs+1:num_teams]
 			for r = 1:length(cutoff_game_for_draft)
 				tmp_stats = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
 				tmp_stats[:,1] = np_index
@@ -217,6 +232,13 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 				sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
 				avg_kend[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode) / num_replications
 				#avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r], win_pct_ind, true_strength, mode) / num_replications
+
+				# Now repeat with h2h
+				#tmp_stats = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
+				#tmp_stats[:,1] = np_index_h2h
+				#tmp_stats[:,2] = draft_rank_of_team_h2h[np_index, r]
+				#sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
+				#avg_kend_h2h[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode) / num_replications
 			end
 
 			if (tank_perc == 0.0)
@@ -251,5 +273,6 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 		end # do replications
 	end # looping over tanking percentages
 
+	#avg_kend_to_return = return_h2h ? avg_kend_h2h : avg_kend
 	return avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten
 end # simulate

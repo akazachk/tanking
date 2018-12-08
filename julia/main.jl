@@ -125,12 +125,12 @@ else
 	end
 end
 
-function main_simulate(;do_simulation = true, num_replications = 100000, do_plotting=true, mode=MODE, results_dir = "../results")
+function main_simulate(;do_simulation = true, num_replications = 100000, do_plotting=true, mode=MODE, results_dir = "../results", return_h2h = false)
 	set_mode(mode)
 
 	## Variables that need to be set
 	num_rounds = 3 # a round consists of each team playing each other team
-	num_steps = 20 # discretization of [0,1] for tanking probability
+	num_steps = 1 #20 # discretization of [0,1] for tanking probability
 	gamma = 0.75 # probability a better-ranked team wins over a worse-ranked team
 	## end variables that need to be set
 
@@ -149,7 +149,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, set_ranking, true_strength, mode)
+		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, set_ranking, true_strength, mode, return_h2h)
 		writedlm(string(results_dir, "/avg_kend", csvext), avg_kend, ',')
 		writedlm(string(results_dir, "/avg_games_tanked", csvext), avg_games_tanked, ',')
 		writedlm(string(results_dir, "/avg_already_tank", csvext), avg_already_tank, ',')
