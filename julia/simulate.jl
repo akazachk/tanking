@@ -89,9 +89,9 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 		tank_perc = array_of_tanking_probabilities[step_ind]
 		print("Simulating season with $tank_perc ratio of teams tanking\n")
 		for rep = 1:num_replications
-			print("\tRepeat $rep/$num_replications (ratio $tank_perc, \n")
-			print("\t\tavg_kend \t$(avg_kend[step_ind,:]))\n")
-			#print("\t\tavg_kend_h2h \t$(avg_kend_h2h[step_ind,:])\n")
+			print("\tRepeat $rep/$num_replications, ratio $tank_perc\n")
+			#print("\t\tavg_kend \t$(avg_kend[step_ind,:])\n")
+			##print("\t\tavg_kend_h2h \t$(avg_kend_h2h[step_ind,:])\n")
 			## Set up stats for current repeat
 			num_eliminated = 0
 			num_teams_tanking = 0
