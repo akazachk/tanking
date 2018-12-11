@@ -102,6 +102,7 @@ else
 	if DO_PLOTTING
 		using PyCall
 		pygui(:qt5) # others do not work on mac
+		#PyCall.PyDict(matplotlib["rcParams"])["font.serif"] = ["Cambria"]
 		using PyPlot
 		rc("text", usetex=true)
 		rc("font", family="serif")
@@ -176,10 +177,11 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 		incy = 1
 		maxy = Int(ceil(findmax(avg_kend)[1]))
 		#titlestring=L"\mbox{Fidelity of ranking by breapoint and tanking probability}"
-		titlestring = L"\mbox{Accuracy of ranking of non-playoff teams}"
+		titlestring = L"\mbox{Effect of $\delta$ on bilevel ranking of non-playoff teams}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Distance from true ranking of non-playoff teams}"
-		legendtitlestring = L"\mbox{Draft ranking breakpoint}"
+		#legendtitlestring = L"\mbox{Draft ranking breakpoint}"
+		legendtitlestring = L"\mbox{Breakpoint ($\delta$)}"
 		fname_stub = "avg_kend"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
@@ -197,7 +199,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 				if set_ranking[r] == 1	
 					curr_label = "end of season" #L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}")
+					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
 				end
 				plot(0:(1/num_steps):1, avg_kend[:,r], label=curr_label, color=col[r])
 			end
@@ -224,10 +226,10 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 				#cutoff_game = set_ranking[r]
 				curr_label = ""
 				if set_ranking[r] == 1	
-					#curr_label = latexstring("$tmp", "\\mbox{ through season}")
+					#curr_label = latexstring("$tmp", "\\mbox{ of season}")
 					curr_label = L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}")
+					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
 				end
 				plot!(0:(1/num_steps):1, avg_kend[:,r], label=curr_label, linecolor=col[r]);
 								#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
@@ -261,7 +263,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 				if set_ranking[r] == 1	
 					curr_label = L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}")
+					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
 				end
 				plot(0:(1/num_steps):1, avg_games_tanked[:,r], label=curr_label, color=col[r])
 			end
@@ -288,7 +290,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 				if set_ranking[r] == 1	
 					curr_label = L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}")
+					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
 				end
 				plot!(0:(1/num_steps):1, avg_games_tanked[:,r], label=curr_label, linecolor=col[r]);
 								#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
@@ -325,7 +327,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 				if set_ranking[r] == 1	
 					curr_label = L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}")
+					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
 				end
 				plot(0:(1/num_steps):1, avg_already_tank[:,r], label=curr_label, color=col[r])
 			end
@@ -351,7 +353,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 				if set_ranking[r] == 1	
 					curr_label = L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}")
+					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
 				end
 				plot!(0:(1/num_steps):1, avg_already_tank[:,r], label=curr_label, linecolor=col[r]);
 								#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
@@ -368,9 +370,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 		miny = Int(floor(findmin(avg_eliminated)[1]))
 		incy = 1
 		maxy = Int(ceil(findmax(avg_eliminated)[1]))
-		titlestring = L"\mbox{Number teams effectively eliminated over time}"
-		xlabelstring = L"\mbox{Percent through season}"
-		ylabelstring = L"\mbox{Number teams effectively eliminated}"
+		titlestring = L"\mbox{Number of teams effectively eliminated over time}"
+		xlabelstring = L"\mbox{Percent of season elapsed}"
+		ylabelstring = L"\mbox{Number of teams effectively eliminated}"
 		fname_stub = "avg_eliminated"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
@@ -449,7 +451,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		@assert ( length(set_ranking) in ind )
 		num_years=5
 		labels = [L"2013-2014", L"2014-2015", L"2015-2016", L"2016-2017", L"2017-2018"]
-		col_labels = ["red", "orange", "green", "blue", "black"]
+		col_labels = ["red", "orange", "green", "blue", "violet"]
 
 		## Plot # games tanked
 		print("Plotting num_games_tanked: number of games (possibly) tanked by the breakpoint mark\n")
@@ -481,7 +483,8 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		titlestring = L"\mbox{Number of games that could be tanked}"
 		xlabelstring = L"\mbox{Season}"
 		ylabelstring = L"\mbox{Number of possibly tanked games}"
-		legendtitlestring = L"\mbox{Draft ranking breakpoint}"
+		#legendtitlestring = L"\mbox{Draft ranking breakpoint}"
+		legendtitlestring = L"\mbox{Breakpoint ($\delta$)}"
 		fname_stub = "nba_num_teams_eliminated"
 		fname_stub = "nba_num_games_tanked"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
@@ -502,7 +505,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 				if set_ranking[r] == 1
 					curr_label=L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}")
+					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
 				end	
 				if i == 1
 					bar(1:num_years, num_games_tanked_stacked[:,i], label=curr_label, width = width)
@@ -517,7 +520,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 			PyPlot.savefig(fname_low)
 			close()
 		else
-			ctg = repeat(vcat([latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}") for r in ind if r < length(set_ranking)], L"\mbox{end of season}"), inner=num_years)
+			ctg = repeat(vcat([latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}") for r in ind if r < length(set_ranking)], L"\mbox{end of season}"), inner=num_years)
 			fig = groupedbar(num_games_tanked_stacked,
 											title=titlestring,
 											xlab=xlabelstring,
@@ -547,9 +550,9 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		miny = Int(ceil(findmin(num_teams_eliminated)[1]))
 		maxy = Int(floor(findmax(num_teams_eliminated)[1]))
 		incy = 1
-		titlestring = L"\mbox{Number teams effectively eliminated over time}"
-		xlabelstring = L"\mbox{Percent through season}"
-		ylabelstring = L"\mbox{Number teams effectively eliminated}"
+		titlestring = L"\mbox{Number of teams effectively eliminated over time}"
+		xlabelstring = L"\mbox{Percent of season elapsed}"
+		ylabelstring = L"\mbox{Number of teams effectively eliminated}"
 		legendtitlestring = L"\mbox{Season}"
 		fname_stub = "nba_num_teams_eliminated"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
@@ -569,7 +572,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 				plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), num_teams_eliminated[s,:], label=curr_label, color=col_labels[s]);
 			end
 			curr_num_games = length(avg_eliminated)
-			plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), avg_eliminated, label="simulated", color="cyan", linestyle="dashed")
+			plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), avg_eliminated, label="simulated", color="black", linestyle="dashed")
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
@@ -615,7 +618,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 #		miny = Int(ceil(findmin(num_teams_eliminated)[1]))
 #		maxy = Int(floor(findmax(num_teams_eliminated)[1]))
 #		inc = floor((maxy - miny) / 5)
-#		ctg = repeat(vcat([latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ through season}") for r in ind if r < length(set_ranking)], L"\mbox{end of season}"), inner=num_years)
+#		ctg = repeat(vcat([latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}") for r in ind if r < length(set_ranking)], L"\mbox{end of season}"), inner=num_years)
 #		fig = groupedbar(num_teams_eliminated[:,ind], 
 #										xticks=(Array(1:num_years),["\$13-14\$","\$14-15\$","\$15-16\$","\$16-17\$","\$17-18\$"]),
 #										yticks=(Array(miny:inc:maxy),[@sprintf("\$%d\$", i) for i in miny:inc:maxy]),
@@ -700,7 +703,7 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 		incy = 50 #Int(floor((maxy - miny) / 5))
 		maxy = Int(floor(findmax(avg_kend)[1]));
 		#maxy = Int(ceil(maxy/incy)*incy)
-		titlestring = L"\mbox{Accuracy of ranking without tanking}"
+		titlestring = L"\mbox{Effect of number of rounds on ranking accuracy}"
 		xlabelstring = L"\mbox{Probability better team wins}"
 		ylabelstring = L"\mbox{Distance from true ranking of all teams}"
 		legendtitlestring = L"\mbox{Rounds}"
