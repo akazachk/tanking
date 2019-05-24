@@ -2,11 +2,18 @@
 # Useful functions #
 ####################
 
+## Ranking type
+# 1: strict: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
+# 2: ties: [1,5] \succ [6,10] \succ \cdots \succ [26,30]
+# 3: BT_uniform: Bradley-Terry with P(i>j) = p_i / (p_i + p_j); must also set distribution, where default is each team gets a strength score from U[0,1]
+# 4: BT_exponential: Bradley-Terry with P(i>j) = exp(p_i) / (exp(p_i) + exp(p_j)); must also set distribution, where default is each team gets a strength score from U[0,1]; can consider others such as, e.g., using Beta(alpha=2, beta=5)
+@enum MODE_TYPES NONE=0 STRICT TIES BT_UNIFORM BT_EXPONENTIAL
+
 function teamIsTanking(i, stats)
 	return stats[i,6] == 1 && stats[i,3] <= stats[i,4]
 end # teamIsTanking
 
-function teamIsBetter(i, j, true_strength = 30:-1:1, mode=1)
+function teamIsBetter(i, j, true_strength = 30:-1:1, mode=STRICT)
 	###
 	# teamIsBetter
 	#
@@ -16,7 +23,7 @@ function teamIsBetter(i, j, true_strength = 30:-1:1, mode=1)
 	###
 	team_i_str = true_strength[i]
 	team_j_str = true_strength[j]
-	if mode == 1 || mode == 2
+	if mode == STRICT || mode == TIES
 		if team_i_str > team_j_str
 			return 1
 		elseif team_i_str < team_j_str
@@ -24,9 +31,9 @@ function teamIsBetter(i, j, true_strength = 30:-1:1, mode=1)
 		else
 			return 0
 		end
-	elseif mode == 3
+	elseif mode == BT_UNIFORM
 		return (team_i_str) / ((team_i_str) + (team_j_str))
-	elseif mode == 4
+	elseif mode == BT_EXPONENTIAL
 		return exp(team_i_str) / (exp(team_i_str) + exp(team_j_str))
 	end
 end # teamIsBetter
@@ -34,7 +41,7 @@ end # teamIsBetter
 function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 	# Figure out which team is better and update gamma correspondingly
 	better_team = teamIsBetter(i, j, true_strength, mode)
-	if mode == 1 || mode == 2
+	if mode == STRICT || mode == TIES
 		# if better_team == 1, keep gamma as it is
 		if better_team == 0
 			# If they are the same ranking then they have an equal chance of winning
@@ -42,7 +49,7 @@ function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 		elseif better_team == -1
 			gamma = 1 - gamma
 		end
-	elseif mode == 3 || mode == 4
+	elseif mode == BT_UNIFORM || mode == BT_EXPONENTIAL
 		gamma = better_team
 	end
 		
@@ -54,7 +61,7 @@ function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 	end
 end # teamWillWinNoTanking
 
-function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=1)
+function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT)
 	###
 	# teamWillWin
 	#
@@ -118,16 +125,16 @@ function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_
 	return false
 end # teamIsEliminated
 
-function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=1, min_rank=1)
+function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=STRICT, min_rank=1)
 	len = size(sorted_ranking,1)
 	kt = 0
 	for i = min_rank:len
 		for j = i+1:len
 			better_team = teamIsBetter(Int(sorted_ranking[i]), Int(sorted_ranking[j]), true_strength, mode)
 			out_of_order = false
-			if mode == 1 || mode == 2
+      if mode == STRICT || mode == TIES
 				out_of_order = (better_team == -1)
-			elseif mode == 3 || mode == 4
+      elseif mode == BT_UNIFORM || mode == BT_EXPONENTIAL
 				out_of_order = (better_team < 0.5 - 1e-7)
 			end
 			#print("i: ", sorted_ranking[i], "\tj: ", sorted_ranking[j], "\tteamIsBetter: ",better_team,"\n")
@@ -139,7 +146,7 @@ function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=1, min_rank=
 	return kt
 end # kendtau_sorted
 
-function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=1, min_rank=1)
+function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=STRICT, min_rank=1)
 	###
 	# kendtau
 	# Computes Kendell tau (Kemeny) distance

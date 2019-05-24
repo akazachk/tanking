@@ -4,7 +4,7 @@
 # Aleksandr M. Kazachkov
 # Shai Vardi
 ###
-# December 2018
+# June 2019
 ###
 
 ## Required dependencies
@@ -29,7 +29,8 @@ num_teams_in_playoffs = Int(2^ceil(log(2, num_teams / 2)))
 # 2: ties: [1,5] \succ [6,10] \succ \cdots \succ [26,30]
 # 3: BT_uniform: Bradley-Terry with P(i>j) = p_i / (p_i + p_j); must also set distribution, where default is each team gets a strength score from U[0,1]
 # 4: BT_exponential: Bradley-Terry with P(i>j) = exp(p_i) / (exp(p_i) + exp(p_j)); must also set distribution, where default is each team gets a strength score from U[0,1]; can consider others such as, e.g., using Beta(alpha=2, beta=5)
-MODE = 1
+MODE = STRICT
+
 ranking_type = ""
 true_strength = []
 csvext = ".csv"
@@ -39,17 +40,17 @@ ext = string(ranking_type,".",ext_folder)
 lowext = string(ranking_type,"_low",".",lowext_folder)
 
 function set_mode(mode=MODE)
-	if mode == 0
+	if mode == NONE
 		cssvext = ".csv"
-	elseif mode == 1
+	elseif mode == STRICT
 		# 1 \succ 2 \succ \cdots \succ 30
 		global ranking_type="_strict"
 		global true_strength = num_teams:-1:1
-	elseif mode == 2
+	elseif mode == TIES
 		# [1,5] \succ [6,10] \succ \cdots \succ [26,30]
 		global ranking_type="_ties"
 		global true_strength = [Int(ceil(i/5)) for i in num_teams:-1:1] # allows for ties # old: [i:i+4 for i in 1:5:num_teams-4]
-	elseif mode == 3
+	elseif mode == BT_UNIFORM
 		# Options to consider:
 		# uniform distribution (same as beta(1,1))
 		# --> essentially perfectly imbalanced
@@ -57,7 +58,7 @@ function set_mode(mode=MODE)
 		# --> more weight on middle teams, smaller probability of very weak or very strong teams
 		global ranking_type="_BT_uniform"
 		global true_strength = rand(30,1)
-	elseif mode == 4
+	elseif mode == BT_EXPONENTIAL
 		global ranking_type="_BT_exponential"
 		global true_strength = rand(30,1)
 	end
