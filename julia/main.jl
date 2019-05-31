@@ -1,6 +1,6 @@
-##########################################
-# Reducing Tanking Incentives in the NBA #
-##########################################
+######################################
+# On Tanking and Competitive Balance #
+######################################
 # Aleksandr M. Kazachkov
 # Shai Vardi
 ###
@@ -31,6 +31,12 @@ num_teams_in_playoffs = Int(2^ceil(log(2, num_teams / 2)))
 # 4: BT_exponential: Bradley-Terry with P(i>j) = exp(p_i) / (exp(p_i) + exp(p_j)); must also set distribution, where default is each team gets a strength score from U[0,1]; can consider others such as, e.g., using Beta(alpha=2, beta=5)
 MODE = STRICT
 
+## NBA draft odds (for non-playoff teams, in reverse order)
+# If teams are tied, then those teams receive odds that are the average of the odds for the positions they occupy
+nba_odds_old = [.250, .199, .156, .119, .088, .063, .043, .028, .017, .011, .008, .007, .006, .005]
+nba_odds_new = [.140, .140, .140, .125, .105, .090, .075, .060, .045, .030, .020, .015, .010, .005]
+nba_odds_flat = [1./14. for i in 1:14]
+
 ranking_type = ""
 true_strength = []
 csvext = ".csv"
@@ -40,6 +46,7 @@ ext = string(ranking_type,".",ext_folder)
 lowext = string(ranking_type,"_low",".",lowext_folder)
 
 function set_mode(mode=MODE)
+  ### Set global variables based on which mode is being used
 	if mode == NONE
 		cssvext = ".csv"
 	elseif mode == STRICT
@@ -141,12 +148,13 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 	num_games = num_rounds * num_games_per_round
 
 	## For output
-	avg_kend = 0 # [step,cutoff], holds KT distance for each tanking probability and cutoff for draft ranking
 	avg_games_tanked = 0 # [step,cutoff], number games tanked by cutoff
 	avg_already_tank = 0 # [step,cutoff], number teams already tanking by the cutoff
 	avg_eliminated = 0 # [step,game], number teams eliminated by each game
+	avg_kend = 0 # [step,cutoff], holds KT distance for each tanking probability and cutoff for draft ranking
 	avg_kend_gold = 0 # ranking based on number of wins since elimination point
 	avg_kend_lenten = 0 # ranking in order of first-to-eliminated
+  avg_kend_nba_new = 0 # KT distance based on 
 
 	## Do simulation or retrieve data
 	if do_simulation
@@ -169,7 +177,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 	end
 
 	if (do_plotting)
-		## Plot avg_kend (Kendell tau distance)
+		## Plot avg_kend (Kendell tau distance) for the bilevel ranking
 		print("Plotting avg_kend: average swap distance\n")
 		minx = 0
 		incx = 0.1
@@ -177,11 +185,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 		miny = Int(floor(findmin(avg_kend)[1]))
 		incy = 1
 		maxy = Int(ceil(findmax(avg_kend)[1]))
-		#titlestring=L"\mbox{Fidelity of ranking by breapoint and tanking probability}"
 		titlestring = L"\mbox{Effect of $\delta$ on bilevel ranking of non-playoff teams}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Distance from true ranking of non-playoff teams}"
-		#legendtitlestring = L"\mbox{Draft ranking breakpoint}"
 		legendtitlestring = L"\mbox{Breakpoint ($\delta$)}"
 		fname_stub = "avg_kend"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
