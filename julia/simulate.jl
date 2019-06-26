@@ -37,11 +37,11 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 	step_size = 1 / num_steps
 	array_of_tanking_probabilities = 0:step_size:1
 	num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
-	num_games = num_rounds * num_games_per_round
+	num_games_total = num_rounds * num_games_per_round
 	num_team_games = num_rounds * (num_teams - 1)
 	max_games_remaining = (4/5) * num_team_games # a minimum number of games needs to be played before tanking might happen
 
-	breakpoint_game_for_draft = [round(breakpoint_list[i] * num_games) for i in 1:length(breakpoint_list)]
+	breakpoint_game_for_draft = [round(breakpoint_list[i] * num_games_total) for i in 1:length(breakpoint_list)]
 
 	## Prepare output
 	avg_kend = zeros(Float64, num_steps+1, length(breakpoint_list))
@@ -53,7 +53,8 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 	avg_kend_lenten = 0.0
 
 	## Set up for game order 
-	games = Array{Int64}(undef, num_rounds, num_games_per_round, 2) # games played in each round
+	#games = Array{Int64}(undef, num_rounds, num_games_per_round, 2) # games played in each round
+	schedule = Matrix{Int64}(undef, num_rounds * num_games_per_round, 2) # schedule of games
 	ord_games = Matrix{Int64}(undef, num_games_per_round, 2) # all the games played per round [internal]
 	# Alternative to below is 
 	# using Combinatorics
@@ -74,7 +75,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 	# stats[:,4] is when team is eliminated(in terms of remaining games)
 	# stats[:,5] is win percentage
 	# stats[:,6] is indicator for whether team tanks
-	#	stats[:,7] is team rank
+	# not implemented:	stats[:,7] is team rank
 	size_of_stats = 6
   team_name_ind = 1
   num_wins_ind = 2
@@ -132,14 +133,17 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 			## Set random game order for this repeat
 			for round_ind = 1:num_rounds
 				perm = sortperm(randn(num_games_per_round))
-				games[round_ind,:,:] = ord_games[perm,:]
+        start_round = num_games_per_round * (round_ind - 1) + 1
+        end_round = num_games_per_round * round_ind
+        schedule[start_round:end_round, :] = ord_games[perm,:]
 			end
 
 			## Run one season
-			game_ind = 0
-			for round_ind = 1:num_rounds
-				for round_game_ind = 1:num_games_per_round
-					game_ind += 1
+			#game_ind = 0
+      for game_ind = 1:num_games_total
+			#for round_ind = 1:num_rounds
+				#for round_game_ind = 1:num_games_per_round
+					#game_ind += 1
 
 					# Find cutoff [do this every game - find last playoff team - set that as cutoff]
 					# Tie-breaking is fewest games left
@@ -150,10 +154,8 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 					cutoff_avg = stats[last_team,win_pct_ind]
 
 					# Current teams playing
-					i = games[round_ind, round_game_ind, 1]
-					j = games[round_ind, round_game_ind, 2]
-					#row_i = row_index[games[round_ind, round_game_ind, 1]]
-					#row_j = row_index[games[round_ind, round_game_ind, 2]]
+					i = schedule[game_ind, 1] #games[round_ind, round_game_ind, 1]
+					j = schedule[game_ind, 2] #games[round_ind, round_game_ind, 2]
 
 					# Set critical game for i,j (game that team is eliminated)
 					for k in [i,j]
@@ -224,8 +226,9 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 						end
 					end # set critical game for teams i and j
 					avg_eliminated[step_ind, game_ind] += num_eliminated / num_replications
-				end # iterate over num_games_per_round
-			end # iterate over rounds
+				#end # iterate over num_games_per_round
+			#end # iterate over rounds
+      end # iterate over games
 			## end of a season
 
 			## Get non-playoff teams at end of season
@@ -270,7 +273,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 						# Should be ranked higher than teams eliminated earlier
 						# Among the teams not eliminated, pretend that higher rank at end of season means it was eliminated later
 						curr_team_ind = tmp_elim_index[elim_ind,1]
-						tmp_elim_index[elim_ind,2] = num_games + 1 + (num_teams - rank_of_team[curr_team_ind])
+						tmp_elim_index[elim_ind,2] = num_games_total + 1 + (num_teams - rank_of_team[curr_team_ind])
 					end
 				end
 				ranking_lenten = sortslices(tmp_elim_index, dims=1, by = x -> x[2], rev=true) # descending; having a higher elimination index means Lenten ranks the team higher (since it was eliminated later), i.e., it has a worse draft pick

@@ -1,3 +1,10 @@
+###################################
+# Parse NBA data from spreadsheet #
+###################################
+# Aleksandr M. Kazachkov
+# Shai Vardi
+###
+
 #using CSV
 #using DataFrames
 using DelimitedFiles

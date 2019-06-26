@@ -1,6 +1,9 @@
 ####################
 # Useful functions #
 ####################
+# Aleksandr M. Kazachkov
+# Shai Vardi
+###
 
 ## Ranking type
 # 1: strict: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
