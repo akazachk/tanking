@@ -72,7 +72,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 	# stats[:,1] is team "name"
 	# stats[:,2] is num wins
 	# stats[:,3] is remaining
-	# stats[:,4] is when team is eliminated(in terms of remaining games)
+	# stats[:,4] is when team is eliminated (in terms of remaining games)
 	# stats[:,5] is win percentage
 	# stats[:,6] is indicator for whether team tanks
 	# not implemented:	stats[:,7] is team rank
@@ -101,6 +101,9 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 			num_eliminated = 0
 			num_teams_tanking = 0
 			num_games_tanked = 0
+      outcome = zeros(Int, num_games_total)
+			num_wins_since_elim = zeros(Int, num_teams)
+			elimination_index = zeros(Int, num_teams) # game when was this team eliminated
 			for i = 1:num_teams
 				stats[i,team_name_ind] = i # team name
 				stats[i,num_wins_ind] = 0 # num wins
@@ -127,8 +130,6 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 			if return_h2h
 				h2h = zeros(Int, num_teams, num_teams)
 			end
-			num_wins_since_elim = zeros(Int, num_teams)
-			elimination_index = zeros(Int, num_teams) # game when was this team eliminated
 
 			## Set random game order for this repeat
 			for round_ind = 1:num_rounds
@@ -171,6 +172,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 
 					# Decide who wins the game
 					team_i_wins = teamWillWin(i, j, stats, gamma, true_strength, mode, games_left_ind, games_left_when_elim_ind, will_tank_ind)
+          outcome[game_ind] = team_i_wins ? i : j
 					if return_h2h
 						h2h[i,j] = h2h[i,j] + team_i_wins
 						h2h[j,i] = h2h[j,i] + !team_i_wins
