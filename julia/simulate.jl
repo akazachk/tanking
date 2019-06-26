@@ -6,7 +6,7 @@
 ###
 include("utility.jl")
 
-function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, set_ranking, true_strength, mode, return_h2h=false)
+function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, breakpoint_list, true_strength, mode, return_h2h=false)
 	###
 	# Simulates a season
 	#
@@ -41,13 +41,13 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 	num_team_games = num_rounds * (num_teams - 1)
 	max_games_remaining = (4/5) * num_team_games # a minimum number of games needs to be played before tanking might happen
 
-	cutoff_game_for_draft = [round(set_ranking[i] * num_games) for i in 1:length(set_ranking)]
+	breakpoint_game_for_draft = [round(breakpoint_list[i] * num_games) for i in 1:length(breakpoint_list)]
 
 	## Prepare output
-	avg_kend = zeros(Float64, num_steps+1, length(set_ranking))
-	#avg_kend_h2h = zeros(Float64, num_steps+1, length(set_ranking))
-	avg_games_tanked = zeros(Float64, num_steps+1, length(set_ranking))
-	avg_already_tank = zeros(Float64, num_steps+1, length(set_ranking))
+	avg_kend = zeros(Float64, num_steps+1, length(breakpoint_list))
+	#avg_kend_h2h = zeros(Float64, num_steps+1, length(breakpoint_list))
+	avg_games_tanked = zeros(Float64, num_steps+1, length(breakpoint_list))
+	avg_already_tank = zeros(Float64, num_steps+1, length(breakpoint_list))
 	avg_eliminated = zeros(Float64, num_steps+1, num_games)
 	avg_kend_gold = 0.0
 	avg_kend_lenten = 0.0
@@ -76,13 +76,17 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 	# stats[:,6] is indicator for whether team tanks
 	#	stats[:,7] is team rank
 	size_of_stats = 6
+  team_name_ind = 1
+  num_wins_ind = 2
 	games_left_ind = 3
+  games_left_when_elim_ind = 4
 	win_pct_ind = 5
+  will_tank_ind = 6
 	stats = Matrix{Any}(undef, num_teams, size_of_stats)
-	draft_rank_of_team = Array{Any}(undef, num_teams, length(cutoff_game_for_draft))
-	#draft_rank_of_team_h2h = Array{Any}(undef, num_teams, length(cutoff_game_for_draft))
-	#draft_ranking = Array{Any}(undef, num_teams, size_of_stats, length(cutoff_game_for_draft))
-	#draft_ranking_row_index = Array{Any}(undef, num_teams, length(cutoff_game_for_draft))
+	draft_rank_of_team = Array{Any}(undef, num_teams, length(breakpoint_game_for_draft))
+	#draft_rank_of_team_h2h = Array{Any}(undef, num_teams, length(breakpoint_game_for_draft))
+	#draft_ranking = Array{Any}(undef, num_teams, size_of_stats, length(breakpoint_game_for_draft))
+	#draft_ranking_row_index = Array{Any}(undef, num_teams, length(breakpoint_game_for_draft))
 
 	## Begin calculations
 	for step_ind in 1:length(array_of_tanking_probabilities)
@@ -97,15 +101,15 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 			num_teams_tanking = 0
 			num_games_tanked = 0
 			for i = 1:num_teams
-				stats[i,1] = i # team name
-				stats[i,2] = 0 # num wins
+				stats[i,team_name_ind] = i # team name
+				stats[i,num_wins_ind] = 0 # num wins
 				stats[i,games_left_ind] = num_team_games # num games left
-				stats[i,4] = 0 # when team is eliminated (in terms of how many left)
+				stats[i,games_left_when_elim_ind] = 0 # when team is eliminated (in terms of how many left)
 				stats[i,win_pct_ind] = 0.0 # win percentage
 				if rand() > tank_perc
-					stats[i,6] = 0 # will not tank
+					stats[i,will_tank_ind] = 0 # will not tank
 				else
-					stats[i,6] = 1 # will tank
+					stats[i,will_tank_ind] = 1 # will tank
 				end
 			end # set up stats array
 
@@ -153,48 +157,50 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 
 					# Set critical game for i,j (game that team is eliminated)
 					for k in [i,j]
-						if stats[k,4] == 0 # check team has not already started tanking
-							if teamIsEliminated(stats[k,2], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
-								stats[k,4] = stats[k,games_left_ind]
+						if stats[k,games_left_when_elim_ind] == 0 # check team has not already started tanking
+							if teamIsEliminated(stats[k,num_wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
+								stats[k,games_left_when_elim_ind] = stats[k,games_left_ind]
 								num_eliminated += 1
-								num_teams_tanking += stats[k,6] == 1
+								num_teams_tanking += stats[k,will_tank_ind] == 1
 								elimination_index[k] = game_ind
 							end
 						end
 					end # set critical game for teams i and j
 
 					# Decide who wins the game
-					team_i_wins = teamWillWin(i, j, stats, gamma, true_strength, mode)
+					team_i_wins = teamWillWin(i, j, stats, gamma, true_strength, mode, games_left_ind, games_left_when_elim_ind, will_tank_ind)
 					if return_h2h
 						h2h[i,j] = h2h[i,j] + team_i_wins
 						h2h[j,i] = h2h[j,i] + !team_i_wins
 					end
 
 					# Check tanking
-					if teamIsTanking(i, stats) || teamIsTanking(j, stats) #(stats[i,6] * stats[i,4] + stats[j,6] * stats[j,4] > 0)
+          team_i_is_tanking = teamIsTanking(i, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind)
+          team_j_is_tanking = teamIsTanking(j, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind)
+					if team_i_is_tanking || team_j_is_tanking
 					  num_games_tanked += 1
 					end
 
 					# Do updates
 					for k in [i,j]
 						team_k_wins = (k == i) ? team_i_wins : !team_i_wins
-          	stats[k,2] = stats[k,2] + team_k_wins
+          	stats[k,num_wins_ind] = stats[k,num_wins_ind] + team_k_wins
 						stats[k,games_left_ind] = stats[k,games_left_ind] - 1 # one fewer game remaining
-						stats[k,win_pct_ind] = stats[k,2] / (num_team_games - stats[k,games_left_ind]) # update current win pct
+						stats[k,win_pct_ind] = stats[k,num_wins_ind] / (num_team_games - stats[k,games_left_ind]) # update current win pct
 						rank_of_team, team_in_pos = updateRank(stats, rank_of_team, team_in_pos, k, team_k_wins, num_teams, win_pct_ind, games_left_ind, h2h) # update rank
 						#rank_of_team_h2h, team_in_pos_h2h = updateRank(stats, rank_of_team_h2h, team_in_pos_h2h, k, team_k_wins, num_teams, win_pct_ind, games_left_ind, h2h) # update rank
 						
 						# If team k wins and has been eliminated
-						if team_k_wins && teamIsEliminated(stats[k,2], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
+						if team_k_wins && teamIsEliminated(stats[k,num_wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
 							num_wins_since_elim[k] = num_wins_since_elim[k] + 1
 						end
 					end
 					#print("($i,$j) Team $i wins? $team_i_wins\n")
 					#display([1:num_teams team_in_pos rank_of_team stats[team_in_pos,win_pct_ind]])
 
-					# When the cutoff for choosing a playoff ranking has been reached, set the ranking
-					for r = 1:length(cutoff_game_for_draft) 
-						if game_ind == cutoff_game_for_draft[r]
+					# When the breakpoint for choosing a playoff ranking has been reached, set the ranking
+					for r = 1:length(breakpoint_game_for_draft) 
+						if game_ind == breakpoint_game_for_draft[r]
 							draft_rank_of_team[:,r] = rank_of_team
 							#draft_rank_of_team_h2h[:,r] = rank_of_team_h2h
 							avg_already_tank[step_ind, r] += num_teams_tanking / num_replications
@@ -208,11 +214,11 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 					last_team = team_in_pos[num_teams_in_playoffs]
 					cutoff_avg = stats[last_team,win_pct_ind]
 					for k in [i,j]
-						if stats[k,4] == 0 # check team has not already started tanking
-							if teamIsEliminated(stats[k,2], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
-								stats[k,4] = stats[k,games_left_ind]
+						if stats[k,games_left_when_elim_ind] == 0 # check team has not already started tanking
+							if teamIsEliminated(stats[k,num_wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
+								stats[k,games_left_when_elim_ind] = stats[k,games_left_ind]
 								num_eliminated += 1
-								num_teams_tanking += stats[k,6] == 1
+								num_teams_tanking += stats[k,will_tank_ind] == 1
 								elimination_index[k] = game_ind
 							end
 						end
@@ -223,20 +229,20 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 			## end of a season
 
 			## Get non-playoff teams at end of season
-			np_index = team_in_pos[num_teams_in_playoffs+1:num_teams]
-			#np_index_h2h = team_in_pos_h2h[num_teams_in_playoffs+1:num_teams]
-			for r = 1:length(cutoff_game_for_draft)
+			nonplayoff_teams = team_in_pos[num_teams_in_playoffs+1:num_teams]
+			#nonplayoff_teams_h2h = team_in_pos_h2h[num_teams_in_playoffs+1:num_teams]
+			for r = 1:length(breakpoint_game_for_draft)
 				tmp_stats = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
-				tmp_stats[:,1] = np_index
-				tmp_stats[:,2] = draft_rank_of_team[np_index, r]
+				tmp_stats[:,1] = nonplayoff_teams
+				tmp_stats[:,2] = draft_rank_of_team[nonplayoff_teams, r]
 				sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
 				avg_kend[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode) / num_replications
-				#avg_kend[step_ind, r] += kendtau(draft_ranking[np_index,:,r], win_pct_ind, true_strength, mode) / num_replications
+				#avg_kend[step_ind, r] += kendtau(draft_ranking[nonplayoff_teams,:,r], win_pct_ind, true_strength, mode) / num_replications
 
 				# Now repeat with h2h
 				#tmp_stats = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
-				#tmp_stats[:,1] = np_index_h2h
-				#tmp_stats[:,2] = draft_rank_of_team_h2h[np_index, r]
+				#tmp_stats[:,1] = nonplayoff_teams_h2h
+				#tmp_stats[:,2] = draft_rank_of_team_h2h[nonplayoff_teams, r]
 				#sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
 				#avg_kend_h2h[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode) / num_replications
 			end
@@ -244,8 +250,8 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 			if (tank_perc == 0.0)
 				## Also compute Kendall tau distance for the Gold and Lenten methods
 				ranking_gold = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
-				ranking_gold[:,1] = np_index
-				ranking_gold[:,2] = -1 * num_wins_since_elim[np_index] # negative because teams with more wins need to be ranked worse (as they are given a _higher_ draft pick)
+				ranking_gold[:,1] = nonplayoff_teams
+				ranking_gold[:,2] = -1 * num_wins_since_elim[nonplayoff_teams] # negative because teams with more wins need to be ranked worse (as they are given a _better_ draft pick)
 				avg_kend_gold += kendtau(ranking_gold, 2, true_strength, mode) / num_replications
 
 				## For the Lenten ranking, we need to double check that the teams we said are eliminated did not make the playoffs
@@ -255,8 +261,8 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 				## What do we do with the teams that do not make the playoffs, but were never effectively eliminated?
 				## We will rank them in reverse order as they stand at the end of the season
 				tmp_elim_index = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
-				tmp_elim_index[:,1] = np_index
-				tmp_elim_index[:,2] = elimination_index[np_index] # not using negative, because we will sort high-to-low later
+				tmp_elim_index[:,1] = nonplayoff_teams
+				tmp_elim_index[:,2] = elimination_index[nonplayoff_teams] # not using negative, because we will sort high-to-low later
 				for elim_ind = 1:num_teams - num_teams_in_playoffs
 					if tmp_elim_index[elim_ind,2] == 0 # was never eliminated
 						# Team was not eliminated but did not make the playoffs

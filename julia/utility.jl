@@ -9,8 +9,8 @@
 # 4: BT_exponential: Bradley-Terry with P(i>j) = exp(p_i) / (exp(p_i) + exp(p_j)); must also set distribution, where default is each team gets a strength score from U[0,1]; can consider others such as, e.g., using Beta(alpha=2, beta=5)
 @enum MODE_TYPES NONE=0 STRICT TIES BT_UNIFORM BT_EXPONENTIAL
 
-function teamIsTanking(i, stats)
-	return stats[i,6] == 1 && stats[i,3] <= stats[i,4]
+function teamIsTanking(i, stats, games_left_ind=3, games_left_when_elim_ind=4, will_tank_ind=6)
+	return stats[i,will_tank_ind] == 1 && stats[i,games_left_ind] <= stats[i,games_left_when_elim_ind]
 end # teamIsTanking
 
 function teamIsBetter(i, j, true_strength = 30:-1:1, mode=STRICT)
@@ -61,7 +61,7 @@ function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 	end
 end # teamWillWinNoTanking
 
-function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT)
+function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, games_left_ind=3, games_left_when_elim_ind=4, will_tank_ind=6)
 	###
 	# teamWillWin
 	#
@@ -87,18 +87,12 @@ function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT)
 	# stats[:,5] is win percentage
 	# stats[:,6] is indicator for whether team tanks
 	###
-	team_i_tanks = teamIsTanking(i, stats) #stats[i,6] == 1 && stats[i,3] <= stats[i,4] # team i is past the tanking cutoff point
-	team_j_tanks = teamIsTanking(j, stats) #stats[j,6] == 1 && stats[j,3] <= stats[j,4] # team j is past the tanking cutoff point
+	team_i_tanks = teamIsTanking(i, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind) #stats[i,will_tank_ind] == 1 && stats[i,games_left_ind] <= stats[i,games_left_when_elim_ind] # team i is past the tanking cutoff point
+	team_j_tanks = teamIsTanking(j, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind) #stats[j,will_tank_ind] == 1 && stats[j,games_left_ind] <= stats[j,games_left_when_elim_ind] # team j is past the tanking cutoff point
 
 	if (team_i_tanks && team_j_tanks) || (!team_i_tanks && !team_j_tanks)
 		# Neither team is tanking, or both are; we treat this the same, as non-tanking
 		return teamWillWinNoTanking(i, j, gamma, true_strength, mode)
-		# Old version for when both teams tank was based on which team is better
-		#if stats[i,5] > stats[j,5] # team i is better (currently)
-		#	return true
-		#else # team j is better
-		#	return false
-		#end
 	elseif team_i_tanks
 		# Only team i tanks
 		return false

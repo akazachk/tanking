@@ -3,7 +3,7 @@
 using DelimitedFiles
 include("utility.jl")
 
-function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_dir="../data")
+function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], data_dir="../data")
 	###
 	# Parse real data
 	###
@@ -19,7 +19,7 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 	num_rows = size(df)[1]
 	num_cols = size(df)[2]
 	num_games = num_rows	- num_header_rows
-	cutoff_game_for_draft = [round(set_ranking[i] * num_games) for i in 1:length(set_ranking)]
+	cutoff_game_for_draft = [round(breakpoint_list[i] * num_games) for i in 1:length(breakpoint_list)]
 
 	## Set constants
 	num_teams = 30
@@ -40,8 +40,8 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 	num_eliminated = 0
 	num_games_tanked = 0
 	num_eliminated_by_game = zeros(Int, num_games)
-	num_eliminated_at_cutoff = zeros(Int,length(set_ranking))
-	num_games_tanked_at_cutoff = zeros(Int,length(set_ranking))
+	num_eliminated_at_cutoff = zeros(Int,length(breakpoint_list))
+	num_games_tanked_at_cutoff = zeros(Int,length(breakpoint_list))
 
 	## Set up data matrices
 	teams = sort(unique(df[start_row:num_rows,home_team_ind]))
@@ -129,7 +129,7 @@ function parseNBASeason(filename="games1314.xlsx", set_ranking=[3//4,1], data_di
 		end
 
 		## Set for each cutoff the number eliminated and number of games tanked
-		for r = 1:length(set_ranking)
+		for r = 1:length(breakpoint_list)
 			if game_ind == cutoff_game_for_draft[r]
 				num_eliminated_at_cutoff[r] = num_eliminated
 				num_games_tanked_at_cutoff[r] = num_games_tanked
