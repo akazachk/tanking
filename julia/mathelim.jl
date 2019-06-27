@@ -6,38 +6,39 @@
 ###
 # Decide whether team k can still make the playoffs
 #
-# The MIP is used to calculate the best rank that team k can possibly still achieve
+# We calculate the best rank that team k can possibly still achieve
+# A heuristic is provided, as well as a MIP formulation
+# The heuristic can be used to provide a strong incumbent solution
 ###
 
 using JuMP, Cbc
 
 function heuristicBestRank(k, t, schedule, in_stats, in_outcome,
-    team_name_ind = 1, num_wins_ind = 2, games_left_ind = 3)
+    num_wins_ind = 2, games_left_ind = 3)
   ###
   # Heuristic for a ``good'' set of outcomes for team k for the remainder of the season
   # (remainder of the season = games t to num_games_total)
   ###
   num_games_total = size(schedule,1)
-  num_teams = size(stats,1)
+  num_teams = size(in_stats,1)
 
   ## Make copies of input data
   stats = copy(in_stats)
   outcome = copy(in_outcome)
   
   ## Calculate W
-  thisTeamWinsRemainingGames!(k, t, schedule, stats, outcome,
-      team_name_ind, num_wins_ind, games_left_ind)
+  thisTeamWinsRemainingGames!(k, t, schedule, stats, outcome, num_wins_ind, games_left_ind)
   W = stats[k, num_wins_ind]
 
   ## If a team's relative position to k is decided, it will win its remaining games
-  heuristicHelper!(k, t, schedule, stats, outcome,
-      team_name_ind, num_wins_ind, games_left_ind)
+  heuristicHelper!(k, t, schedule, stats, outcome, num_wins_ind, games_left_ind)
 
   ## Run rest of reason
   for game_ind = t:num_games_total
     # Skip the game if the outcome has already been decided
     if outcome[game_ind] > 0
       continue
+    end
 
     # Current teams playing
     i = schedule[game_ind,1] 
@@ -48,10 +49,10 @@ function heuristicBestRank(k, t, schedule, in_stats, in_outcome,
     if stats[i, num_wins_ind] < stats[j, num_wins_ind]
       winner = i
       loser = j
-    else if stats[i, num_wins_ind] > stats[j, num_wins_ind]
+    elseif stats[i, num_wins_ind] > stats[j, num_wins_ind]
       winner = j
       loser = i
-    else if stats[i, games_left_ind] >= stats[j, games_left_ind]
+    elseif stats[i, games_left_ind] >= stats[j, games_left_ind]
       winner = i
       loser = j
     else
@@ -67,17 +68,16 @@ function heuristicBestRank(k, t, schedule, in_stats, in_outcome,
 
     # Check if more game outcomes can be fixed
     if stats[winner, num_wins_ind] > W
-      thisTeamWinsRemainingGames!(winner, game_ind, schedule, stats, outcome, 
-          team_name_ind, num_wins_ind, games_left_ind)
+      thisTeamWinsRemainingGames!(winner, game_ind, schedule, stats, outcome, num_wins_ind, games_left_ind)
     end
     if stats[loser, num_wins_ind]  + stats[loser, games_left_ind] <= W
-      thisTeamWinsRemainingGames!(loser, game_ind, schedule, stats, outcome, 
-          team_name_ind, num_wins_ind, games_left_ind)
+      thisTeamWinsRemainingGames!(loser, game_ind, schedule, stats, outcome, num_wins_ind, games_left_ind)
     end
   end # iterate over remaining games
 
   ## Identify ranking of teams based on the outcomes
-  sorted_teams = sortperm(stats[:,num_wins_ind], rev=true)
+  num_wins = stats[:,num_wins_ind]
+  sorted_teams = sortperm(num_wins, rev=true)
   rank_of_team = Array{Int}(undef, num_teams)
   rank_of_team[sorted_teams[1]] = 1
   for i = 2:num_teams
@@ -85,20 +85,21 @@ function heuristicBestRank(k, t, schedule, in_stats, in_outcome,
     curr_team = sorted_teams[i]
     last_wins = w[last_team]
     curr_wins = w[curr_team]
-    rank_of_team[last_team] = rank_of_team[curr_team]
+    rank_of_team[curr_team] = rank_of_team[last_team]
     if last_wins > curr_wins
-      rank_of_team[last_team] = rank_of_team[last_team] + 1
+      rank_of_team[curr_team] = rank_of_team[curr_team] + 1
     end
   end
 
-  return stats, outcome
+  return outcome, num_wins, rank_of_team
 end # heuristicBestRank
 
 function thisTeamWinsRemainingGames!(k, t, schedule, stats, outcome, 
-    team_name_ind = 1, num_wins_ind = 2, games_left_ind = 3)
+    num_wins_ind = 2, games_left_ind = 3)
   ###
   # Set team k as winner of all its remaining games
   ###
+  num_games_total = length(outcome)
   num_games_decided = 0
   for game_ind = t:num_games_total
     if outcome[game_ind] > 0
@@ -113,6 +114,7 @@ function thisTeamWinsRemainingGames!(k, t, schedule, stats, outcome,
       j = schedule[game_ind, 1]  
     else
       j = schedule[game_ind, 2]  
+    end
       
     outcome[game_ind] = k
     stats[k, num_wins_ind] = stats[k, num_wins_ind] + 1
@@ -124,11 +126,12 @@ function thisTeamWinsRemainingGames!(k, t, schedule, stats, outcome,
 end # thisTeamWinsRemainingGames
 
 function heuristicHelper!(k, t, schedule, stats, outcome,
-    team_name_ind = 1, num_wins_ind = 2, games_left_ind = 3)
+    num_wins_ind = 2, games_left_ind = 3)
   ###
   ## Teams with relative position to k decided will win their remaining games
   # * if i/j has more than W wins, that team wins
-  # * else if i/j cannot have more than W wins, that team wins
+  # * elseif i/j cannot have more than W wins, that team wins
+  num_games_total = length(outcome)
   num_games_decided = 0
   game_ind = t
   W = stats[k, num_wins_ind]
@@ -136,6 +139,7 @@ function heuristicHelper!(k, t, schedule, stats, outcome,
     # Skip the game if the outcome has already been decided
     if outcome[game_ind] > 0
       continue
+    end
 
     # Current teams playing
     i = schedule[game_ind,1] 
@@ -152,17 +156,19 @@ function heuristicHelper!(k, t, schedule, stats, outcome,
     winner = 0
     if (w_i > W)
       winner = i
-    else if (w_j > W)
+    elseif (w_j > W)
       winner = j
-    else if (W_i <= W)
+    elseif (W_i <= W)
       winner = i
-    else if (W_j <= W)
+    elseif (W_j <= W)
       winner = j
+    end
 
     # If winner is determined, do updates for rest of season for that team, and reset game_ind
     if (winner > 0)
-      num_games_decided += thisTeamWinsRemainingGames!(winner, game_ind, schedule, stats, outcome,
-          team_name_ind, num_wins_ind, games_left_ind)
+      num_games_decided += 
+          thisTeamWinsRemainingGames!(winner, game_ind, schedule, stats, outcome, 
+              num_wins_ind, games_left_ind)
        game_ind = t-1
     end
     game_ind = game_ind + 1
@@ -170,7 +176,64 @@ function heuristicHelper!(k, t, schedule, stats, outcome,
   return num_games_decided
 end # heuristicHelper
 
-function setupMIP(schedule, num_teams, num_team_games, num_games_total):
+function updateHeuristicBestRank!(winner, t, schedule, 
+    best_outcomes, best_num_wins, best_rank)
+  ###
+  # Update set of best outcomes, num wins, ranks with outcome of game t
+  ###
+  num_teams = length(best_rank)
+  loser = (winner == schedule[t,1]) ? schedule[t,2] : schedule[t,1]
+
+  for i = 1:num_teams
+    # Skip the teams for which the outcome matches
+    if best_outcomes[i,t] == winner
+      continue
+    end
+
+    # For the remaining teams, the outcome does not match
+    # This means the winner has one extra win at the end of the season,
+    # and this may change the best possible rank the other teams can achieve
+    best_outcomes[i,t] = winner
+    if (i != winner && i != loser)
+      if (best_num_wins[i, winner] == best_num_wins[i, i])
+        best_rank[i] = best_rank[i] + 1
+      end
+      if (best_num_wins[i, loser] == best_num_wins[i, i] + 1)
+        best_rank[i] = best_rank[i] - 1
+      end
+    else
+      # If i wins, its rank improves by number of teams with one more win than i currently has
+      # If i loses, its rank decreases by number of other teams with same number of wins as i
+      val = (i == winner) ? 1 : 0
+      mult = (i == winner) ? -1 : 1
+      count = 0
+      for j = 1:num_teams
+        if i==j
+          continue
+        end
+
+        # Adjust for if j is the opponent
+        jval = 0
+        if (j == winner)
+          jval = 1
+        elseif (j == loser)
+          jval = -1
+        end
+          
+        if best_num_wins[i, j] + jval == best_num_wins[i, i] + val
+          count += 1
+        end
+      end
+      best_rank[i] = best_rank[i] + mult * count
+    end
+    best_num_wins[i, winner] = best_num_wins[i, winner] + 1
+    best_num_wins[i, loser] = best_num_wins[i, loser] - 1
+  end
+
+  return
+end # updateHeuristicBestRank
+
+function setupMIP(schedule, num_teams, num_team_games, num_games_total)
   ###
   # Return the following MIP model
   #
@@ -215,7 +278,7 @@ function setupMIP(schedule, num_teams, num_team_games, num_games_total):
 
   # x_{kt} = indicator that k wins game t
   game_ind_for_team = zeros(Int, num_teams)
-  x_vars_for_team = Array(undef, num_teams, num_team_games)
+  x_vars_for_team = Array{VariableRef}(undef, num_teams, num_team_games)
   for t = 1:num_games_total
     i = schedule[t,1]
     j = schedule[t,2]
@@ -227,9 +290,9 @@ function setupMIP(schedule, num_teams, num_team_games, num_games_total):
             lower_bound = 0, upper_bound = 1,
             binary=true) # x_{kt} = indicator that k wins game t
     end
-    xit = x_vars_for_team[k, game_ind_for_team[i]]
-    xjt = x_vars_for_team[k, game_ind_for_team[j]]
-    con = @constraint(model, xit + xjt = 1) # exactly one team wins game t
+    xit = x_vars_for_team[i, game_ind_for_team[i]]
+    xjt = x_vars_for_team[j, game_ind_for_team[j]]
+    con = @constraint(model, xit + xjt == 1) # exactly one team wins game t
     set_name(con, "game$t")
   end # x variables
 
@@ -259,7 +322,7 @@ end # setupMIP
 function resetMIP!(model, t, schedule, stats)
   ### 
   # Reset all outcomes after game t after fixing
-  # This means reset all x_{it}, x_{jt}, and z variables
+  # This means reset W, x_{it}, x_{jt}, and z variables
   ###
   num_games_total = size(schedule,1)
   num_teams = size(stats,1)
@@ -270,7 +333,7 @@ function resetMIP!(model, t, schedule, stats)
     i = schedule[game_ind,1]
     j = schedule[game_ind,2]
     for k in [i,j]
-      name = "x_{$k,$t}"
+      name = "x_{$k,$game_ind}"
       xkt = variable_by_name(model, name)
       set_lower_bound(xkt, 0)
       set_upper_bound(xkt, 1)
@@ -297,14 +360,15 @@ function fixOutcome!(model, k, t, schedule)
   if i == k
     set_lower_bound(xit, 1)
     set_upper_bound(xjt, 0)
-  else if j == k
+  elseif j == k
     set_lower_bound(xjt, 1)
     set_upper_bound(xit, 0)
   end
+
   return
 end # fixOutcome
 
-function fixVariables!(model, k, t, W, schedule, stats)
+function fixVariables!(model, k, t, W, schedule)
   ###
   # Fix variables with respect to team k
   #
@@ -320,10 +384,18 @@ function fixVariables!(model, k, t, W, schedule, stats)
   for game_ind = t:num_games_total
     fixOutcome!(model, k, game_ind, schedule)
   end
+  z = variable_by_name(model, "z[$k]")
+  set_upper_bound(z, 0)
+
+  return
 end # fixVariables
 
 function setIncumbent!(model, k, t, schedule, outcome)
-  ### Set incumbent solution based on outcome of games for t,...,T ###
+  ### 
+  # Set incumbent solution based on given outcome of games for 1,...,T
+  # It is assumed that the outcomes of games 1,...,t-1 match the fixed
+  # value of the game outcomes in model for those games
+  ###
   num_games_total = size(schedule,1)
   num_teams = length(model[:z])
 
@@ -333,25 +405,9 @@ function setIncumbent!(model, k, t, schedule, outcome)
   y = zeros(Int, num_teams)
   z = zeros(Int, num_teams)
 
-  ## Calculate number wins for each team in previous games
-  for game_ind = 1:t-1
-    i = schedule[game_ind,1]
-    j = schedule[game_ind,2]
-    xit = variable_by_name(model, "x_{$i,$t}")
-    xjt = variable_by_name(model, "x_{$j,$t}")
-    val_i = is_fixed(xit) ? fix_value(xit) : 0.5;
-    val_j = is_fixed(xjt) ? fix_value(xjt) : 0.5;
-    winner = 0
-    if (val_i == 1)
-      winner = i
-    else if (val_j == 1)
-      winner = j
-    end
-    w[winner] = w[winner] + 1
-  end
-
-  ## Set variables for remaining games and number of wins
-  for game_ind = t:num_games_total
+  ## Calculate number wins for each team in previous games,
+  ## and set variables for remaining games and number of wins
+  for game_ind = 1:num_games_total
     winner = outcome[game_ind]
     if winner <= 0
       continue
@@ -379,24 +435,77 @@ function setIncumbent!(model, k, t, schedule, outcome)
     else
       y[i] = 0
       z[i] = 0
+    end
   end
 
   return W, w, x, y, z
 end # setIncumbent
 
-function solveMIP!()
-  return
-end # solveMIP
-
-function checkMIP(model)
+function solveMIP!(model)
+  optimize!(model)
   if termination_status(model) == MOI.OPTIMAL
-    optimal_solution = value.(all_variables(model))
-    optimal_objective = objective_value(model)
-  elseif termination_status(model) == MOI.TIME_LIMIT && has_values(model)
-    suboptimal_solution = value.(all_variables(model))
-    suboptimal_objective = objective_value(model)
+    return true
   else
     error("The model was not solved correctly.")
   end
-  return
-end # checkMIP
+  return false
+end # solveMIP
+
+function updateUsingMIPSolution!(model, k, t, schedule,
+    best_outcomes, best_num_wins, best_rank)
+  if termination_status(model) != MOI.OPTIMAL || !has_values(model)
+    error("The model was not solved correctly.")
+  end
+
+  num_games_total = length(schedule)
+  num_teams = length(best_rank)
+
+  for game_ind = 1:num_games_total
+    i = schedule[game_ind,1]
+    j = schedule[game_ind,2]
+    xit = variable_by_name(model, "x_{$i,$game_ind}")
+    xjt = variable_by_name(model, "x_{$j,$game_ind}")
+    winner = isVal(value.(xit), 1) ? i : j
+
+    best_outcomes[k, game_ind] = winner
+  end
+
+  w = model[:w]
+  for i = 1:num_teams
+    best_num_wins[k, i] = value.(w[i])
+  end
+
+  best_rank[k] = objective_value(model)
+end # updateUsingMIPSolution
+
+function updateOthersUsingBestSolution!(k, t, schedule,
+    best_outcomes, best_num_wins, best_rank)
+  ###
+  # Check whether other teams best schedule can be updated
+  ###
+  num_games_total = length(schedule)
+  num_teams = length(best_rank)
+
+  num_wins = best_num_wins[k,:]
+  sorted_teams = sortperm(num_wins, rev=true)
+  rank_of_team = Array{Int}(undef, num_teams)
+  rank_of_team[sorted_teams[1]] = 1
+  for i = 2:num_teams
+    last_team = sorted_teams[i-1]
+    curr_team = sorted_teams[i]
+    last_wins = w[last_team]
+    curr_wins = w[curr_team]
+    rank_of_team[curr_team] = rank_of_team[last_team]
+    if last_wins > curr_wins
+      rank_of_team[curr_team] = rank_of_team[curr_team] + 1
+    end
+  end
+
+  for i = 1:num_teams
+    if best_rank[i] == 0 || best_rank[i] > rank_of_team[i]
+      best_outcomes[i, :] = best_outcomes[k, :]
+      best_num_wins[i, :] = best_num_wins[k, :]
+      best_rank[i] = rank_of_team[i]
+    end
+  end
+end # updateOthersUsingBestSolution

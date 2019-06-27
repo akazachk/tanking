@@ -24,7 +24,7 @@ include("parse.jl")
 # If teams are tied, then those teams receive odds that are the average of the odds for the positions they occupy
 nba_odds_old = [.250, .199, .156, .119, .088, .063, .043, .028, .017, .011, .008, .007, .006, .005]
 nba_odds_new = [.140, .140, .140, .125, .105, .090, .075, .060, .045, .030, .020, .015, .010, .005]
-nba_odds_flat = [1./14. for i in 1:14]
+nba_odds_flat = [1. / 14. for i in 1:14]
 
 ## When the (draft) ranking will be set as fraction of number games
 #breakpoint_list = [4//8; 5//8; 6//8; 7//8; 1]

@@ -4,6 +4,7 @@
 # Aleksandr M. Kazachkov
 # Shai Vardi
 ###
+include("mathelim.jl")
 
 ## Ranking type
 # 1: strict: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
@@ -11,6 +12,16 @@
 # 3: BT_uniform: Bradley-Terry with P(i>j) = p_i / (p_i + p_j); must also set distribution, where default is each team gets a strength score from U[0,1]
 # 4: BT_exponential: Bradley-Terry with P(i>j) = exp(p_i) / (exp(p_i) + exp(p_j)); must also set distribution, where default is each team gets a strength score from U[0,1]; can consider others such as, e.g., using Beta(alpha=2, beta=5)
 @enum MODE_TYPES NONE=0 STRICT TIES BT_UNIFORM BT_EXPONENTIAL
+
+function greaterThanVal(x, y, eps = 1e-7)
+  return x > y + eps
+end # greaterThanVal
+function lessThanVal(x, y, eps = 1e-7)
+  return x < y - eps
+end # lessThanVal
+function isVal(x, y, eps = 1e-7)
+  return abs(x-y) < eps
+end # isVal
 
 function teamIsTanking(i, stats, games_left_ind=3, games_left_when_elim_ind=4, will_tank_ind=6)
 	return stats[i,will_tank_ind] == 1 && stats[i,games_left_ind] <= stats[i,games_left_when_elim_ind]
@@ -105,6 +116,56 @@ function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, gam
 	end # decide who wins the game
 	return
 end # teamWillWin
+
+function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
+    best_outcomes, best_num_wins, best_rank, model,
+    num_teams, num_teams_in_playoffs, num_team_games, num_games_total, 
+    CALC_MATH_ELIM = 2, num_wins_ind = 2, games_left_ind = 3)
+    ###
+    # Check whether team k is mathematically eliminated
+    #
+    # Sets the best known rank each non-eliminated team can achieve
+    # as well as the corresponding stats and outcomes
+    #
+    # Returns whether a MIP solve was used
+    ###
+    ## Return if team k is not eliminated in the existing heuristic solution
+    if best_rank[k] > 0 && best_rank[k] <= num_teams_in_playoffs
+      return true
+    end
+    ## Also return when the team is already mathematically eliminated
+    if best_rank[k] < 0
+      return false
+    end
+
+    heur_outcome, heur_num_wins, heur_rank = 
+        heuristicBestRank(k, t, schedule, stats, outcome, num_wins_ind, games_left_ind)
+
+    ## If the heuristic solution is enough, stop here; else, go on to the MIP
+    mip_used = false
+    if heur_rank[k] <= num_teams_in_playoffs
+      best_outcomes[k, :] = heur_outcome
+      best_num_wins[k, :] = heur_num_wins
+      best_rank[k] = heur_rank[k]
+    elseif CALC_MATH_ELIM > 1
+      fixVariables!(model, k, t, stats[k, num_wins_ind] + stats[k, games_left_ind], schedule)
+      W, w, x, y, z = setIncumbent!(model, k, t, schedule, heur_outcome)
+      if solveMIP!(model)
+        updateUsingMIPSolution!(model, k, t, schedule, best_outcomes, best_num_wins, best_rank)
+      end
+      resetMIP!(model, t, schedule, stats)
+      mip_used = true
+    end
+
+    ## Update other teams if possible
+    updateOthersUsingBestSolution!(k, t, schedule, best_outcomes, best_num_wins, best_rank)
+
+    ## If team k has been mathematically eliminated, mark it so by putting best rank as -1
+    if best_rank[k] > num_teams_in_playoffs
+      best_rank[k] = -1
+    end
+    return mip_used
+end # teamIsMathematicallyEliminated
 
 function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_avg, max_games_remaining)
 	###

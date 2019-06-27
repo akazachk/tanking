@@ -5,6 +5,7 @@
 # Shai Vardi
 ###
 include("utility.jl")
+include("mathelim.jl")
 
 function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, breakpoint_list, true_strength, mode, return_h2h=false)
 	###
@@ -34,6 +35,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 	###
 
 	## Set constants
+  CALC_MATH_ELIM = 2 # 0: do not calculate, 1: use heuristic only, 2: use MIP
 	step_size = 1 / num_steps
 	array_of_tanking_probabilities = 0:step_size:1
 	num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
@@ -48,7 +50,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 	#avg_kend_h2h = zeros(Float64, num_steps+1, length(breakpoint_list))
 	avg_games_tanked = zeros(Float64, num_steps+1, length(breakpoint_list))
 	avg_already_tank = zeros(Float64, num_steps+1, length(breakpoint_list))
-	avg_eliminated = zeros(Float64, num_steps+1, num_games)
+	avg_eliminated = zeros(Float64, num_steps+1, num_games_total)
 	avg_kend_gold = 0.0
 	avg_kend_lenten = 0.0
 
@@ -139,6 +141,13 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
         schedule[start_round:end_round, :] = ord_games[perm,:]
 			end
 
+      ## Setup MIP
+      best_outcomes = zeros(Int, num_teams, num_games_total)
+      best_num_wins = zeros(Int, num_teams, num_teams)
+      best_rank = zeros(Int, num_teams)
+      num_mips = 0
+      model = CALC_MATH_ELIM > 0 ? setupMIP(schedule, num_teams, num_team_games, num_games_total) : 0
+
 			## Run one season
 			#game_ind = 0
       for game_ind = 1:num_games_total
@@ -228,6 +237,17 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 						end
 					end # set critical game for teams i and j
 					avg_eliminated[step_ind, game_ind] += num_eliminated / num_replications
+
+          # Check mathematical elimination
+          if (CALC_MATH_ELIM > 0)
+            updateHeuristicBestRank!(outcome[game_ind], game_ind, schedule, best_outcomes, best_num_wins, best_rank)
+            for k in [i,j]
+              num_mips += teamIsMathematicallyEliminated!(k, game_ind, schedule, stats, outcome,
+                  best_outcomes, best_num_wins, best_rank, model,
+                  num_teams, num_teams_in_playoffs, num_team_games, num_games_total,
+                  CALC_MATH_ELIM, num_wins_ind, games_left_ind)
+            end
+          end
 				#end # iterate over num_games_per_round
 			#end # iterate over rounds
       end # iterate over games
