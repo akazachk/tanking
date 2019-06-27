@@ -83,8 +83,8 @@ function heuristicBestRank(k, t, schedule, in_stats, in_outcome,
   for i = 2:num_teams
     last_team = sorted_teams[i-1]
     curr_team = sorted_teams[i]
-    last_wins = w[last_team]
-    curr_wins = w[curr_team]
+    last_wins = num_wins[last_team]
+    curr_wins = num_wins[curr_team]
     rank_of_team[curr_team] = rank_of_team[last_team]
     if last_wins > curr_wins
       rank_of_team[curr_team] = rank_of_team[curr_team] + 1
@@ -138,6 +138,7 @@ function heuristicHelper!(k, t, schedule, stats, outcome,
   while game_ind <= num_games_total
     # Skip the game if the outcome has already been decided
     if outcome[game_ind] > 0
+      game_ind += 1
       continue
     end
 
@@ -169,9 +170,10 @@ function heuristicHelper!(k, t, schedule, stats, outcome,
       num_games_decided += 
           thisTeamWinsRemainingGames!(winner, game_ind, schedule, stats, outcome, 
               num_wins_ind, games_left_ind)
+       print("Num games decided: $num_games_decided\n")
        game_ind = t-1
     end
-    game_ind = game_ind + 1
+    game_ind += 1
   end
   return num_games_decided
 end # heuristicHelper
@@ -185,8 +187,8 @@ function updateHeuristicBestRank!(winner, t, schedule,
   loser = (winner == schedule[t,1]) ? schedule[t,2] : schedule[t,1]
 
   for i = 1:num_teams
-    # Skip the teams for which the outcome matches
-    if best_outcomes[i,t] == winner
+    # Skip the uninitialized teams and those for which the outcome matches
+    if best_rank[i] == 0 || best_outcomes[i,t] == winner
       continue
     end
 
@@ -277,21 +279,18 @@ function setupMIP(schedule, num_teams, num_team_games, num_games_total)
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
 
   # x_{kt} = indicator that k wins game t
+  @variable(model, 0 <= x_vars_for_team[1:num_teams,1:num_team_games] <= 1, Bin)
   game_ind_for_team = zeros(Int, num_teams)
-  x_vars_for_team = Array{VariableRef}(undef, num_teams, num_team_games)
   for t = 1:num_games_total
     i = schedule[t,1]
     j = schedule[t,2]
     for k in [i,j]
       game_ind_for_team[k] = game_ind_for_team[k] + 1
-      x_vars_for_team[k,game_ind_for_team[k]] = 
-          @variable(model, 
-            base_name="x_{$k,$t}", 
-            lower_bound = 0, upper_bound = 1,
-            binary=true) # x_{kt} = indicator that k wins game t
     end
     xit = x_vars_for_team[i, game_ind_for_team[i]]
     xjt = x_vars_for_team[j, game_ind_for_team[j]]
+    set_name(xit, "x_{$i,$t}")
+    set_name(xjt, "x_{$j,$t}")
     con = @constraint(model, xit + xjt == 1) # exactly one team wins game t
     set_name(con, "game$t")
   end # x variables
@@ -314,7 +313,7 @@ function setupMIP(schedule, num_teams, num_team_games, num_games_total)
   end
 
   ## Add objective
-  @objective(model, Min, 1 + sum(z[i] for i in 1:num_teams))
+  @objective(model, Min, 1 + sum(z))
 
   return model
 end # setupMIP
@@ -493,8 +492,8 @@ function updateOthersUsingBestSolution!(k, t, schedule,
   for i = 2:num_teams
     last_team = sorted_teams[i-1]
     curr_team = sorted_teams[i]
-    last_wins = w[last_team]
-    curr_wins = w[curr_team]
+    last_wins = num_wins[last_team]
+    curr_wins = num_wins[curr_team]
     rank_of_team[curr_team] = rank_of_team[last_team]
     if last_wins > curr_wins
       rank_of_team[curr_team] = rank_of_team[curr_team] + 1
