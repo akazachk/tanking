@@ -132,11 +132,11 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
     ## Return if team k is not eliminated in the existing heuristic solution
     mips_used = 0
     if best_rank[k] > 0 && best_rank[k] <= num_teams_in_playoffs
-      return true, mips_used
+      return false, mips_used
     end
     ## Also return when the team is already mathematically eliminated
     if best_rank[k] < 0
-      return false, mips_used
+      return true, mips_used
     end
 
     heur_outcome, heur_num_wins, heur_rank = 
@@ -149,16 +149,20 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
       best_rank[k] = heur_rank[k]
     elseif CALC_MATH_ELIM > 1
       fixVariables!(model, k, t, stats[k, num_wins_ind] + stats[k, games_left_ind], schedule)
-      W, w, x, y, z = setIncumbent!(model, k, t, schedule, heur_outcome)
+      #W, w, x, y, z = setIncumbent!(model, k, t, schedule, heur_outcome)
       if solveMIP!(model)
         updateUsingMIPSolution!(model, k, t, schedule, best_outcomes, best_num_wins, best_rank)
+      else
+        best_rank[k] = -1
       end
       resetMIP!(model, t, schedule, stats)
       mips_used = 1
     end
 
     ## Update other teams if possible
-    updateOthersUsingBestSolution!(k, t, schedule, best_outcomes, best_num_wins, best_rank)
+    if best_rank[k] > 0
+      updateOthersUsingBestSolution!(k, t, schedule, best_outcomes, best_num_wins, best_rank)
+    end
 
     ## If team k has been mathematically eliminated, mark it so by putting best rank as -1
     if best_rank[k] > num_teams_in_playoffs

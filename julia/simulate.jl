@@ -75,16 +75,18 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
   # stats[:,2] is num wins
   # stats[:,3] is remaining
   # stats[:,4] is when team is eliminated (in terms of remaining games)
-  # stats[:,5] is win percentage
-  # stats[:,6] is indicator for whether team tanks
+  # stats[:,5] is when team is mathematically eliminated (in terms of remaining games)
+  # stats[:,6] is win percentage
+  # stats[:,7] is indicator for whether team tanks
   # not implemented:  stats[:,7] is team rank
-  size_of_stats = 6
+  size_of_stats = 7
   team_name_ind = 1
   num_wins_ind = 2
   games_left_ind = 3
   games_left_when_elim_ind = 4
-  win_pct_ind = 5
-  will_tank_ind = 6
+  games_left_when_math_elim_ind = 5
+  win_pct_ind = 6
+  will_tank_ind = 7
   stats = Matrix{Any}(undef, num_teams, size_of_stats)
   draft_rank_of_team = Array{Any}(undef, num_teams, length(breakpoint_game_for_draft))
   #draft_rank_of_team_h2h = Array{Any}(undef, num_teams, length(breakpoint_game_for_draft))
@@ -101,6 +103,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
       ##print("\t\tavg_kend_h2h \t$(avg_kend_h2h[step_ind,:])\n")
       ## Set up stats for current repeat
       num_eliminated = 0
+      num_math_elim = 0
       num_teams_tanking = 0
       num_games_tanked = 0
       outcome = zeros(Int, num_games_total)
@@ -111,6 +114,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
         stats[i,num_wins_ind] = 0 # num wins
         stats[i,games_left_ind] = num_team_games # num games left
         stats[i,games_left_when_elim_ind] = 0 # when team is eliminated (in terms of how many left)
+        stats[i,games_left_when_math_elim_ind] = 0 # when team is mathematically eliminated (in terms of how many left)
         stats[i,win_pct_ind] = 0.0 # win percentage
         if rand() > tank_perc
           stats[i,will_tank_ind] = 0 # will not tank
@@ -146,7 +150,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
       best_num_wins = zeros(Int, num_teams, num_teams)
       best_rank = zeros(Int, num_teams)
       num_mips = 0
-      model = CALC_MATH_ELIM > 0 ? setupMIP(schedule, num_teams, num_team_games, num_games_total) : 0
+      model = CALC_MATH_ELIM > 0 ? setupMIP(schedule, num_teams, num_teams_in_playoffs, num_team_games, num_games_total) : 0
 
       ## Run one season
       #game_ind = 0
@@ -242,14 +246,21 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
           if (CALC_MATH_ELIM > 0)
             updateHeuristicBestRank!(outcome[game_ind], game_ind, schedule, best_outcomes, best_num_wins, best_rank)
             for k in [i,j]
-              is_eliminated, mips_used += teamIsMathematicallyEliminated!(k, game_ind, schedule, stats, outcome,
+              if (stats[k,games_left_when_math_elim_ind] > 0)
+                continue
+              end
+              (is_eliminated, mips_used) = teamIsMathematicallyEliminated!(k, game_ind, schedule, stats, outcome,
                   best_outcomes, best_num_wins, best_rank, model,
                   num_teams, num_teams_in_playoffs, num_team_games, num_games_total,
                   CALC_MATH_ELIM, num_wins_ind, games_left_ind)
+              num_math_elim += is_eliminated
               num_mips += mips_used
+              if is_eliminated
+                stats[k,games_left_when_math_elim_ind] = stats[k,games_left_ind]
+              end
             end
           end
-          print("Game $game_ind\tNum MIPs: $num_mips\n")
+          print("Game $game_ind\tNum MIPs: $num_mips\tNum elim: $num_math_elim\n")
         #end # iterate over num_games_per_round
       #end # iterate over rounds
       end # iterate over games

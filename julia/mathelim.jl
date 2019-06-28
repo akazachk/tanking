@@ -11,7 +11,9 @@
 # The heuristic can be used to provide a strong incumbent solution
 ###
 
-using JuMP, Cbc
+using JuMP
+#using Cbc
+using Gurobi
 
 function heuristicBestRank(k, t, schedule, in_stats, in_outcome,
     num_wins_ind = 2, games_left_ind = 3)
@@ -235,8 +237,12 @@ function updateHeuristicBestRank!(winner, t, schedule,
   return
 end # updateHeuristicBestRank
 
-function setupMIP(schedule, num_teams, num_team_games, num_games_total)
+function setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_games_total)
   ###
+  # Arguments:
+  #   schedule: Matrix{Int}(num_games_total, 2)
+  #   num_teams, num_playoff_teams, num_team_games, num_games_total: scalars
+  #
   # Return the following MIP model
   #
   # Constants:
@@ -273,13 +279,14 @@ function setupMIP(schedule, num_teams, num_team_games, num_games_total)
   # Bounds:
   #   y_i \ge 0                                           (for all i)
   ###
-  model = Model(with_optimizer(Cbc.Optimizer, logLevel=0))
+  #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0))
+  model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams))
   
   ## Set up variables and constraints
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
 
   # x_{kt} = indicator that k wins game t
-  @variable(model, 0 <= x_vars_for_team[1:num_teams,1:num_team_games] <= 1, Bin)
+  @variable(model, 0 <= x_vars_for_team[1:num_teams,1:num_team_games] <= 1, Int)
   game_ind_for_team = zeros(Int, num_teams)
   for t = 1:num_games_total
     i = schedule[t,1]
@@ -297,7 +304,7 @@ function setupMIP(schedule, num_teams, num_team_games, num_games_total)
 
   @variable(model, y[1:num_teams] >= 0) # y_i = helper variable for linearizing max
   @variable(model, z[1:num_teams], lower_bound = 0, upper_bound = 1,
-      binary=true) # z_i = indicator that team i has better rank than team k
+      integer=true) # z_i = indicator that team i has better rank than team k
 
   # Set team-wise constraints
   @variable(model, W == 0)
@@ -314,6 +321,9 @@ function setupMIP(schedule, num_teams, num_team_games, num_games_total)
 
   ## Add objective
   @objective(model, Min, 1 + sum(z))
+
+  ## Add cutoff constraint
+  #@constraint(model, cutoff, 1 + sum(z) <= num_playoff_teams)
 
   return model
 end # setupMIP
@@ -463,22 +473,27 @@ end # setIncumbent
 
 function solveMIP!(model)
   optimize!(model)
-  if termination_status(model) == MOI.OPTIMAL
+  status = termination_status(model)
+  if status == MOI.OPTIMAL || status == MOI.OBJECTIVE_LIMIT
     return true
+  elseif status == MOI.INFEASIBLE
+    return false
   else
-    error("The model was not solved correctly.")
+    error("The model was not solved correctly. Exiting with status $status.")
   end
   return false
 end # solveMIP
 
 function updateUsingMIPSolution!(model, k, t, schedule,
     best_outcomes, best_num_wins, best_rank)
-  if termination_status(model) != MOI.OPTIMAL || !has_values(model)
-    error("The model was not solved correctly.")
+  status = termination_status(model)
+  good_status = (status == MOI.OPTIMAL) || (status == MOI.OBJECTIVE_LIMIT)
+  if !good_status || !has_values(model)
+    error("The model was not solved correctly. Exiting with status $status.")
   end
 
-  num_games_total = length(schedule)
-  num_teams = length(best_rank)
+  num_games_total = size(schedule, 1)
+  num_teams = size(best_rank, 1)
 
   for game_ind = 1:num_games_total
     i = schedule[game_ind,1]
@@ -492,10 +507,10 @@ function updateUsingMIPSolution!(model, k, t, schedule,
 
   w = model[:w]
   for i = 1:num_teams
-    best_num_wins[k, i] = value.(w[i])
+    best_num_wins[k, i] = Int(round(value.(w[i])))
   end
 
-  best_rank[k] = objective_value(model)
+  best_rank[k] = Int(round(objective_value(model)))
 end # updateUsingMIPSolution
 
 function updateOthersUsingBestSolution!(k, t, schedule,
