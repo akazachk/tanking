@@ -273,7 +273,7 @@ function setupMIP(schedule, num_teams, num_team_games, num_games_total)
   # Bounds:
   #   y_i \ge 0                                           (for all i)
   ###
-  model = Model(with_optimizer(Cbc.Optimizer))
+  model = Model(with_optimizer(Cbc.Optimizer, logLevel=0))
   
   ## Set up variables and constraints
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
@@ -435,6 +435,27 @@ function setIncumbent!(model, k, t, schedule, outcome)
       y[i] = 0
       z[i] = 0
     end
+  end
+
+  ## Set start values
+  # W
+  set_start_value(model[:W], W)
+  # x
+  for game_ind = t:num_games_total
+    i = schedule[game_ind,1]
+    j = schedule[game_ind,2]
+    xit = variable_by_name(model, "x_{$i,$game_ind}")
+    xjt = variable_by_name(model, "x_{$j,$game_ind}")
+    set_start_value(xit, x[i,game_ind])
+    set_start_value(xjt, x[j,game_ind])
+  end
+  for i = 1:num_teams
+    # w
+    set_start_value(model[:w][i], w[i])
+    # y
+    set_start_value(model[:y][i], y[i])
+    # z
+    set_start_value(model[:z][i], z[i])
   end
 
   return W, w, x, y, z

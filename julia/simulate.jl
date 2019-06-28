@@ -242,12 +242,14 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
           if (CALC_MATH_ELIM > 0)
             updateHeuristicBestRank!(outcome[game_ind], game_ind, schedule, best_outcomes, best_num_wins, best_rank)
             for k in [i,j]
-              num_mips += teamIsMathematicallyEliminated!(k, game_ind, schedule, stats, outcome,
+              is_eliminated, mips_used += teamIsMathematicallyEliminated!(k, game_ind, schedule, stats, outcome,
                   best_outcomes, best_num_wins, best_rank, model,
                   num_teams, num_teams_in_playoffs, num_team_games, num_games_total,
                   CALC_MATH_ELIM, num_wins_ind, games_left_ind)
+              num_mips += mips_used
             end
           end
+          print("Game $game_ind\tNum MIPs: $num_mips\n")
         #end # iterate over num_games_per_round
       #end # iterate over rounds
       end # iterate over games
