@@ -97,12 +97,12 @@ function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, gam
 	# stats[:,1] is team "name"
 	# stats[:,2] is num wins
 	# stats[:,3] is remaining
-	# stats[:,4] is critical game (in terms of remaining games)
-	# stats[:,5] is win percentage
-	# stats[:,6] is indicator for whether team tanks
+	# stats[:,4/5] is num games games left when team was effectively/mathematically eliminated
+	# stats[:,6] is win percentage
+	# stats[:,7] is indicator for whether team tanks
 	###
-	team_i_tanks = teamIsTanking(i, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind) #stats[i,will_tank_ind] == 1 && stats[i,games_left_ind] <= stats[i,games_left_when_elim_ind] # team i is past the tanking cutoff point
-	team_j_tanks = teamIsTanking(j, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind) #stats[j,will_tank_ind] == 1 && stats[j,games_left_ind] <= stats[j,games_left_when_elim_ind] # team j is past the tanking cutoff point
+	team_i_tanks = teamIsTanking(i, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind) 
+	team_j_tanks = teamIsTanking(j, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind) 
 
 	if (team_i_tanks && team_j_tanks) || (!team_i_tanks && !team_j_tanks)
 		# Neither team is tanking, or both are; we treat this the same, as non-tanking
@@ -172,9 +172,9 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
     return best_rank[k] == -1, mips_used
 end # teamIsMathematicallyEliminated
 
-function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_avg, max_games_remaining)
+function teamIsEffectivelyEliminated(num_wins, num_games_remaining, num_team_games, cutoff_avg, max_games_remaining)
 	###
-	# teamIsEliminated
+	# teamIsEffectivelyEliminated
 	#
 	# If current playoff cutoff avg remains, 
 	# and team k wins all its remaining games, 
@@ -186,7 +186,7 @@ function teamIsEliminated(num_wins, num_games_remaining, num_team_games, cutoff_
 		end
 	end
 	return false
-end # teamIsEliminated
+end # teamIsEffectivelyEliminated
 
 function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=STRICT, min_rank=1)
 	len = size(sorted_ranking,1)

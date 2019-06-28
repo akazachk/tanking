@@ -35,6 +35,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   ###
 
   ## Set constants
+  USE_MATH_ELIM = true # false = use effective elimination, true = use mathematical elimination
   CALC_MATH_ELIM = 2 # 0: do not calculate, 1: use heuristic only, 2: use MIP
   step_size = 1 / num_steps
   array_of_tanking_probabilities = 0:step_size:1
@@ -85,6 +86,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   games_left_ind = 3
   games_left_when_elim_ind = 4
   games_left_when_math_elim_ind = 5
+  elim_ind = USE_MATH_ELIM ? games_left_when_math_elim_ind : games_left_when_elim_ind
   win_pct_ind = 6
   will_tank_ind = 7
   stats = Matrix{Any}(undef, num_teams, size_of_stats)
@@ -102,7 +104,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       #print("\t\tavg_kend \t$(avg_kend[step_ind,:])\n")
       ##print("\t\tavg_kend_h2h \t$(avg_kend_h2h[step_ind,:])\n")
       ## Set up stats for current repeat
-      num_eliminated = 0
+      num_eff_elim = 0
       num_math_elim = 0
       num_teams_tanking = 0
       num_games_tanked = 0
@@ -153,17 +155,9 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       model = CALC_MATH_ELIM > 1 ? setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_games_total) : 0
 
       ## Run one season
-      #game_ind = 0
       for game_ind = 1:num_games_total
-      #for round_ind = 1:num_rounds
-        #for round_game_ind = 1:num_games_per_round
-          #game_ind += 1
-
           # Find cutoff [do this every game - find last playoff team - set that as cutoff]
           # Tie-breaking is fewest games left
-          #stats, row_index = sortTeams(stats)
-          #last_team = num_playoff_teams
-          #last_team = sorted_teams[num_playoff_teams,1]
           last_team = team_in_pos[num_playoff_teams]
           cutoff_avg = stats[last_team,win_pct_ind]
 
@@ -171,20 +165,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           i = schedule[game_ind, 1] #games[round_ind, round_game_ind, 1]
           j = schedule[game_ind, 2] #games[round_ind, round_game_ind, 2]
 
-          # Set critical game for i,j (game that team is eliminated)
-          for k in [i,j]
-            if stats[k,games_left_when_elim_ind] < 0 # check team has not already started tanking
-              if teamIsEliminated(stats[k,num_wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
-                stats[k,games_left_when_elim_ind] = stats[k,games_left_ind]
-                num_eliminated += 1
-                num_teams_tanking += stats[k,will_tank_ind] == 1
-                elimination_index[k] = game_ind
-              end
-            end
-          end # set critical game for teams i and j
-
           # Decide who wins the game
-          team_i_wins = teamWillWin(i, j, stats, gamma, true_strength, mode, games_left_ind, games_left_when_elim_ind, will_tank_ind)
+          team_i_wins = teamWillWin(i, j, stats, gamma, true_strength, mode, games_left_ind, elim_ind, will_tank_ind)
           outcome[game_ind] = team_i_wins ? i : j
           if return_h2h
             h2h[i,j] = h2h[i,j] + team_i_wins
@@ -192,8 +174,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           end
 
           # Check tanking
-          team_i_is_tanking = teamIsTanking(i, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind)
-          team_j_is_tanking = teamIsTanking(j, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind)
+          team_i_is_tanking = teamIsTanking(i, stats, games_left_ind, elim_ind, will_tank_ind)
+          team_j_is_tanking = teamIsTanking(j, stats, games_left_ind, elim_ind, will_tank_ind)
           if team_i_is_tanking || team_j_is_tanking
             num_games_tanked += 1
           end
@@ -208,7 +190,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             #rank_of_team_h2h, team_in_pos_h2h = updateRank(stats, rank_of_team_h2h, team_in_pos_h2h, k, team_k_wins, num_teams, win_pct_ind, games_left_ind, h2h) # update rank
             
             # If team k wins and has been eliminated
-            if team_k_wins && teamIsEliminated(stats[k,num_wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
+            if team_k_wins && teamIsEffectivelyEliminated(stats[k,num_wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
               num_wins_since_elim[k] = num_wins_since_elim[k] + 1
             end
           end
@@ -230,17 +212,20 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           # Maybe team is eliminated after this round; again check critical game for i,j (game that team is eliminated)
           last_team = team_in_pos[num_playoff_teams]
           cutoff_avg = stats[last_team,win_pct_ind]
-          for k in [i,j]
-            if stats[k,games_left_when_elim_ind] < 0 # check team has not already started tanking
-              if teamIsEliminated(stats[k,num_wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
-                stats[k,games_left_when_elim_ind] = stats[k,games_left_ind]
-                num_eliminated += 1
+          for k in 1:num_teams
+            if stats[k,games_left_when_elim_ind] >= 0 # check team is not already eliminated
+              continue
+            end
+            is_eliminated = teamIsEffectivelyEliminated(stats[k,num_wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
+            if is_eliminated
+              num_eff_elim += 1
+              stats[k,games_left_when_elim_ind] = stats[k,games_left_ind]
+              if (!USE_MATH_ELIM)
                 num_teams_tanking += stats[k,will_tank_ind] == 1
                 elimination_index[k] = game_ind
               end
             end
           end # set critical game for teams i and j
-          avg_eliminated[step_ind, game_ind] += num_eliminated / num_replications
 
           # Check mathematical elimination
           if (CALC_MATH_ELIM > 0)
@@ -248,26 +233,39 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             if (CALC_MATH_ELIM > 1)
               fixOutcome!(model, outcome[game_ind], game_ind, schedule)
             end
-            for k in 1:num_teams #[i,j]
-              if (stats[k,games_left_when_math_elim_ind] >= 0)
+            for k in 1:num_teams
+              if stats[k,games_left_when_math_elim_ind] >= 0 # check team is not already eliminated
                 continue
               end
-              (is_eliminated, mips_used) = teamIsMathematicallyEliminated!(k, game_ind, schedule, stats, outcome,
-                  best_outcomes, best_num_wins, best_rank, model,
+              (is_eliminated, mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
+                  schedule, stats, outcome, best_outcomes, best_num_wins, best_rank, model,
                   num_teams, num_playoff_teams, num_team_games, num_games_total,
                   CALC_MATH_ELIM, num_wins_ind, games_left_ind)
-              num_math_elim += is_eliminated
               num_mips += mips_used
               if is_eliminated
+                num_math_elim += 1
                 stats[k,games_left_when_math_elim_ind] = stats[k,games_left_ind]
+                if (USE_MATH_ELIM)
+                  num_teams_tanking += stats[k,will_tank_ind] == 1
+                  elimination_index[k] = game_ind
+                end
               end
             end
           end
-          #print("Game $game_ind\tNum MIPs: $num_mips\tNum eff elim: $num_eliminated\tNum math elim: $num_math_elim\n")
-        #end # iterate over num_games_per_round
-      #end # iterate over rounds
+          #print("Game $game_ind\tNum MIPs: $num_mips\tNum eff elim: $num_eff_elim\tNum math elim: $num_math_elim\n")
+
+          ## Update elimination stats
+          num_eliminated = USE_MATH_ELIM ? num_math_elim : num_eff_elim
+          avg_eliminated[step_ind, game_ind] += num_eliminated / num_replications
       end # iterate over games
       ## end of a season
+
+      ## Make sure teams that were eliminated actually did not make the playoffs
+      for i = 1:num_teams
+        if (best_rank[i] < 0)
+          @assert(rank_of_team[i] > num_playoff_teams)
+        end
+      end
 
       ## Get non-playoff teams at end of season
       nonplayoff_teams = team_in_pos[num_playoff_teams+1:num_teams]
