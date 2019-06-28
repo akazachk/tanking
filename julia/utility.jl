@@ -148,7 +148,7 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
       best_num_wins[k, :] = heur_num_wins
       best_rank[k] = heur_rank[k]
     elseif CALC_MATH_ELIM > 1
-      print("Game $t, Team $k: Running MIP. Best rank: ", best_rank[k], " Heur rank: ", heur_rank[k], "\n")
+      #print("Game $t, Team $k: Running MIP. Best rank: ", best_rank[k], " Heur rank: ", heur_rank[k], "\n")
       fixVariables!(model, k, t+1, stats[k, num_wins_ind] + stats[k, games_left_ind], schedule)
       #W, w, x, y, z = setIncumbent!(model, k, t, schedule, heur_outcome)
       if solveMIP!(model, num_playoff_teams)
