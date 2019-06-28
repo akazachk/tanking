@@ -150,7 +150,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       best_num_wins = zeros(Int, num_teams, num_teams)
       best_rank = zeros(Int, num_teams)
       num_mips = 0
-      model = CALC_MATH_ELIM > 0 ? setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_games_total) : 0
+      model = CALC_MATH_ELIM > 1 ? setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_games_total) : 0
 
       ## Run one season
       #game_ind = 0
@@ -245,6 +245,9 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           # Check mathematical elimination
           if (CALC_MATH_ELIM > 0)
             updateHeuristicBestRank!(outcome[game_ind], game_ind, schedule, best_outcomes, best_num_wins, best_rank)
+            if (CALC_MATH_ELIM > 1)
+              fixOutcome!(model, outcome[game_ind], game_ind, schedule)
+            end
             for k in [i,j]
               if (stats[k,games_left_when_math_elim_ind] > 0)
                 continue

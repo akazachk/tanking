@@ -499,7 +499,7 @@ function updateUsingMIPSolution!(model, k, t, schedule,
   num_games_total = size(schedule, 1)
   num_teams = size(best_rank, 1)
 
-  for game_ind = 1:num_games_total
+  for game_ind = t:num_games_total
     i = schedule[game_ind,1]
     j = schedule[game_ind,2]
     xit = variable_by_name(model, "x_{$i,$game_ind}")
