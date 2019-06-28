@@ -193,8 +193,8 @@ function updateHeuristicBestRank!(winner, t, schedule,
   loser = (winner == schedule[t,1]) ? schedule[t,2] : schedule[t,1]
 
   for i = 1:num_teams
-    # Skip the uninitialized teams and those for which the outcome matches
-    if best_rank[i] == 0 || best_outcomes[i,t] == winner
+    # Skip the uninitialized teams, those for which the outcome matches, and elimiinated teams
+    if best_rank[i] <= 0 || best_outcomes[i,t] == winner
       continue
     end
     

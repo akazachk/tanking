@@ -23,7 +23,7 @@ function isVal(x, y, eps = 1e-7)
   return abs(x-y) < eps
 end # isVal
 
-function teamIsTanking(i, stats, games_left_ind=3, games_left_when_elim_ind=4, will_tank_ind=6)
+function teamIsTanking(i, stats, games_left_ind=3, games_left_when_elim_ind=4, will_tank_ind=7)
 	return stats[i,will_tank_ind] == 1 && stats[i,games_left_ind] <= stats[i,games_left_when_elim_ind]
 end # teamIsTanking
 
@@ -75,7 +75,7 @@ function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 	end
 end # teamWillWinNoTanking
 
-function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, games_left_ind=3, games_left_when_elim_ind=4, will_tank_ind=6)
+function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, games_left_ind=3, games_left_when_elim_ind=4, will_tank_ind=7)
 	###
 	# teamWillWin
 	#
