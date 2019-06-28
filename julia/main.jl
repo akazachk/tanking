@@ -1,10 +1,16 @@
-##########################################
-# Reducing Tanking Incentives in the NBA #
-##########################################
+######################################
+# On Tanking and Competitive Balance #
+######################################
 # Aleksandr M. Kazachkov
 # Shai Vardi
 ###
 # June 2019
+###
+# Implemented are the bilevel, Gold, Lenten, and NBA lottery-based rankings (both pre- and post-2019 changes)
+# 1. Bilevel: set a breakpoint; rank nonplayoff teams based on their relative order at the breakpoint
+# 2. Gold: rank based on number of wins after elimination
+# 3. Lenten: reverse of order in which teams were eliminated
+# 4. NBA lottery-based system: see odds below, which are applied to the end-of-season standings
 ###
 
 ## Required dependencies
@@ -14,10 +20,16 @@ using Printf
 include("simulate.jl")
 include("parse.jl")
 
+## NBA draft odds (for non-playoff teams, in reverse order)
+# If teams are tied, then those teams receive odds that are the average of the odds for the positions they occupy
+nba_odds_old = [.250, .199, .156, .119, .088, .063, .043, .028, .017, .011, .008, .007, .006, .005]
+nba_odds_new = [.140, .140, .140, .125, .105, .090, .075, .060, .045, .030, .020, .015, .010, .005]
+nba_odds_flat = [1. / 14. for i in 1:14]
+
 ## When the (draft) ranking will be set as fraction of number games
-#set_ranking = [4//8; 5//8; 6//8; 7//8; 1]
-set_ranking = [1//2; 2//3; 3//4; 5//6; 7//8; 1]
-num_rankings = length(set_ranking)
+#breakpoint_list = [4//8; 5//8; 6//8; 7//8; 1]
+breakpoint_list = [1//2; 2//3; 3//4; 5//6; 7//8; 1]
+num_rankings = length(breakpoint_list)
 shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
 col = ["red", "orange", "green", "blue", "violet", "black"]
 #color_for_cutoff_point = ["c" "b" "m" "r" "k"]
@@ -40,6 +52,7 @@ ext = string(ranking_type,".",ext_folder)
 lowext = string(ranking_type,"_low",".",lowext_folder)
 
 function set_mode(mode=MODE)
+  ### Set global variables based on which mode is being used
 	if mode == NONE
 		cssvext = ".csv"
 	elseif mode == STRICT
@@ -127,13 +140,16 @@ else
 	end
 end
 
-function main_simulate(;do_simulation = true, num_replications = 100000, do_plotting=true, mode=MODE, results_dir = "../results", return_h2h = false)
+function main_simulate(;do_simulation = true, num_replications = 100000, do_plotting=true, mode=MODE, results_dir = "../results", 
+   num_rounds = 3,  num_steps = 20, gamma = 0.75, return_h2h = false)
+  ###
+	# num_rounds: a round consists of each team playing each other team
+  # num_steps: discretization of [0,1] for tanking probability
+	# gamma: probability a better-ranked team wins over a worse-ranked team
+  ###
 	set_mode(mode)
 
 	## Variables that need to be set
-	num_rounds = 3 # a round consists of each team playing each other team
-	num_steps = 20 # discretization of [0,1] for tanking probability
-	gamma = 0.75 # probability a better-ranked team wins over a worse-ranked team
 	## end variables that need to be set
 
 	## Set constants
@@ -141,17 +157,18 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 	num_games = num_rounds * num_games_per_round
 
 	## For output
-	avg_kend = 0 # [step,cutoff], holds KT distance for each tanking probability and cutoff for draft ranking
 	avg_games_tanked = 0 # [step,cutoff], number games tanked by cutoff
 	avg_already_tank = 0 # [step,cutoff], number teams already tanking by the cutoff
 	avg_eliminated = 0 # [step,game], number teams eliminated by each game
+	avg_kend = 0 # [step,cutoff], holds KT distance for each tanking probability and cutoff for draft ranking
 	avg_kend_gold = 0 # ranking based on number of wins since elimination point
 	avg_kend_lenten = 0 # ranking in order of first-to-eliminated
+  avg_kend_nba_new = 0 # KT distance based on 
 
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, set_ranking, true_strength, mode, return_h2h)
+		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, breakpoint_list, true_strength, mode, return_h2h)
 		writedlm(string(results_dir, "/avg_kend", csvext), avg_kend, ',')
 		writedlm(string(results_dir, "/avg_games_tanked", csvext), avg_games_tanked, ',')
 		writedlm(string(results_dir, "/avg_already_tank", csvext), avg_already_tank, ',')
@@ -169,7 +186,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 	end
 
 	if (do_plotting)
-		## Plot avg_kend (Kendell tau distance)
+		## Plot avg_kend (Kendell tau distance) for the bilevel ranking
 		print("Plotting avg_kend: average swap distance\n")
 		minx = 0
 		incx = 0.1
@@ -177,11 +194,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 		miny = Int(floor(findmin(avg_kend)[1]))
 		incy = 1
 		maxy = Int(ceil(findmax(avg_kend)[1]))
-		#titlestring=L"\mbox{Fidelity of ranking by breapoint and tanking probability}"
 		titlestring = L"\mbox{Effect of $\delta$ on bilevel ranking of non-playoff teams}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Distance from true ranking of non-playoff teams}"
-		#legendtitlestring = L"\mbox{Draft ranking breakpoint}"
 		legendtitlestring = L"\mbox{Breakpoint ($\delta$)}"
 		fname_stub = "avg_kend"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
@@ -197,10 +212,10 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 			#yticks=(Array(miny:incy:maxy),["\$$i\$" for i in miny:incy:maxy]),
 			for r = 1:num_rankings
 				curr_label = ""
-				if set_ranking[r] == 1	
+				if breakpoint_list[r] == 1	
 					curr_label = "end of season" #L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
+					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
 				plot(0:(1/num_steps):1, avg_kend[:,r], label=curr_label, color=col[r])
 			end
@@ -224,13 +239,13 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 											#legend=:best,
 											grid=false);
 			for r = 1:num_rankings
-				#cutoff_game = set_ranking[r]
+				#cutoff_game = breakpoint_list[r]
 				curr_label = ""
-				if set_ranking[r] == 1	
+				if breakpoint_list[r] == 1	
 					#curr_label = latexstring("$tmp", "\\mbox{ of season}")
 					curr_label = L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
+					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
 				plot!(0:(1/num_steps):1, avg_kend[:,r], label=curr_label, linecolor=col[r]);
 								#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
@@ -261,10 +276,10 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 			#yticks=(Array(miny:incy:maxy),["\$$i\$" for i in miny:incy:maxy]),
 			for r = 1:num_rankings
 				curr_label = ""
-				if set_ranking[r] == 1	
+				if breakpoint_list[r] == 1	
 					curr_label = L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
+					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
 				plot(0:(1/num_steps):1, avg_games_tanked[:,r], label=curr_label, color=col[r])
 			end
@@ -288,10 +303,10 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 											grid=false);
 			for r = 1:num_rankings
 				curr_label = ""
-				if set_ranking[r] == 1	
+				if breakpoint_list[r] == 1	
 					curr_label = L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
+					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
 				plot!(0:(1/num_steps):1, avg_games_tanked[:,r], label=curr_label, linecolor=col[r]);
 								#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
@@ -325,10 +340,10 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 			#yticks=(Array(miny:incy:maxy),["\$$i\$" for i in miny:incy:maxy]),
 			for r = 1:num_rankings
 				curr_label = ""
-				if set_ranking[r] == 1	
+				if breakpoint_list[r] == 1	
 					curr_label = L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
+					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
 				plot(0:(1/num_steps):1, avg_already_tank[:,r], label=curr_label, color=col[r])
 			end
@@ -351,10 +366,10 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 											grid=false);
 			for r = 1:num_rankings
 				curr_label = ""
-				if set_ranking[r] == 1	
+				if breakpoint_list[r] == 1	
 					curr_label = L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
+					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
 				plot!(0:(1/num_steps):1, avg_already_tank[:,r], label=curr_label, linecolor=col[r]);
 								#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
@@ -414,11 +429,11 @@ end; # main_simulate
 function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_dir="../results")
 	set_mode(mode)
 
-	num_teams_eliminated_1314, num_games_tanked_1314, stats1314, critical_game1314 = parseNBASeason("games1314.csv", set_ranking, data_dir)
-	num_teams_eliminated_1415, num_games_tanked_1415, stats1415, critical_game1415 = parseNBASeason("games1415.csv", set_ranking, data_dir)
-	num_teams_eliminated_1516, num_games_tanked_1516, stats1516, critical_game1516 = parseNBASeason("games1516.csv", set_ranking, data_dir)
-	num_teams_eliminated_1617, num_games_tanked_1617, stats1617, critical_game1617 = parseNBASeason("games1617.csv", set_ranking, data_dir)
-	num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718 = parseNBASeason("games1718.csv", set_ranking, data_dir)
+	num_teams_eliminated_1314, num_games_tanked_1314, stats1314, critical_game1314 = parseNBASeason("games1314.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1415, num_games_tanked_1415, stats1415, critical_game1415 = parseNBASeason("games1415.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1516, num_games_tanked_1516, stats1516, critical_game1516 = parseNBASeason("games1516.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1617, num_games_tanked_1617, stats1617, critical_game1617 = parseNBASeason("games1617.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718 = parseNBASeason("games1718.csv", breakpoint_list, data_dir)
 
 	# Retrieve data for avg_eliminated
 	avg_eliminated = readdlm(string(results_dir, "/avg_eliminated", csvext), ',')
@@ -449,14 +464,14 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 
 	if (do_plotting)
 		ind = [3,5,6] # needs to be ascending
-		@assert ( length(set_ranking) in ind )
+		@assert ( length(breakpoint_list) in ind )
 		num_years=5
 		labels = [L"2013-2014", L"2014-2015", L"2015-2016", L"2016-2017", L"2017-2018"]
 		col_labels = ["red", "orange", "green", "blue", "violet"]
 
 		## Plot # games tanked
 		print("Plotting num_games_tanked: number of games (possibly) tanked by the breakpoint mark\n")
-		#num_games_tanked = zeros(Int, num_years, length(set_ranking))
+		#num_games_tanked = zeros(Int, num_years, length(breakpoint_list))
 		#num_games_tanked[1,:] = num_games_tanked_1314
 		#num_games_tanked[2,:] = num_games_tanked_1415
 		#num_games_tanked[3,:] = num_games_tanked_1516
@@ -503,10 +518,10 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 			for i in 1:length(ind)
 				r = ind[i]
 				curr_label = ""
-				if set_ranking[r] == 1
+				if breakpoint_list[r] == 1
 					curr_label=L"\mbox{end of season}"
 				else
-					curr_label = latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}")
+					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end	
 				if i == 1
 					bar(1:num_years, num_games_tanked_stacked[:,i], label=curr_label, width = width)
@@ -521,7 +536,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 			PyPlot.savefig(fname_low)
 			close()
 		else
-			ctg = repeat(vcat([latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}") for r in ind if r < length(set_ranking)], L"\mbox{end of season}"), inner=num_years)
+			ctg = repeat(vcat([latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}") for r in ind if r < length(breakpoint_list)], L"\mbox{end of season}"), inner=num_years)
 			fig = groupedbar(num_games_tanked_stacked,
 											title=titlestring,
 											xlab=xlabelstring,
@@ -599,7 +614,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 
 		# Print number of teams eliminated
 #		print("Plotting num_teams_eliminated: number of eliminated teams by the breakpoint mark\n")
-#		#num_teams_eliminated = zeros(Int, num_years, length(set_ranking))
+#		#num_teams_eliminated = zeros(Int, num_years, length(breakpoint_list))
 #		#num_teams_eliminated[1,:] = num_teams_eliminated_1314
 #		#num_teams_eliminated[2,:] = num_teams_eliminated_1415
 #		#num_teams_eliminated[3,:] = num_teams_eliminated_1516
@@ -609,7 +624,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 #		num_teams_eliminated = num_teams_eliminated'
 #		#print(num_teams_eliminated,"\n")
 #
-#		num_teams_eliminated_stacked = zeros(Int, num_years, length(set_ranking))
+#		num_teams_eliminated_stacked = zeros(Int, num_years, length(breakpoint_list))
 #		num_teams_eliminated_stacked[:,1] = num_teams_eliminated[:,1]
 #		num_teams_eliminated_stacked[:,2] = num_teams_eliminated[:,2] - num_teams_eliminated[:,1]
 #		num_teams_eliminated_stacked[:,3] = num_teams_eliminated[:,3] - num_teams_eliminated[:,2]
@@ -619,7 +634,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 #		miny = Int(ceil(findmin(num_teams_eliminated)[1]))
 #		maxy = Int(floor(findmax(num_teams_eliminated)[1]))
 #		inc = floor((maxy - miny) / 5)
-#		ctg = repeat(vcat([latexstring(numerator(set_ranking[r]),"/",denominator(set_ranking[r]), "\\mbox{ of season}") for r in ind if r < length(set_ranking)], L"\mbox{end of season}"), inner=num_years)
+#		ctg = repeat(vcat([latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}") for r in ind if r < length(breakpoint_list)], L"\mbox{end of season}"), inner=num_years)
 #		fig = groupedbar(num_teams_eliminated[:,ind], 
 #										xticks=(Array(1:num_years),["\$13-14\$","\$14-15\$","\$15-16\$","\$16-17\$","\$17-18\$"]),
 #										yticks=(Array(miny:inc:maxy),[@sprintf("\$%d\$", i) for i in miny:inc:maxy]),
