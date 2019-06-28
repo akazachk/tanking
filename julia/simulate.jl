@@ -7,7 +7,7 @@
 include("utility.jl")
 include("mathelim.jl")
 
-function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, breakpoint_list, true_strength, mode, return_h2h=false)
+function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, true_strength, mode, return_h2h=false)
   ###
   # Simulates a season
   #
@@ -150,7 +150,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
       best_num_wins = zeros(Int, num_teams, num_teams)
       best_rank = zeros(Int, num_teams)
       num_mips = 0
-      model = CALC_MATH_ELIM > 0 ? setupMIP(schedule, num_teams, num_teams_in_playoffs, num_team_games, num_games_total) : 0
+      model = CALC_MATH_ELIM > 0 ? setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_games_total) : 0
 
       ## Run one season
       #game_ind = 0
@@ -162,9 +162,9 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
           # Find cutoff [do this every game - find last playoff team - set that as cutoff]
           # Tie-breaking is fewest games left
           #stats, row_index = sortTeams(stats)
-          #last_team = num_teams_in_playoffs
-          #last_team = sorted_teams[num_teams_in_playoffs,1]
-          last_team = team_in_pos[num_teams_in_playoffs]
+          #last_team = num_playoff_teams
+          #last_team = sorted_teams[num_playoff_teams,1]
+          last_team = team_in_pos[num_playoff_teams]
           cutoff_avg = stats[last_team,win_pct_ind]
 
           # Current teams playing
@@ -228,7 +228,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
           end
           
           # Maybe team is eliminated after this round; again check critical game for i,j (game that team is eliminated)
-          last_team = team_in_pos[num_teams_in_playoffs]
+          last_team = team_in_pos[num_playoff_teams]
           cutoff_avg = stats[last_team,win_pct_ind]
           for k in [i,j]
             if stats[k,games_left_when_elim_ind] == 0 # check team has not already started tanking
@@ -251,7 +251,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
               end
               (is_eliminated, mips_used) = teamIsMathematicallyEliminated!(k, game_ind, schedule, stats, outcome,
                   best_outcomes, best_num_wins, best_rank, model,
-                  num_teams, num_teams_in_playoffs, num_team_games, num_games_total,
+                  num_teams, num_playoff_teams, num_team_games, num_games_total,
                   CALC_MATH_ELIM, num_wins_ind, games_left_ind)
               num_math_elim += is_eliminated
               num_mips += mips_used
@@ -260,17 +260,17 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
               end
             end
           end
-          print("Game $game_ind\tNum MIPs: $num_mips\tNum elim: $num_math_elim\n")
+          print("Game $game_ind\tNum MIPs: $num_mips\tNum eff elim: $num_eliminated\tNum math elim: $num_math_elim\n")
         #end # iterate over num_games_per_round
       #end # iterate over rounds
       end # iterate over games
       ## end of a season
 
       ## Get non-playoff teams at end of season
-      nonplayoff_teams = team_in_pos[num_teams_in_playoffs+1:num_teams]
-      #nonplayoff_teams_h2h = team_in_pos_h2h[num_teams_in_playoffs+1:num_teams]
+      nonplayoff_teams = team_in_pos[num_playoff_teams+1:num_teams]
+      #nonplayoff_teams_h2h = team_in_pos_h2h[num_playoff_teams+1:num_teams]
       for r = 1:length(breakpoint_game_for_draft)
-        tmp_stats = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
+        tmp_stats = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
         tmp_stats[:,1] = nonplayoff_teams
         tmp_stats[:,2] = draft_rank_of_team[nonplayoff_teams, r]
         sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
@@ -278,7 +278,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
         #avg_kend[step_ind, r] += kendtau(draft_ranking[nonplayoff_teams,:,r], win_pct_ind, true_strength, mode) / num_replications
 
         # Now repeat with h2h
-        #tmp_stats = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
+        #tmp_stats = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
         #tmp_stats[:,1] = nonplayoff_teams_h2h
         #tmp_stats[:,2] = draft_rank_of_team_h2h[nonplayoff_teams, r]
         #sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
@@ -287,7 +287,7 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
 
       if (tank_perc == 0.0)
         ## Also compute Kendall tau distance for the Gold and Lenten methods
-        ranking_gold = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
+        ranking_gold = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
         ranking_gold[:,1] = nonplayoff_teams
         ranking_gold[:,2] = -1 * num_wins_since_elim[nonplayoff_teams] # negative because teams with more wins need to be ranked worse (as they are given a _better_ draft pick)
         avg_kend_gold += kendtau(ranking_gold, 2, true_strength, mode) / num_replications
@@ -298,10 +298,10 @@ function simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications
         ## if in reality it ends up being _mathematically_ eliminated after the other
         ## What do we do with the teams that do not make the playoffs, but were never effectively eliminated?
         ## We will rank them in reverse order as they stand at the end of the season
-        tmp_elim_index = Matrix{Int}(undef, num_teams - num_teams_in_playoffs, 2)
+        tmp_elim_index = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
         tmp_elim_index[:,1] = nonplayoff_teams
         tmp_elim_index[:,2] = elimination_index[nonplayoff_teams] # not using negative, because we will sort high-to-low later
-        for elim_ind = 1:num_teams - num_teams_in_playoffs
+        for elim_ind = 1:num_teams - num_playoff_teams
           if tmp_elim_index[elim_ind,2] == 0 # was never eliminated
             # Team was not eliminated but did not make the playoffs
             # It is so far unranked from Lenten perspective

@@ -119,7 +119,7 @@ end # teamWillWin
 
 function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
     best_outcomes, best_num_wins, best_rank, model,
-    num_teams, num_teams_in_playoffs, num_team_games, num_games_total, 
+    num_teams, num_playoff_teams, num_team_games, num_games_total, 
     CALC_MATH_ELIM = 2, num_wins_ind = 2, games_left_ind = 3)
     ###
     # Check whether team k is mathematically eliminated
@@ -131,7 +131,7 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
     ###
     ## Return if team k is not eliminated in the existing heuristic solution
     mips_used = 0
-    if best_rank[k] > 0 && best_rank[k] <= num_teams_in_playoffs
+    if best_rank[k] > 0 && best_rank[k] <= num_playoff_teams
       return false, mips_used
     end
     ## Also return when the team is already mathematically eliminated
@@ -143,14 +143,15 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
         heuristicBestRank(k, t, schedule, stats, outcome, num_wins_ind, games_left_ind)
 
     ## If the heuristic solution is enough, stop here; else, go on to the MIP
-    if heur_rank[k] <= num_teams_in_playoffs
+    if heur_rank[k] <= num_playoff_teams
       best_outcomes[k, :] = heur_outcome
       best_num_wins[k, :] = heur_num_wins
       best_rank[k] = heur_rank[k]
     elseif CALC_MATH_ELIM > 1
+      print("Game $t, Team $k: Running MIP. Best rank: ", best_rank[k], " Heur rank: ", heur_rank[k], "\n")
       fixVariables!(model, k, t, stats[k, num_wins_ind] + stats[k, games_left_ind], schedule)
       #W, w, x, y, z = setIncumbent!(model, k, t, schedule, heur_outcome)
-      if solveMIP!(model)
+      if solveMIP!(model, num_playoff_teams)
         updateUsingMIPSolution!(model, k, t, schedule, best_outcomes, best_num_wins, best_rank)
       else
         best_rank[k] = -1
@@ -165,7 +166,7 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
     end
 
     ## If team k has been mathematically eliminated, mark it so by putting best rank as -1
-    if best_rank[k] > num_teams_in_playoffs
+    if best_rank[k] > num_playoff_teams
       best_rank[k] = -1
     end
     return best_rank[k] == -1, mips_used

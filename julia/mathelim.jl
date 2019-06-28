@@ -11,7 +11,7 @@
 # The heuristic can be used to provide a strong incumbent solution
 ###
 
-using JuMP
+using JuMP, MathOptFormat
 #using Cbc
 using Gurobi
 
@@ -172,7 +172,6 @@ function heuristicHelper!(k, t, schedule, stats, outcome,
       num_games_decided += 
           thisTeamWinsRemainingGames!(winner, game_ind, schedule, stats, outcome, 
               num_wins_ind, games_left_ind)
-       print("Num games decided: $num_games_decided\n")
        game_ind = t-1
     end
     game_ind += 1
@@ -280,7 +279,7 @@ function setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_ga
   #   y_i \ge 0                                           (for all i)
   ###
   #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0))
-  model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams))
+  model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=30))
   
   ## Set up variables and constraints
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
@@ -471,11 +470,32 @@ function setIncumbent!(model, k, t, schedule, outcome)
   return W, w, x, y, z
 end # setIncumbent
 
-function solveMIP!(model)
+function solveMIP!(model, num_playoff_teams)
   optimize!(model)
   status = termination_status(model)
-  if status == MOI.OPTIMAL || status == MOI.OBJECTIVE_LIMIT
+  if status == MOI.OPTIMAL
     return true
+  elseif status == MOI.OBJECTIVE_LIMIT
+    if objective_value(model) <= num_playoff_teams
+      return true
+    else
+      return false
+    end
+  elseif status == MOI.TIME_LIMIT
+    ## Save the hard LP
+    lp_file = MathOptFormat.LP.Model()
+    MOI.copy_to(lp_file, backend(model))
+    MOI.write_to_file(lp_file, "hard.lp")
+
+    if has_values(model)
+      if objective_value(model) <= num_playoff_teams
+        return true
+      else
+        return false
+      end
+    else
+      return false
+    end
   elseif status == MOI.INFEASIBLE
     return false
   else
