@@ -147,6 +147,15 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
       best_outcomes[k, :] = heur_outcome
       best_num_wins[k, :] = heur_num_wins
       best_rank[k] = heur_rank[k]
+      ### DEBUG
+      i = k
+      ranks = sortperm(best_num_wins[i,:], rev=true)
+      calc_rank = findfirst(isequal(i), ranks)
+      if (best_rank[i] < calc_rank && best_num_wins[i, ranks[best_rank[i]]] != best_num_wins[i,i])
+        br = best_rank[i]
+        println([1:30 best_num_wins[i,:] ranks])
+        error("TEAM_IS_MATH_ELIM1: Error. Best rank of $i is $br, but calculated rank from the given solution is $calc_rank.\n")
+      end
     elseif CALC_MATH_ELIM > 1
       print("Game $t, Team $k: Running MIP. Best rank: ", best_rank[k], " Heur rank: ", heur_rank[k], "\n")
       fixVariables!(model, k, t, stats[k, num_wins_ind] + stats[k, games_left_ind], schedule)

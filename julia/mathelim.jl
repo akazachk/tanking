@@ -82,6 +82,7 @@ function heuristicBestRank(k, t, schedule, in_stats, in_outcome,
   sorted_teams = sortperm(num_wins, rev=true)
   rank_of_team = Array{Int}(undef, num_teams)
   rank_of_team[sorted_teams[1]] = 1
+  ct = 1
   for i = 2:num_teams
     last_team = sorted_teams[i-1]
     curr_team = sorted_teams[i]
@@ -89,7 +90,10 @@ function heuristicBestRank(k, t, schedule, in_stats, in_outcome,
     curr_wins = num_wins[curr_team]
     rank_of_team[curr_team] = rank_of_team[last_team]
     if last_wins > curr_wins
-      rank_of_team[curr_team] = rank_of_team[curr_team] + 1
+      rank_of_team[curr_team] += ct
+      ct = 1
+    else
+      ct += 1
     end
   end
 
@@ -192,45 +196,25 @@ function updateHeuristicBestRank!(winner, t, schedule,
     if best_rank[i] == 0 || best_outcomes[i,t] == winner
       continue
     end
-
+    
     # For the remaining teams, the outcome does not match
     # This means the winner has one extra win at the end of the season,
     # and this may change the best possible rank the other teams can achieve
     best_outcomes[i,t] = winner
+    best_num_wins[i, winner] += 1
+    best_num_wins[i, loser] -= 1
     if (i != winner && i != loser)
-      if (best_num_wins[i, winner] == best_num_wins[i, i])
-        best_rank[i] = best_rank[i] + 1
+      if (best_num_wins[i, winner] - 1 == best_num_wins[i, i])
+        best_rank[i] = best_rank[i] + 1 # winner moves out of team i's equivalence class
       end
-      if (best_num_wins[i, loser] == best_num_wins[i, i] + 1)
-        best_rank[i] = best_rank[i] - 1
+      if (best_num_wins[i, loser] == best_num_wins[i, i])
+        best_rank[i] = best_rank[i] - 1 # loser moved into team i's equivalence class
       end
     else
-      # If i wins, its rank improves by number of teams with one more win than i currently has
-      # If i loses, its rank decreases by number of other teams with same number of wins as i
-      val = (i == winner) ? 1 : 0
-      mult = (i == winner) ? -1 : 1
-      count = 0
-      for j = 1:num_teams
-        if i==j
-          continue
-        end
-
-        # Adjust for if j is the opponent
-        jval = 0
-        if (j == winner)
-          jval = 1
-        elseif (j == loser)
-          jval = -1
-        end
-          
-        if best_num_wins[i, j] + jval == best_num_wins[i, i] + val
-          count += 1
-        end
-      end
-      best_rank[i] = best_rank[i] + mult * count
+      # Count number of teams with strictly more wins; rank is 1 greater than this value
+      val = count(j->(j > best_num_wins[i,i]), best_num_wins[i,:])
+      best_rank[i] = val + 1
     end
-    best_num_wins[i, winner] = best_num_wins[i, winner] + 1
-    best_num_wins[i, loser] = best_num_wins[i, loser] - 1
   end
 
   return
@@ -279,7 +263,7 @@ function setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_ga
   #   y_i \ge 0                                           (for all i)
   ###
   #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0))
-  model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=30))
+  model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=10, OutputFlag=0))
   
   ## Set up variables and constraints
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
@@ -545,6 +529,7 @@ function updateOthersUsingBestSolution!(k, t, schedule,
   sorted_teams = sortperm(num_wins, rev=true)
   rank_of_team = Array{Int}(undef, num_teams)
   rank_of_team[sorted_teams[1]] = 1
+  ct = 1
   for i = 2:num_teams
     last_team = sorted_teams[i-1]
     curr_team = sorted_teams[i]
@@ -552,7 +537,10 @@ function updateOthersUsingBestSolution!(k, t, schedule,
     curr_wins = num_wins[curr_team]
     rank_of_team[curr_team] = rank_of_team[last_team]
     if last_wins > curr_wins
-      rank_of_team[curr_team] = rank_of_team[curr_team] + 1
+      rank_of_team[curr_team] += ct
+      ct = 1
+    else
+      ct += 1
     end
   end
 

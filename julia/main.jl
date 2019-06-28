@@ -140,13 +140,16 @@ else
 	end
 end
 
-function main_simulate(;do_simulation = true, num_replications = 100000, do_plotting=true, mode=MODE, results_dir = "../results", return_h2h = false)
+function main_simulate(;do_simulation = true, num_replications = 100000, do_plotting=true, mode=MODE, results_dir = "../results", 
+   num_rounds = 3,  num_steps = 20, gamma = 0.75, return_h2h = false)
+  ###
+	# num_rounds: a round consists of each team playing each other team
+  # num_steps: discretization of [0,1] for tanking probability
+	# gamma: probability a better-ranked team wins over a worse-ranked team
+  ###
 	set_mode(mode)
 
 	## Variables that need to be set
-	num_rounds = 3 # a round consists of each team playing each other team
-	num_steps = 20 # discretization of [0,1] for tanking probability
-	gamma = 0.75 # probability a better-ranked team wins over a worse-ranked team
 	## end variables that need to be set
 
 	## Set constants
