@@ -13,6 +13,7 @@
 
 using JuMP, MathOptFormat
 #using Cbc
+#using GLPK
 using Gurobi
 
 function heuristicBestRank(k, t, schedule, in_stats, in_outcome,
@@ -262,7 +263,8 @@ function setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_ga
   # Bounds:
   #   y_i \ge 0                                           (for all i)
   ###
-  #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0))
+  #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0)) # about five times slower than Gurobi (or worse)
+  #model = Model(with_optimizer(GLPK.Optimizer))
   model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=10, OutputFlag=0))
   
   ## Set up variables and constraints
@@ -303,10 +305,12 @@ function setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_ga
   end
 
   ## Add objective
-  @objective(model, Min, 1 + sum(z))
+  @variable(model, rank)
+  @constraint(model, rk, rank == sum(z) + 1)
 
-  ## Add cutoff constraint
-  #@constraint(model, cutoff, 1 + sum(z) <= num_playoff_teams)
+  ## Make it an optimization problem or feasibility problem
+  @objective(model, Min, rank)
+  #@constraint(model, cutoff, rank <= num_playoff_teams)
 
   return model
 end # setupMIP
@@ -460,7 +464,8 @@ function solveMIP!(model, num_playoff_teams)
   if status == MOI.OPTIMAL
     return true
   elseif status == MOI.OBJECTIVE_LIMIT
-    if objective_value(model) <= num_playoff_teams
+    #if objective_value(model) <= num_playoff_teams
+    if value.(model[:rank]) <= num_playoff_teams
       return true
     else
       return false
@@ -472,7 +477,8 @@ function solveMIP!(model, num_playoff_teams)
     MOI.write_to_file(lp_file, "hard.lp")
 
     if has_values(model)
-      if objective_value(model) <= num_playoff_teams
+      #if objective_value(model) <= num_playoff_teams
+      if value.(model[:rank]) <= num_playoff_teams
         return true
       else
         return false
@@ -480,7 +486,7 @@ function solveMIP!(model, num_playoff_teams)
     else
       return false
     end
-  elseif status == MOI.INFEASIBLE
+  elseif status == MOI.INFEASIBLE || status == MOI.INFEASIBLE_OR_UNBOUNDED
     return false
   else
     error("The model was not solved correctly. Exiting with status $status.")
@@ -514,7 +520,8 @@ function updateUsingMIPSolution!(model, k, t, schedule,
     best_num_wins[k, i] = Int(round(value.(w[i])))
   end
 
-  best_rank[k] = Int(round(objective_value(model)))
+  #best_rank[k] = Int(round(objective_value(model)))
+  best_rank[k] = Int(round(value.(model[:rank])))
 end # updateUsingMIPSolution
 
 function updateOthersUsingBestSolution!(k, t, schedule,

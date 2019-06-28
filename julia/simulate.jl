@@ -263,7 +263,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
               end
             end
           end
-          #print("Game $game_ind\tNum MIPs: $num_mips\tNum eff elim: $num_eliminated\tNum math elim: $num_math_elim\n")
+          print("Game $game_ind\tNum MIPs: $num_mips\tNum eff elim: $num_eliminated\tNum math elim: $num_math_elim\n")
         #end # iterate over num_games_per_round
       #end # iterate over rounds
       end # iterate over games
