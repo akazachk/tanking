@@ -97,7 +97,7 @@ upscale = 1 # upscaling in resolution
 if !use_pyplot
 	#ext = ".svg"
 	using Plots
-	using StatPlots
+	using StatsPlots
 	#gr(dpi=DPI); # Pkg.add("GR")
 	pyplot(dpi=DPI)
 	#pgfplots(dpi=DPI)
