@@ -242,7 +242,7 @@ function sortTeams(stats, best_to_worst = true, win_pct_ind = 5, games_left_ind 
 	return sorted
 end # sortTeams
 
-function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, num_teams, win_pct_ind = 5, games_left_ind = 3, h2h = [])
+function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, num_teams, win_pct_ind = 6, games_left_ind = 3, h2h = [])
 	###
 	# updateRank
 	#

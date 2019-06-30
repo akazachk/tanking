@@ -35,7 +35,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   ###
 
   ## Set constants
-  USE_MATH_ELIM = true # false = use effective elimination, true = use mathematical elimination
+  USE_MATH_ELIM = true # false: use effective elimination, true: use mathematical elimination
   CALC_MATH_ELIM = 2 # 0: do not calculate, 1: use heuristic only, 2: use MIP
   step_size = 1 / num_steps
   array_of_tanking_probabilities = 0:step_size:1
@@ -81,8 +81,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   # stats[:,7] is indicator for whether team tanks
   # not implemented:  stats[:,7] is team rank
   size_of_stats = 7
-  team_name_ind = 1
-  num_wins_ind = 2
+  name_ind = 1
+  wins_ind = 2
   games_left_ind = 3
   games_left_when_elim_ind = 4
   games_left_when_math_elim_ind = 5
@@ -112,10 +112,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       num_wins_since_elim = zeros(Int, num_teams)
       elimination_index = zeros(Int, num_teams) # game when was this team eliminated
       for i = 1:num_teams
-        stats[i,team_name_ind] = i # team name
-        stats[i,num_wins_ind] = 0 # num wins
+        stats[i,name_ind] = i # team name
+        stats[i,wins_ind] = 0 # num wins
         stats[i,games_left_ind] = num_team_games # num games left
-        stats[i,games_left_when_elim_ind] = -1 # when team is eliminated (in terms of how many left)
+        stats[i,games_left_when_elim_ind] = -1 # when team is effectively eliminated (in terms of how many left)
         stats[i,games_left_when_math_elim_ind] = -1 # when team is mathematically eliminated (in terms of how many left)
         stats[i,win_pct_ind] = 0.0 # win percentage
         if rand() > tank_perc
@@ -183,11 +183,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           # Do updates
           for k in [i,j]
             team_k_wins = (k == i) ? team_i_wins : !team_i_wins
-            stats[k,num_wins_ind] = stats[k,num_wins_ind] + team_k_wins
-            stats[k,games_left_ind] = stats[k,games_left_ind] - 1 # one fewer game remaining
-            stats[k,win_pct_ind] = stats[k,num_wins_ind] / (num_team_games - stats[k,games_left_ind]) # update current win pct
+            stats[k,wins_ind] += team_k_wins
+            stats[k,games_left_ind] -= 1 # one fewer game remaining
+            stats[k,win_pct_ind] = stats[k,wins_ind] / (num_team_games - stats[k,games_left_ind]) # update current win pct
             rank_of_team, team_in_pos = updateRank(stats, rank_of_team, team_in_pos, k, team_k_wins, num_teams, win_pct_ind, games_left_ind, h2h) # update rank
-            #rank_of_team_h2h, team_in_pos_h2h = updateRank(stats, rank_of_team_h2h, team_in_pos_h2h, k, team_k_wins, num_teams, win_pct_ind, games_left_ind, h2h) # update rank
             
             # If team k wins and has been eliminated, increment num wins since elim
             if team_k_wins && stats[k,elim_ind] >= 0
@@ -209,14 +208,14 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             end
           end
           
-          # Maybe team is eliminated after this round; again check critical game for i,j (game that team is eliminated)
+          # Set critical game for teams eliminated after this game
           last_team = team_in_pos[num_playoff_teams]
           cutoff_avg = stats[last_team,win_pct_ind]
           for k in 1:num_teams
             if stats[k,games_left_when_elim_ind] >= 0 # check team is not already eliminated
               continue
             end
-            is_eliminated = teamIsEffectivelyEliminated(stats[k,num_wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
+            is_eliminated = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
             if is_eliminated
               num_eff_elim += 1
               stats[k,games_left_when_elim_ind] = stats[k,games_left_ind]
@@ -240,7 +239,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
               (is_eliminated, mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
                   schedule, stats, outcome, best_outcomes, best_num_wins, best_rank, model,
                   num_teams, num_playoff_teams, num_team_games, num_games_total,
-                  CALC_MATH_ELIM, num_wins_ind, games_left_ind)
+                  CALC_MATH_ELIM, wins_ind, games_left_ind)
               num_mips += mips_used
               if is_eliminated
                 num_math_elim += 1
@@ -300,17 +299,17 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         tmp_elim_index = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
         tmp_elim_index[:,1] = nonplayoff_teams
         tmp_elim_index[:,2] = elimination_index[nonplayoff_teams] # not using negative, because we will sort high-to-low later
-        for elim_ind = 1:num_teams - num_playoff_teams
-          if tmp_elim_index[elim_ind,2] < 0 # was never eliminated
+        for tmp_team_ind = 1:num_teams - num_playoff_teams
+          if tmp_elim_index[tmp_team_ind,2] <= 0 # was never eliminated
             # Team was not eliminated but did not make the playoffs
             # It is so far unranked from Lenten perspective
             # Should be ranked higher than teams eliminated earlier
             # Among the teams not eliminated, pretend that higher rank at end of season means it was eliminated later
-            curr_team_ind = tmp_elim_index[elim_ind,1]
-            tmp_elim_index[elim_ind,2] = num_games_total + 1 + (num_teams - rank_of_team[curr_team_ind])
+            curr_team_ind = tmp_elim_index[tmp_team_ind,1]
+            tmp_elim_index[tmp_team_ind,2] = num_games_total + 1 + (num_teams - rank_of_team[curr_team_ind])
           end
         end
-        ranking_lenten = sortslices(tmp_elim_index, dims=1, by = x -> x[2], rev=true) # descending; having a higher elimination index means Lenten ranks the team higher (since it was eliminated later), i.e., it has a worse draft pick
+        ranking_lenten = sortslices(tmp_elim_index, dims=1, by = x -> x[2], rev=true) # descending; having a higher elimination index means Lenten ranks the team better (since it was eliminated later), i.e., it has a worse draft pick
         avg_kend_lenten += kendtau_sorted(ranking_lenten[:,1], true_strength, mode) / num_replications
       end
     end # do replications
