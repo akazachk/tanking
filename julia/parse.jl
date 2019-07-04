@@ -54,9 +54,17 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 
 	## Set up data matrices
 	teams = sort(unique(df[start_row:num_rows,home_team_ind]))
-
-	results = Matrix{Bool}(undef, num_teams, num_team_games)
+  schedule = df[start_row:num_rows,[home_team_ind,away_team_ind]]
+  outcome = zeros(Int, num_games_total)
+	#results = Matrix{Bool}(undef, num_teams, num_team_games)
 	teamcounter = zeros(Int,num_teams,1) # number of games played by each team
+
+  ## Set up MIP
+  best_outcomes = zeros(Int, num_teams, num_games_total)
+  best_num_wins = zeros(Int, num_teams, num_teams)
+  best_rank = zeros(Int, num_teams)
+  num_mips = 0
+  model = CALC_MATH_ELIM > 1 ? setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_games_total) : 0
 
 	## Critical game is the point at which the team is eliminated (effectively or mathematically)
 	## where effectively means that it cannot make the playoffs if the last team continues playing at the same average win rate
@@ -66,7 +74,7 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
   size_of_stats = 6
 	name_ind = 1
 	wins_ind = 2
-	losses_ind = 3 # maybe remove?
+	losses_ind = 3
 	games_left_ind = 4
   elim_ind = 5 # games left when eliminated
 	win_pct_ind = 6
@@ -103,9 +111,10 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 		## Check who wins the game
 		home_score = df[row, home_score_ind]
 		away_score = df[row, away_score_ind]
-		winning_team = (home_score > away_score) ? hometeam : awayteam
-		losing_team = (home_score > away_score) ? awayteam : hometeam
-		h2h[winning_team,losing_team] = h2h[winning_team,losing_team] + 1
+		winner = (home_score > away_score) ? hometeam : awayteam
+		loser = (home_score > away_score) ? awayteam : hometeam
+    outcome[game_ind] = winner
+		h2h[winner,loser] += 1
 
 		## Check if this game is tanked
 		if (critical_game[hometeam,1] + critical_game[awayteam,1]) > 0
@@ -124,12 +133,12 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 		## Do updates
 		for k in [hometeam, awayteam]
 			teamcounter[k] = teamcounter[k] + 1
-			team_k_wins = (k == winning_team) ? true : false
+			team_k_wins = (k == winner) ? true : false
 			stats[k,wins_ind] += team_k_wins # one more win
 			stats[k,losses_ind] += !team_k_wins # one more loss
 			stats[k,games_left_ind] -= 1 # one fewer game remaining
 			stats[k,win_pct_ind] = stats[k,wins_ind] / teamcounter[k] # update current win pct
-			results[k,teamcounter[k]] = team_k_wins
+			#results[k,teamcounter[k]] = team_k_wins
 			if is_east[k]
 				rank_of_team, team_in_pos_east = updateRank(stats, rank_of_team, team_in_pos_east, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind, h2h) # update rank
 			else
@@ -138,34 +147,21 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 		end
 
 		## Check whether teams are eliminated
-		## Effective elimination: "If I win all my remaining games, and the cutoff for making the playoffs does not change, will I make the playoffs?"
-		cutoff_avg_home = 0
-		cutoff_avg_away = 0
-		if is_east[hometeam]
-			cutoff_avg_home = stats[team_in_pos_east[num_playoff_teams_per_conf],win_pct_ind]
-		else
-			cutoff_avg_home = stats[team_in_pos_west[num_playoff_teams_per_conf],win_pct_ind]
-		end
-		if is_east[awayteam]
-			cutoff_avg_away = stats[team_in_pos_east[num_playoff_teams_per_conf],win_pct_ind]
-		else
-			cutoff_avg_away = stats[team_in_pos_west[num_playoff_teams_per_conf],win_pct_ind]
-		end
-
-    ## Set critical game for teams eliminated after this game
 		#for k in [hometeam, awayteam]
     for k in 1:num_teams
-			if critical_game[k,1] == 0 ## check it has not been set yet
+			if stats[k,elim_ind] >= 0 ## check team is not already eliminated
         continue
       end
-      cutoff_avg = (k == hometeam) ? cutoff_avg_home : cutoff_avg_away
       if USE_MATH_ELIM
+        # Mathematical elimination: solve MIP if heuristic does not find good schedule
         (is_eliminated, mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
             schedule, stats, outcome, best_outcomes, best_num_wins, best_rank, model,
             num_teams_per_conf, num_playoff_teams_per_conf, num_team_games, num_games_total,
             CALC_MATH_ELIM, wins_ind, games_left_ind)
          num_mips_used += mips_used
       else
+        # Effective elimination: "If I win all my remaining games, and the cutoff for making the playoffs does not change, will I make the playoffs?"
+        cutoff_avg = is_east[k] ? stats[team_in_pos_east[num_playoff_teams_per_conf],win_pct_ind : stats[team_in_pos_west[num_playoff_teams_per_conf],win_pct_ind]
         is_eliminated = teamIsEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
       end
       if is_eliminated
@@ -175,9 +171,9 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
         critical_game[k,3] = stats[k,losses_ind]
         num_eliminated += 1
       end
-		end
+		end # check elimination
 
-		#print("Game ",game_ind,": ",curr_home_name," (",hometeam,") vs ",curr_away_name," (",awayteam,"). Winner: ",winning_team,"\n")
+		#print("Game ",game_ind,": ",curr_home_name," (",hometeam,") vs ",curr_away_name," (",awayteam,"). Winner: ",winner,"\n")
 	end # iterate over rows
 
 	## Get non-playoff teams at the end of the season

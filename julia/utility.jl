@@ -23,8 +23,27 @@ function isVal(x, y, eps = 1e-7)
   return abs(x-y) < eps
 end # isVal
 
-function teamIsTanking(i, stats, games_left_ind=3, games_left_when_elim_ind=4, will_tank_ind=7)
-	return stats[i,will_tank_ind] == 1 && stats[i,games_left_ind] <= stats[i,games_left_when_elim_ind]
+function teamAdvances(i, ranks, num_playoff_teams_per_conf, conf=[])
+  ###
+  # teamAdvances
+  #   i: team index
+  #   ranks: vector of team ranks
+  #   num_playoff_teams_per_conf: number of playoff teams from each conference
+  #   conf: which conference each team belongs to (if empty, then assumed one conference)
+  #
+  # Return true if team advances
+  if length(conf) == 0
+    return ranks[i] <= num_playoff_teams_per_conf
+  else
+    mask = map(k->k==conf[i], conf)
+    conf_ranks = ranks[mask]
+    conf_ranki = count(k->k<ranks[i], conf_ranks)
+    return conf_ranki <= num_playoff_teams_per_conf
+  end
+end # teamAdvances
+
+function teamIsTanking(i, stats, games_left_when_elim_ind=4, will_tank_ind=7)
+	return stats[i,will_tank_ind] == 1 && stats[i,games_left_when_elim_ind] >= 0
 end # teamIsTanking
 
 function teamIsBetter(i, j, true_strength = 30:-1:1, mode=STRICT)
@@ -75,7 +94,7 @@ function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 	end
 end # teamWillWinNoTanking
 
-function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, games_left_ind=3, games_left_when_elim_ind=4, will_tank_ind=7)
+function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, games_left_when_elim_ind=4, will_tank_ind=7)
 	###
 	# teamWillWin
 	#
@@ -101,8 +120,8 @@ function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, gam
 	# stats[:,6] is win percentage
 	# stats[:,7] is indicator for whether team tanks
 	###
-	team_i_tanks = teamIsTanking(i, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind) 
-	team_j_tanks = teamIsTanking(j, stats, games_left_ind, games_left_when_elim_ind, will_tank_ind) 
+	team_i_tanks = teamIsTanking(i, stats, games_left_when_elim_ind, will_tank_ind) 
+	team_j_tanks = teamIsTanking(j, stats, games_left_when_elim_ind, will_tank_ind) 
 
 	if (team_i_tanks && team_j_tanks) || (!team_i_tanks && !team_j_tanks)
 		# Neither team is tanking, or both are; we treat this the same, as non-tanking
@@ -117,59 +136,64 @@ function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, gam
 	return
 end # teamWillWin
 
-function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome,
-    best_outcomes, best_num_wins, best_rank, model,
+function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
+    best_outcomes, best_h2h, best_num_wins, best_rank, model,
     num_teams, num_playoff_teams, num_team_games, num_games_total, 
-    CALC_MATH_ELIM = 2, num_wins_ind = 2, games_left_ind = 3)
-    ###
-    # Check whether team k is mathematically eliminated
-    #
-    # Sets the best known rank each non-eliminated team can achieve
-    # as well as the corresponding stats and outcomes
-    #
-    # Returns whether a MIP solve was used
-    ###
-    ## Return if team k is not eliminated in the existing heuristic solution
-    mips_used = 0
-    if best_rank[k] > 0 && best_rank[k] <= num_playoff_teams
-      return false, mips_used
-    end
-    ## Also return when the team is already mathematically eliminated
-    if best_rank[k] < 0
-      return true, mips_used
-    end
+    USE_MATH_ELIM = 2, num_wins_ind = 2, games_left_ind = 3, conf=[])
+  ###
+  # teamIsMathematicallyEliminated
+  #   conf: which conference each team belongs to (if empty, then assumed one conference)
+  #
+  # Check whether team k is mathematically eliminated
+  #
+  # Sets the best known rank each non-eliminated team can achieve
+  # as well as the corresponding stats and outcomes
+  #
+  # Returns whether a MIP solve was used
+  ###
+  ## Return if team k is not eliminated in the existing heuristic solution
+  mips_used = 0
+  if best_rank[k] > 0 && best_rank[k] <= num_playoff_teams
+    return false, mips_used
+  end
+  ## Also return when the team is already mathematically eliminated
+  if best_rank[k] < 0
+    return true, mips_used
+  end
 
-    heur_outcome, heur_num_wins, heur_rank = 
-        heuristicBestRank(k, t, schedule, stats, outcome, num_wins_ind, games_left_ind)
+  heur_outcome, heur_h2h, heur_num_wins, heur_rank = 
+      heuristicBestRank(k, t, schedule, stats, outcome, h2h, num_wins_ind, games_left_ind)
 
-    ## If the heuristic solution is enough, stop here; else, go on to the MIP
-    if heur_rank[k] <= num_playoff_teams
-      best_outcomes[k, :] = heur_outcome
-      best_num_wins[k, :] = heur_num_wins
-      best_rank[k] = heur_rank[k]
-    elseif CALC_MATH_ELIM > 1
-      #print("Game $t, Team $k: Running MIP. Best rank: ", best_rank[k], " Heur rank: ", heur_rank[k], "\n")
-      fixVariables!(model, k, t+1, stats[k, num_wins_ind] + stats[k, games_left_ind], schedule)
-      #W, w, x, y, z = setIncumbent!(model, k, t, schedule, heur_outcome)
-      if solveMIP!(model, num_playoff_teams)
-        updateUsingMIPSolution!(model, k, t, schedule, best_outcomes, best_num_wins, best_rank)
-      else
-        best_rank[k] = -1
-      end
-      resetMIP!(model, t+1, schedule, stats)
-      mips_used = 1
-    end
-
-    ## Update other teams if possible
-    if best_rank[k] > 0
-      updateOthersUsingBestSolution!(k, t, schedule, best_outcomes, best_num_wins, best_rank)
-    end
-
-    ## If team k has been mathematically eliminated, mark it so by putting best rank as -1
-    if best_rank[k] > num_playoff_teams
+  ## If the heuristic solution is enough, stop here; else, go on to the MIP
+  if heur_rank[k] <= num_playoff_teams
+    best_outcomes[k, :] = heur_outcome
+    best_h2h[k, :] = heur_h2h
+    best_num_wins[k, :] = heur_num_wins
+    best_rank[k] = heur_rank[k]
+  elseif USE_MATH_ELIM > 1
+    #print("Game $t, Team $k: Running MIP. Best rank: ", best_rank[k], " Heur rank: ", heur_rank[k], "\n")
+    fixVariables!(model, k, t+1, stats[k, num_wins_ind] + stats[k, games_left_ind], schedule, USE_MATH_ELIM)
+    #W, w, x, y, z = setIncumbent!(model, k, t, schedule, heur_outcome)
+    if solveMIP!(model, num_playoff_teams)
+      updateUsingMIPSolution!(model, k, t, schedule, h2h, best_outcomes, best_h2h, best_num_wins, best_rank, USE_MATH_ELIM)
+    else
       best_rank[k] = -1
     end
-    return best_rank[k] == -1, mips_used
+    resetMIP!(model, t+1, schedule, stats, USE_MATH_ELIM)
+    mips_used = 1
+  end
+
+  ## Update other teams if possible
+  if best_rank[k] > 0
+    updateOthersUsingBestSolution!(k, t, schedule, 
+        best_outcomes, best_h2h, best_num_wins, best_rank)
+  end
+
+  ## If team k has been mathematically eliminated, mark it so by putting best rank as -1
+  if best_rank[k] > num_playoff_teams
+    best_rank[k] = -1
+  end
+  return best_rank[k] == -1, mips_used
 end # teamIsMathematicallyEliminated
 
 function teamIsEffectivelyEliminated(num_wins, num_games_remaining, num_team_games, cutoff_avg, max_games_remaining)

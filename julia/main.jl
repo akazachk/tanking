@@ -140,12 +140,22 @@ else
 	end
 end
 
-function main_simulate(;do_simulation = true, num_replications = 100000, do_plotting=true, mode=MODE, results_dir = "../results", 
-   num_rounds = 3,  num_steps = 20, gamma = 0.75, return_h2h = false)
+function main_simulate(;do_simulation = true, num_replications = 100000, 
+    do_plotting=true, mode=MODE, results_dir = "../results", 
+    num_rounds = 3,  num_steps = 20, gamma = 0.75, 
+    USE_MATH_ELIM = true, CALC_MATH_ELIM = 2, return_h2h = false)
   ###
-	# num_rounds: a round consists of each team playing each other team
-  # num_steps: discretization of [0,1] for tanking probability
-	# gamma: probability a better-ranked team wins over a worse-ranked team
+  # main_simulate: Simulate a season and plot output
+  #   * do_simulation: when false, read data from files in results_dir
+  #   * num_replications: how many times to simulate each data point
+  #   * do_plotting: if false, only gather data, without plotting it
+  #   * mode: which kind of true ranking is used
+  #   * results_dir: where results should be saved and can be found
+	#   * num_rounds: a round consists of each team playing each other team
+  #   * num_steps: discretization of [0,1] for tanking probability
+	#   * gamma: probability a better-ranked team wins over a worse-ranked team
+  #   * USE_MATH_ELIM: false: use effective elimination, true: use mathematical elimination
+  #   * CALC_MATH_ELIM: 0: do not calculate, 1: use heuristic only, 2: use MIP
   ###
 	set_mode(mode)
 
@@ -168,7 +178,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, breakpoint_list, true_strength, mode, return_h2h)
+		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, breakpoint_list, true_strength, mode, USE_MATH_ELIM, CALC_MATH_ELIM, return_h2h)
 		writedlm(string(results_dir, "/avg_kend", csvext), avg_kend, ',')
 		writedlm(string(results_dir, "/avg_games_tanked", csvext), avg_games_tanked, ',')
 		writedlm(string(results_dir, "/avg_already_tank", csvext), avg_already_tank, ',')
@@ -379,16 +389,16 @@ function main_simulate(;do_simulation = true, num_replications = 100000, do_plot
 		end
 
 		## Plot avg_eliminated
-		print("Plotting avg_eliminated: average number of effectively eliminated teams by every game of the season\n")
+		print("Plotting avg_eliminated: average number of eliminated teams by every game of the season\n")
 		minx = 1
 		maxx = num_games
 		incx = (maxx - minx) / 5
 		miny = Int(floor(findmin(avg_eliminated)[1]))
 		incy = 1
 		maxy = Int(ceil(findmax(avg_eliminated)[1]))
-		titlestring = L"\mbox{Number of teams effectively eliminated over time}"
+		titlestring = L"\mbox{Number of teams eliminated over time}"
 		xlabelstring = L"\mbox{Percent of season elapsed}"
-		ylabelstring = L"\mbox{Number of teams effectively eliminated}"
+		ylabelstring = L"\mbox{Number of teams eliminated}"
 		fname_stub = "avg_eliminated"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
@@ -555,7 +565,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		end
 
 		## Plot number of teams eliminated
-		print("Plotting num_teams_eliminated: number of effectively eliminated teams by every game of the season\n")
+		print("Plotting num_teams_eliminated: number of eliminated teams by every game of the season\n")
 		num_games = 15 * 82;
 		num_teams_eliminated = hcat(num_teams_eliminated_1314, num_teams_eliminated_1415, num_teams_eliminated_1516, num_teams_eliminated_1617, num_teams_eliminated_1718)
 		num_teams_eliminated = num_teams_eliminated'
@@ -566,9 +576,9 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		miny = Int(ceil(findmin(num_teams_eliminated)[1]))
 		maxy = Int(floor(findmax(num_teams_eliminated)[1]))
 		incy = 1
-		titlestring = L"\mbox{Number of teams effectively eliminated over time}"
+		titlestring = L"\mbox{Number of teams eliminated over time}"
 		xlabelstring = L"\mbox{Percent of season elapsed}"
-		ylabelstring = L"\mbox{Number of teams effectively eliminated}"
+		ylabelstring = L"\mbox{Number of teams eliminated}"
 		legendtitlestring = L"\mbox{Season}"
 		fname_stub = "nba_num_teams_eliminated"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
@@ -642,7 +652,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 #										lw=0,
 #										bar_position=:dodge,
 #										#bar_position=:stack,
-#										title=L"\mbox{Number of teams effectively eliminated by breakpoint mark}",
+#										title=L"\mbox{Number of teams eliminated by breakpoint mark}",
 #										xlab=L"\mbox{Season}", 
 #										ylab=L"\mbox{Number of teams eliminated}",
 #										legend=:best,
