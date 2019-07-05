@@ -19,11 +19,19 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   #   * breakpoint_list
   #   * true_strength
   #   * mode: defines how the ranking and winner determination works
+  #     1 or 2: 
+  #       When two non-tanking teams or two tanking teams play each other, 
+  #       the better team wins with probability gamma
+  #       When a tanking team plays a non-tanking team, the tanking team always loses
+  #     3 or 4:
+  #       Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game
   #   * USE_MATH_ELIM: 
   #     0: use effective elimination, 
   #     1: use heuristics only, 
-  #     2: use binary MIP,
-  #     3: use general integer MIP
+  #     2: use binary MIP, team-wise formulation
+  #     3: use general integer MIP, team-wise formulation
+  #     4: use binary MIP, cutoff formulation
+  #     5: use general integer MIP, cutoff formulation
   #
   # Teams play each other in rounds, consisting of each team playing every other team
   # Each team may or may not tank at all (decided by a tanking percentage)
@@ -33,13 +41,6 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   # This is when it would not be enough for the team to win all its remaining games 
   # to have a win percentage at least as good as the last playoff team
   # (assuming that cutoff win percentage remains the same)
-  #
-  # mode = 1 or 2:
-  # When two non-tanking teams or two tanking teams play each other, the better team wins with probability gamma
-  # When a tanking team plays a non-tanking team, the tanking team always loses
-  # 
-  # mode = 3 or 4:
-  # Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game
   #
   # Assumptions:
   # 1. No simultaneous games

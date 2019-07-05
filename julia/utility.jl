@@ -172,10 +172,13 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
     best_rank[k] = heur_rank[k]
   elseif USE_MATH_ELIM > 1
     #print("Game $t, Team $k: Running MIP. Best rank: ", best_rank[k], " Heur rank: ", heur_rank[k], "\n")
-    fixVariables!(model, k, t+1, stats[k, num_wins_ind] + stats[k, games_left_ind], schedule, USE_MATH_ELIM)
+    W =  stats[k, num_wins_ind] + stats[k, games_left_ind]
+    fixVariables!(model, k, t+1, W, schedule, USE_MATH_ELIM)
     #W, w, x, y, z = setIncumbent!(model, k, t, schedule, heur_outcome)
-    if solveMIP!(model, num_playoff_teams)
-      updateUsingMIPSolution!(model, k, t, schedule, h2h, best_outcomes, best_h2h, best_num_wins, best_rank, USE_MATH_ELIM)
+    if solveMIP!(model)
+      checkMIP(model, num_playoff_teams, USE_MATH_ELIM)
+      updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_teams,
+          best_outcomes, best_h2h, best_num_wins, best_rank, USE_MATH_ELIM)
     else
       best_rank[k] = -1
     end
@@ -183,9 +186,9 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
     mips_used = 1
   end
 
-  ## Update other teams if possible
+  ## Update other teams if possible (if initialized and not yet eliminated)
   if best_rank[k] > 0
-    updateOthersUsingBestSolution!(k, t, schedule, 
+    updateOthersUsingBestSolution!(k, t, schedule, num_playoff_teams,
         best_outcomes, best_h2h, best_num_wins, best_rank)
   end
 
@@ -205,7 +208,7 @@ function teamIsEffectivelyEliminated(num_wins, num_games_remaining, num_team_gam
 	# will the team make it into the playoffs?
 	###
 	if num_games_remaining < max_games_remaining # make sure enough games have been played
-		if (num_wins + num_games_remaining) / num_team_games < cutoff_avg - 1e-7
+		if lessThanVal((num_wins + num_games_remaining) / num_team_games, cutoff_avg)
 			return true
 		end
 	end

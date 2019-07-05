@@ -259,9 +259,9 @@ end # updateHeuristicBestRank
 function setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, USE_MATH_ELIM)
   if USE_MATH_ELIM < 1
     return 0
-  elseif USE_MATH_ELIM == 2 || USE_MATH_ELIM == 3
+  elseif USE_MATH_ELIM in [2,3]
     return setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, USE_MATH_ELIM)
-  elseif USE_MATH_ELIM == 4 || USE_MATH_ELIM == 5
+  elseif USE_MATH_ELIM in [4,5]
     return setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, USE_MATH_ELIM)
   end
 end # setupMIP
@@ -402,8 +402,10 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
   #
   # Variables:
   #   W: number of wins by last team that makes the playoffs
+  #   w_i: number of wins by team i
   #   USE_MATH_ELIM == 4: x_{it}: binary; whether team i wins game t
   #   USE_MATH_ELIM == 5: x_{ij}: general integer; number of wins team i has over team j
+  #   alpha_i: binary; 0 if W >= num wins of team i (i.e., will = 1 for first n^* teams)
   #
   # Objective:
   #   min W
@@ -411,17 +413,19 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
   # Constraints:
   #   USE_MATH_ELIM == 4: \sum_{i \in G_t} x_{it} = 1     (for all t)
   #   USE_MATH_ELIM == 5: x_{ij} + x_{ji} = g_{ij}        (for all i,j)
+  #   w_i = \sum x_{i,:}
   #   W \ge \sum x_{i,:} - M \alpha_i                     (for all i)
   #   \sum_i \alpha_i = n^*                               (for all i)
   #
   # Binaries:
   #   USE_MATH_ELIM == 4: x \in \{0,1\}
+  #   alpha \in {0,1}^n
   #
   # Integers:
-  #   USE_MATH_ELIM == 5: x \in [0,g_{ij}]
+  #   USE_MATH_ELIM == 5: x_{ij} \in [0,g_{ij}]
   #
   # Bounds:
-  #   USE_MATH_ELIM == 5: x_{i,i} = 0
+  #   USE_MATH_ELIM == 5: x_{ii} = 0
   ###
   if USE_MATH_ELIM != 4 && USE_MATH_ELIM != 5
     return 0
@@ -433,9 +437,10 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
   
   ## Set up variables and constraints
   @variable(model, W >= 0)
+  @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
   @variable(model, alpha[1:num_teams], lower_bound = 0, upper_bound = 1,
       integer=true) # alpha_i = indicator that team i has better rank than n^*
-  @constraint(model, sum(alpha) == num_playoff_teams)
+  con = @constraint(model, alpha_bd, sum(alpha) == num_playoff_teams)
 
   if USE_MATH_ELIM == 4
     # x_{it} = indicator that team i wins game t
@@ -472,7 +477,10 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
 
   ## Set team-wise constraints
   for i = 1:num_teams
-    @constraint(model, sum(x[i,:]) - num_team_games * alpha[i] <= W) # bound on num wins of last playoff team
+    con = @constraint(model, w[i] - sum(x[i,:]) == 0) # num wins of team i at season end
+    set_name(con, "w$i")
+    con = @constraint(model, w[i] - num_team_games * alpha[i] <= W) # bound on num wins of last playoff team
+    set_name(con, "W$i")
   end
 
   ## Add the objective
@@ -491,25 +499,35 @@ function resetMIP!(model, t, schedule, h2h, stats, USE_MATH_ELIM)
   num_teams = size(stats,1)
 
   if USE_MATH_ELIM in [2,4]
-    fix(model[:W], 0)
-
     for game_ind = t:num_games_total
       i = schedule[game_ind,1]
       j = schedule[game_ind,2]
       for k in [i,j]
-        name = "x[$k,$game_ind]" #"x_{$k,$game_ind}"
+        name = "x[$k,$game_ind]"
         xkt = variable_by_name(model, name)
         set_lower_bound(xkt, 0)
         set_upper_bound(xkt, 1)
       end
     end
-
-    for i = 1:num_teams
-      z = variable_by_name(model, "z[$i]")
-      set_lower_bound(z, 0)
-      set_upper_bound(z, 1)
-    end
   elseif USE_MATH_ELIM in [3,5]
+    for i = 1:num_teams
+      for j = 1:num_teams
+        if i == j
+          continue
+        end
+        set_lower_bound(variable_by_name(model, "x[$i,$j]"), h2h[i,j])
+      end
+    end
+  end
+
+  if USE_MATH_ELIM in [2,3]
+      fix(model[:W], 0)
+      for i = 1:num_teams
+        z = variable_by_name(model, "z[$i]")
+        set_lower_bound(z, 0)
+        set_upper_bound(z, 1)
+      end
+    end
   end
 
   return
@@ -532,8 +550,6 @@ function fixOutcome!(model, k, t, schedule, USE_MATH_ELIM)
   if USE_MATH_ELIM in [2,4]
     xit = variable_by_name(model, "x[$i,$t]")
     xjt = variable_by_name(model, "x[$j,$t]")
-    #xit = variable_by_name(model, "x_{$i,$t}")
-    #xjt = variable_by_name(model, "x_{$j,$t}")
     if i == k
       set_lower_bound(xit, 1)
       set_upper_bound(xjt, 0)
@@ -561,24 +577,27 @@ end # fixOutcome
 function fixVariables!(model, k, t, W, schedule, USE_MATH_ELIM)
   ###
   # Fix variables with respect to team k
+  # We do not do this for the cutoff-based formulation
   #
   # This means adjusting 
   #   * W (i.e., changing the right-hand side of the appropriate constraints)
   #   * fixing new variables as needed
   ###
-  if USE_MATH_ELIM < 1
+  if USE_MATH_ELIM < 1 || USE_MATH_ELIM in [4,5]
     return
   end
 
   num_games_total = size(schedule,1)
   
-  fix(model[:W], W)
-
   for game_ind = t:num_games_total
-    fixOutcome!(model, k, game_ind, schedule)
+    fixOutcome!(model, k, game_ind, schedule, USE_MATH_ELIM)
   end
-  z = variable_by_name(model, "z[$k]")
-  set_upper_bound(z, 0)
+
+  if USE_MATH_ELIM in [2,3]
+    fix(model[:W], W)
+    z = variable_by_name(model, "z[$k]")
+    set_upper_bound(z, 0)
+  end
 
   return
 end # fixVariables
@@ -657,46 +676,60 @@ function setIncumbent!(model, k, t, schedule, outcome, USE_MATH_ELIM)
   return W, w, x, y, z
 end # setIncumbent
 
-function solveMIP!(model, num_playoff_teams)
+function solveMIP!(model)
+  ###
+  # Return true if has values that can be used
+  ###
   optimize!(model)
+  status = termination_status(model)
+  good_status = status in [MOI.OPTIMAL, MOI.OBJECTIVE_LIMIT, MOI.TIME_LIMIT]
+  other_status = status in [MOI.INFEASIBLE, MOI.INFEASIBLE_OR_UNBOUNDED]
+  if !(good_status || other_status)
+    error("The model was not solved correctly. Exiting with status $status.")
+  end
+  return good_status && has_values(model)
+end # solveMIP
+
+function checkMIP(model, cutoff, USE_MATH_ELIM)
+  ###
+  # Check whether MIP says the team is eliminated
+  # If there is a time out, it may give the incorrect answer
+  ###
   status = termination_status(model)
   if status == MOI.OPTIMAL
     return true
-  elseif status == MOI.OBJECTIVE_LIMIT
-    #if objective_value(model) <= num_playoff_teams
-    if value.(model[:rank]) <= num_playoff_teams
-      return true
-    else
-      return false
+  elseif status in [MOI.OBJECTIVE_LIMIT, MOI.TIME_LIMIT]
+    if status == MOI.TIME_LIMIT
+      ## Save the hard LP
+      lp_file = MathOptFormat.LP.Model()
+      MOI.copy_to(lp_file, backend(model))
+      MOI.write_to_file(lp_file, "hard.lp")
     end
-  elseif status == MOI.TIME_LIMIT
-    ## Save the hard LP
-    lp_file = MathOptFormat.LP.Model()
-    MOI.copy_to(lp_file, backend(model))
-    MOI.write_to_file(lp_file, "hard.lp")
 
     if has_values(model)
-      #if objective_value(model) <= num_playoff_teams
-      if value.(model[:rank]) <= num_playoff_teams
+      #if objective_value(model) <= cutoff
+      if USE_MATH_ELIM in [2,3] && value.(model[:rank]) <= cutoff
+        return true
+      elseif USE_MATH_ELIM in [4,5] && value.(model[:W]) <= cutoff
         return true
       else
         return false
       end
-    else
+    else # no values, return false (this is an assumption)
       return false
     end
-  elseif status == MOI.INFEASIBLE || status == MOI.INFEASIBLE_OR_UNBOUNDED
+  elseif status in [MOI.INFEASIBLE, MOI.INFEASIBLE_OR_UNBOUNDED]
     return false
   else
     error("The model was not solved correctly. Exiting with status $status.")
   end
   return false
-end # solveMIP
+end # checkMIP
 
-function updateUsingMIPSolution!(model, k, t, schedule,
-    best_outcomes, best_num_wins, best_rank, USE_MATH_ELIM)
+function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_teams,
+    best_outcomes, best_h2h, best_num_wins, best_rank, USE_MATH_ELIM)
   status = termination_status(model)
-  good_status = (status == MOI.OPTIMAL) || (status == MOI.OBJECTIVE_LIMIT)
+  good_status = status in [MOI.OPTIMAL, MOI.OBJECTIVE_LIMIT, MOI.TIME_LIMIT]
   if !good_status || !has_values(model)
     error("The model was not solved correctly. Exiting with status $status.")
   end
@@ -704,28 +737,44 @@ function updateUsingMIPSolution!(model, k, t, schedule,
   num_games_total = size(schedule, 1)
   num_teams = size(best_rank, 1)
 
-  for game_ind = t:num_games_total
-    i = schedule[game_ind,1]
-    j = schedule[game_ind,2]
-    xit = variable_by_name(model, "x[$i,$game_ind]")
-    xjt = variable_by_name(model, "x[$j,$game_ind]")
-    #xit = variable_by_name(model, "x_{$i,$game_ind}")
-    #xjt = variable_by_name(model, "x_{$j,$game_ind}")
-    winner = isVal(value.(xit), 1) ? i : j
-
-    best_outcomes[k, game_ind] = winner
-  end
-
   w = model[:w]
   for i = 1:num_teams
     best_num_wins[k, i] = Int(round(value.(w[i])))
   end
 
-  #best_rank[k] = Int(round(objective_value(model)))
-  best_rank[k] = Int(round(value.(model[:rank])))
+  if USE_MATH_ELIM in [2,3]
+    for game_ind = t:num_games_total
+      i = schedule[game_ind,1]
+      j = schedule[game_ind,2]
+      xit = variable_by_name(model, "x[$i,$game_ind]")
+      xjt = variable_by_name(model, "x[$j,$game_ind]")
+      winner = isVal(value.(xit), 1) ? i : j
+
+      best_outcomes[k, game_ind] = winner
+    end
+
+    #best_rank[k] = Int(round(objective_value(model)))
+    best_rank[k] = Int(round(value.(model[:rank])))
+  elseif USE_MATH_ELIM in [4,5]
+    for i = 1:num_teams
+      for j = 1:num_teams 
+        if i == j
+          continue
+        end
+        xij = variable_by_name(model, "x[$i,$j]")
+        xji = variable_by_name(model, "x[$j,$i]")
+        best_h2h[k,i,j] = Int(round(value.(xij)))
+        best_h2h[k,j,i] = Int(round(value.(xji)))
+      end
+    end
+    if (model[:W] <= W)
+      best_rank[k] = num_playoff_teamss
+    end
+  end
+
 end # updateUsingMIPSolution
 
-function updateOthersUsingBestSolution!(k, t, schedule,
+function updateOthersUsingBestSolution!(k, t, schedule, num_playoff_teams,
     best_outcomes, best_h2h, best_num_wins, best_rank)
   ###
   # Check whether other teams best schedule can be updated
@@ -734,6 +783,7 @@ function updateOthersUsingBestSolution!(k, t, schedule,
   num_teams = length(best_rank)
 
   num_wins = best_num_wins[k,:]
+  W =  num_wins[num_playoff_teams]
   sorted_teams = sortperm(num_wins, rev=true)
   rank_of_team = Array{Int}(undef, num_teams)
   rank_of_team[sorted_teams[1]] = 1
