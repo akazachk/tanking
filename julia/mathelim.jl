@@ -228,7 +228,7 @@ function updateHeuristicBestRank!(winner, t, schedule, h2h,
       # Set winner as winner of current game, and loser as winner of game_ind
       best_outcomes[i,t] = winner
       best_outcomes[i,game_ind] = loser
-      continue
+      continue # continue iterating through the teams
     end
     
     ## For the remaining teams, the outcome does not match
@@ -521,12 +521,11 @@ function resetMIP!(model, t, schedule, h2h, stats, USE_MATH_ELIM)
   end
 
   if USE_MATH_ELIM in [2,3]
-      fix(model[:W], 0)
-      for i = 1:num_teams
-        z = variable_by_name(model, "z[$i]")
-        set_lower_bound(z, 0)
-        set_upper_bound(z, 1)
-      end
+    fix(model[:W], 0)
+    for i = 1:num_teams
+      z = variable_by_name(model, "z[$i]")
+      set_lower_bound(z, 0)
+      set_upper_bound(z, 1)
     end
   end
 

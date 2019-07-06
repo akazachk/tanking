@@ -161,8 +161,8 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
          num_mips_used += mips_used
       else
         # Effective elimination: "If I win all my remaining games, and the cutoff for making the playoffs does not change, will I make the playoffs?"
-        cutoff_avg = is_east[k] ? stats[team_in_pos_east[num_playoff_teams_per_conf],win_pct_ind : stats[team_in_pos_west[num_playoff_teams_per_conf],win_pct_ind]
-        is_eliminated = teamIsEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
+        cutoff_avg = is_east[k] ? stats[team_in_pos_east[num_playoff_teams_per_conf],win_pct_ind] : stats[team_in_pos_west[num_playoff_teams_per_conf],win_pct_ind]
+        is_eliminated = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
       end
       if is_eliminated
         stats[k,elim_ind] = stats[k,games_left_ind]
