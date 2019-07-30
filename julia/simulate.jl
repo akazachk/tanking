@@ -7,7 +7,7 @@
 include("utility.jl")
 include("mathelim.jl")
 
-function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, true_strength, mode, USE_MATH_ELIM=2, return_h2h=false)
+function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode=2)
   ###
   # Simulates a season
   #   * num_teams
@@ -17,6 +17,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   #   * num_steps
   #   * gamma
   #   * breakpoint_list
+  #   * nba_odds_list: list of odds to use by the NBA
   #   * true_strength
   #   * mode: defines how the ranking and winner determination works
   #     1 or 2: 
@@ -25,13 +26,13 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   #       When a tanking team plays a non-tanking team, the tanking team always loses
   #     3 or 4:
   #       Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game
-  #   * USE_MATH_ELIM: 
+  #   * math_elim_mode: 
   #     0: use effective elimination, 
-  #     1: use heuristics only, 
-  #     2: use binary MIP, team-wise formulation
-  #     3: use general integer MIP, team-wise formulation
-  #     4: use binary MIP, cutoff formulation
-  #     5: use general integer MIP, cutoff formulation
+  #     1: use mathematical elimination, but calculated by heuristics only, 
+  #     2: use math elim, binary MIP, team-wise formulation
+  #     3: use math elim, general integer MIP, team-wise formulation
+  #     4: use math elim, binary MIP, cutoff formulation
+  #     5: use math elim, general integer MIP, cutoff formulation
   #
   # Teams play each other in rounds, consisting of each team playing every other team
   # Each team may or may not tank at all (decided by a tanking percentage)
@@ -60,12 +61,20 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   breakpoint_game_for_draft = [round(breakpoint_list[i] * num_games_total) for i in 1:length(breakpoint_list)]
 
   ## Prepare output
-  avg_kend = zeros(Float64, num_steps+1, length(breakpoint_list))
-  avg_games_tanked = zeros(Float64, num_steps+1, length(breakpoint_list))
-  avg_already_tank = zeros(Float64, num_steps+1, length(breakpoint_list))
-  avg_eliminated = zeros(Float64, num_steps+1, num_games_total)
-  avg_kend_gold = 0.0
-  avg_kend_lenten = 0.0
+  # For each stat, keep: 1. avg, 2. stddev, 3. min, 4. max, 5. total
+  avg_stat = 1
+  stddev_stat = 2
+  min_stat = 3
+  max_stat = 4
+  num_stats = 4
+  kend_out = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats)
+  games_tanked_out = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats)
+  already_tank_out = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats)
+  math_eliminated_out = zeros(Float64, num_steps+1, num_games_total, num_stats)
+  eff_eliminated_out = zeros(Float64, num_steps+1, num_games_total, num_stats)
+  kend_nba_out = zeros(Float64, num_steps+1, length(nba_odds_list), num_stats)
+  kend_gold_out = zeros(Float64, 1, num_stats)
+  kend_lenten_out = zeros(Float64, 1, num_stats)
 
   ## Set up for game order 
   #games = Array{Int64}(undef, num_rounds, num_games_per_round, 2) # games played in each round
@@ -125,6 +134,9 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       end # set up stats array
 
       ## Prepare output
+      num_eliminated = 0
+      num_math_elim = 0
+      num_eff_elim = 0
       num_teams_tanking = 0
       num_games_tanked = 0
       outcome = zeros(Int, num_games_total)
@@ -153,7 +165,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       best_num_wins = zeros(Int, num_teams, num_teams)
       best_rank = zeros(Int, num_teams)
       num_mips = 0
-      model = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, USE_MATH_ELIM)
+      model = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode)
 
       ## Run one season
       for game_ind = 1:num_games_total
@@ -202,17 +214,19 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         for r = 1:length(breakpoint_game_for_draft) 
           if game_ind == breakpoint_game_for_draft[r]
             draft_rank_of_team[:,r] = rank_of_team
-            avg_already_tank[step_ind, r] += num_teams_tanking / num_replications
-            avg_games_tanked[step_ind, r] += num_games_tanked / num_replications
+            already_tank_out[step_ind, r, avg_stat] += num_teams_tanking / num_replications
+            games_tanked_out[step_ind, r, avg_stat] += num_games_tanked / num_replications
+            already_tank_out[step_ind, r, stddev_stat] += num_teams_tanking^2 / num_replications
+            games_tanked_out[step_ind, r, stddev_stat] += num_games_tanked^2 / num_replications
           end
         end
         
         # Check whether teams are eliminated
         # Prepare for elimination calculations
-        if USE_MATH_ELIM > 0
+        if math_elim_mode > 0
           # Update mathematical elimination
           updateHeuristicBestRank!(outcome[game_ind], game_ind, schedule, h2h, best_outcomes, best_h2h, best_num_wins, best_rank)
-          fixOutcome!(model, outcome[game_ind], game_ind, schedule, USE_MATH_ELIM)
+          fixOutcome!(model, outcome[game_ind], game_ind, schedule, math_elim_mode)
         end
         # Set critical game for teams eliminated after this game
         last_team = team_in_pos[num_playoff_teams]
@@ -223,16 +237,24 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           if stats[k,elim_ind] >= 0 # check team is not already eliminated
             continue
           end
-          if USE_MATH_ELIM > 0
+          is_math_elim = false
+          is_eff_elim = false
+          if math_elim_mode != 0
             # Mathematical elimination: solve MIP if heuristic does not find good schedule
-            (is_eliminated, mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
+            (is_math_elim, mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
                 schedule, stats, outcome, best_outcomes, best_h2h, best_num_wins, best_rank, model,
                 num_teams, num_playoff_teams, num_team_games, num_games_total,
-                USE_MATH_ELIM, wins_ind, games_left_ind)
+                math_elim_mode, wins_ind, games_left_ind)
             num_mips_used += mips_used
-          else
-            is_eliminated = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
+            num_math_elim += is_math_elim
+            math_eliminated_out[step_ind, game_ind, avg_stat] += num_math_elim / num_replications
+            math_eliminated_out[step_ind, game_ind, stddev_stat] += num_math_elim^2 / num_replications
           end
+          is_eff_elim = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
+          num_eff_elim += is_eff_elim
+          eff_eliminated_out[step_ind, game_ind, avg_stat] += num_eff_elim / num_replications
+          eff_eliminated_out[step_ind, game_ind, stddev_stat] += num_eff_elim^2 / num_replications
+          is_eliminated = math_elim_mode > 0 ? is_math_elim : is_eff_elim
           if is_eliminated
             num_eliminated += 1
             stats[k,elim_ind] = game_ind #stats[k,games_left_ind]
@@ -242,7 +264,6 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         #print("Game $game_ind\tNum MIPs: $num_mips\tNum elim: $num_eliminated\n")
 
         ## Update elimination stats
-        avg_eliminated[step_ind, game_ind] += num_eliminated / num_replications
       end # iterate over games
       ## end of a season
 
@@ -261,23 +282,37 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         tmp_stats[:,1] = nonplayoff_teams
         tmp_stats[:,2] = draft_rank_of_team[nonplayoff_teams, r]
         sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
-        avg_kend[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode) / num_replications
-        #avg_kend[step_ind, r] += kendtau(draft_ranking[nonplayoff_teams,:,r], win_pct_ind, true_strength, mode) / num_replications
+        curr_kend = kendtau_sorted(sorted_ranking[:,1], true_strength, mode)
+        kend_out[step_ind, r, avg_stat] += curr_kend / num_replications
+        kend_out[step_ind, r, stddev_stat] += curr_kend / num_replications
 
         # Now repeat with h2h
         #tmp_stats = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
         #tmp_stats[:,1] = nonplayoff_teams_h2h
         #tmp_stats[:,2] = draft_rank_of_team_h2h[nonplayoff_teams, r]
         #sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
-        #avg_kend_h2h[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode) / num_replications
+        #kend_out_h2h[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode) / num_replications
       end
 
+      ## Compute the Kendall tau distance when the NBA randomization is used
+      for r = 1:length(nba_odds_list)
+        odds = copy(nba_odds_list[r])
+        draft_order = runDraftLottery(nonplayoff_teams, odds, length(nonplayoff_teams))
+        ranking_nba = draft_order[length(draft_order):-1:1]
+        curr_kend = kendtau_sorted(ranking_nba, true_strength, mode)
+        kend_nba_out[step_ind, r, avg_stat] += curr_kend / num_replications
+        kend_nba_out[step_ind, r, stddev_stat] += curr_kend^2 / num_replications
+      end
+
+      ## When there is no tanking, compute the Gold and Lenten methods
       if (tank_perc == 0.0)
         ## Also compute Kendall tau distance for the Gold and Lenten methods
         ranking_gold = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
         ranking_gold[:,1] = nonplayoff_teams
         ranking_gold[:,2] = -1 * num_wins_since_elim[nonplayoff_teams] # negative because teams with more wins need to be ranked worse (as they are given a _better_ draft pick)
-        avg_kend_gold += kendtau(ranking_gold, 2, true_strength, mode) / num_replications
+        curr_kend = kendtau(ranking_gold, 2, true_strength, mode)
+        kend_gold_out[avg_stat] += curr_kend / num_replications
+        kend_gold_out[stddev_stat] += curr_kend^2 / num_replications
 
         ## For the Lenten ranking, we need to use mathematical elimination to be correct
         ## Note that if a team is mathematically eliminated, then it is also effectively eliminated; the problem is the converse
@@ -297,11 +332,31 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           end
         end
         ranking_lenten = sortslices(tmp_elim_index, dims=1, by = x -> x[2], rev=true) # descending; having a higher elimination index means Lenten ranks the team better (since it was eliminated later), i.e., it has a worse draft pick
-        avg_kend_lenten += kendtau_sorted(ranking_lenten[:,1], true_strength, mode) / num_replications
-      end
+        curr_kend = kendtau_sorted(ranking_lenten[:,1], true_strength, mode)
+        kend_lenten_out[avg_stat] += curr_kend / num_replications
+        kend_lenten_out[stddev_stat] += curr_kend^2 / num_replications
+      end # check if tank_perc == 0 (for computing Lenten and Gold rankings)
     end # do replications
+
+    ## Compute standard deviation
+    for r = 1:length(breakpoint_game_for_draft)
+      kend_out[step_ind, r, stddev_stat] -= kend_out[step_ind, r, avg_stat]^2
+      games_tanked_out[step_ind, r, stddev_stat] -= games_tanked_out[step_ind, r, avg_stat]^2
+      already_tank_out[step_ind, r, stddev_stat] -= already_tank_out[step_ind, r, avg_stat]^2
+      math_eliminated_out[step_ind, r, stddev_stat] -= math_eliminated_out[step_ind, r, avg_stat]^2
+      eff_eliminated_out[step_ind, r, stddev_stat] -= eff_eliminated_out[step_ind, r, avg_stat]^2
+    end
+
+    for r = 1:length(nba_odds_list)
+      kend_nba_out[step_ind, r, stddev_stat] -= kend_out[step_ind, r, avg_stat]^2
+    end
+
+    if (tank_perc == 0.0)
+      kend_gold_out[stddev_stat] -= kend_gold_out[avg_stat]^2
+      kend_lenten_out[stddev_stat] -= kend_lenten_out[avg_stat]^2
+    end
   end # looping over tanking percentages
 
-  #avg_kend_to_return = return_h2h ? avg_kend_h2h : avg_kend
-  return avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten
+  return kend_out, games_tanked_out, already_tank_out, math_eliminated_out, 
+      eff_eliminated_out, kend_nba_out, kend_gold_out, kend_lenten_out
 end # simulate

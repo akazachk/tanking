@@ -23,6 +23,40 @@ function isVal(x, y, eps = 1e-7)
   return abs(x-y) < eps
 end # isVal
 
+function runDraftLottery(nonplayoff_teams, odds, num_teams)
+  ###
+  # Using the given odds, calculate the draft order
+  # After a team is removed, the odds are reweighted appropriately
+  #
+  # Return the draft order
+  ###
+  if num_teams == 0
+    return []
+  end
+   
+  curr_rand = rand()
+  sum = 0.
+  selected_team_ind = -1
+  selected_team = -1
+  for curr_team_ind = 1:length(nonplayoff_teams)
+    if lessThanVal(odds[curr_team_ind], 0)
+      continue
+    end
+
+    sum += odds[curr_team_ind]
+    if sum >= curr_rand
+      selected_team = nonplayoff_teams[curr_team_ind]
+      selected_team_ind = curr_team_ind
+      break
+    end
+  end
+
+  odds[selected_team_ind] = -1
+  rank_rest = runDraftLottery(nonplayoff_teams, odds, num_teams-1)
+  draft_order = pushfirst!(rank_rest, selected_team)
+  return draft_order
+end # runDraftLottery
+
 function teamAdvances(i, ranks, num_playoff_teams_per_conf, conf=[])
   ###
   # teamAdvances
@@ -139,7 +173,7 @@ end # teamWillWin
 function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
     best_outcomes, best_h2h, best_num_wins, best_rank, model,
     num_teams, num_playoff_teams, num_team_games, num_games_total, 
-    USE_MATH_ELIM = 2, num_wins_ind = 2, games_left_ind = 3, conf=[])
+    math_elim_mode = 2, num_wins_ind = 2, games_left_ind = 3, conf=[])
   ###
   # teamIsMathematicallyEliminated
   #   conf: which conference each team belongs to (if empty, then assumed one conference)
@@ -162,27 +196,29 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
   end
 
   heur_outcome, heur_h2h, heur_num_wins, heur_rank = 
-      heuristicBestRank(k, t, schedule, stats, outcome, h2h, num_wins_ind, games_left_ind)
+      heuristicBestRank(k, t, schedule, stats, outcome, h2h,
+          best_outcomes, best_h2h, best_num_wins, best_rank,
+          num_playoff_teams, num_wins_ind, games_left_ind)
 
   ## If the heuristic solution is enough, stop here; else, go on to the MIP
   if heur_rank[k] <= num_playoff_teams
-    best_outcomes[k, :] = heur_outcome
-    best_h2h[k, :] = heur_h2h
-    best_num_wins[k, :] = heur_num_wins
+    best_outcomes[k,:] = heur_outcome
+    best_h2h[k,:,:] = heur_h2h
+    best_num_wins[k,:] = heur_num_wins
     best_rank[k] = heur_rank[k]
-  elseif USE_MATH_ELIM > 1
+  elseif math_elim_mode > 1
     #print("Game $t, Team $k: Running MIP. Best rank: ", best_rank[k], " Heur rank: ", heur_rank[k], "\n")
     W =  stats[k, num_wins_ind] + stats[k, games_left_ind]
-    fixVariables!(model, k, t+1, W, schedule, USE_MATH_ELIM)
+    fixVariables!(model, k, t+1, W, schedule, math_elim_mode)
     #W, w, x, y, z = setIncumbent!(model, k, t, schedule, heur_outcome)
     if solveMIP!(model)
-      checkMIP(model, num_playoff_teams, USE_MATH_ELIM)
+      checkMIP(model, num_playoff_teams, math_elim_mode)
       updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_teams,
-          best_outcomes, best_h2h, best_num_wins, best_rank, USE_MATH_ELIM)
+          best_outcomes, best_h2h, best_num_wins, best_rank, math_elim_mode)
     else
       best_rank[k] = -1
     end
-    resetMIP!(model, t+1, schedule, stats, USE_MATH_ELIM)
+    resetMIP!(model, t+1, schedule, stats, math_elim_mode)
     mips_used = 1
   end
 
@@ -268,6 +304,30 @@ function sortTeams(stats, best_to_worst = true, win_pct_ind = 5, games_left_ind 
 	#return sorted, row_index
 	return sorted
 end # sortTeams
+
+function rankTeamsFromWinTotals(num_wins)
+  num_teams = length(num_wins)
+ 
+  ## Identify ranking of teams based on the outcomes
+  sorted_teams = sortperm(num_wins, rev=true)
+  rank_of_team = Array{Int}(undef, num_teams)
+  rank_of_team[sorted_teams[1]] = 1
+  ct = 1
+  for i = 2:num_teams
+    last_team = sorted_teams[i-1]
+    curr_team = sorted_teams[i]
+    last_wins = num_wins[last_team]
+    curr_wins = num_wins[curr_team]
+    rank_of_team[curr_team] = rank_of_team[last_team]
+    if last_wins > curr_wins
+      rank_of_team[curr_team] += ct
+      ct = 1
+    else
+      ct += 1
+    end
+  end
+  return rank_of_team
+end # rankTeamsFromWinTotals
 
 function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, num_teams, win_pct_ind = 6, games_left_ind = 3, h2h = [])
 	###

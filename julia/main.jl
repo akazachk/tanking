@@ -22,9 +22,12 @@ include("parse.jl")
 
 ## NBA draft odds (for non-playoff teams, in reverse order)
 # If teams are tied, then those teams receive odds that are the average of the odds for the positions they occupy
+# Keep these in order that teams are ranked (not for the draft, but by wins)
 nba_odds_old = [.250, .199, .156, .119, .088, .063, .043, .028, .017, .011, .008, .007, .006, .005]
 nba_odds_new = [.140, .140, .140, .125, .105, .090, .075, .060, .045, .030, .020, .015, .010, .005]
 nba_odds_flat = [1. / 14. for i in 1:14]
+nba_odds_old = nba_odds_old[14:-1:1]
+nba_odds_new = nba_odds_new[14:-1:1]
 
 ## When the (draft) ranking will be set as fraction of number games
 #breakpoint_list = [4//8; 5//8; 6//8; 7//8; 1]
@@ -34,7 +37,7 @@ shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
 col = ["red", "orange", "green", "blue", "violet", "black"]
 #color_for_cutoff_point = ["c" "b" "m" "r" "k"]
 num_teams = 30 # number of teams
-num_teams_in_playoffs = Int(2^ceil(log(2, num_teams / 2)))
+num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
 
 ## Set ranking type
 # 1: strict: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
@@ -143,19 +146,30 @@ end
 function main_simulate(;do_simulation = true, num_replications = 100000, 
     do_plotting=true, mode=MODE, results_dir = "../results", 
     num_rounds = 3,  num_steps = 20, gamma = 0.75, 
-    USE_MATH_ELIM = true, CALC_MATH_ELIM = 2, return_h2h = false)
+    math_elim_mode = 2)
   ###
   # main_simulate: Simulate a season and plot output
   #   * do_simulation: when false, read data from files in results_dir
   #   * num_replications: how many times to simulate each data point
   #   * do_plotting: if false, only gather data, without plotting it
   #   * mode: which kind of true ranking is used
+  #     1 or 2: 
+  #       When two non-tanking teams or two tanking teams play each other, 
+  #       the better team wins with probability gamma
+  #       When a tanking team plays a non-tanking team, the tanking team always loses
+  #     3 or 4:
+  #       Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game
   #   * results_dir: where results should be saved and can be found
 	#   * num_rounds: a round consists of each team playing each other team
   #   * num_steps: discretization of [0,1] for tanking probability
 	#   * gamma: probability a better-ranked team wins over a worse-ranked team
-  #   * USE_MATH_ELIM: false: use effective elimination, true: use mathematical elimination
-  #   * CALC_MATH_ELIM: 0: do not calculate, 1: use heuristic only, 2: use MIP
+  #   * math_elim_mode: 
+  #     0: use effective elimination, 
+  #     1: use mathematical elimination, but calculated by heuristics only, 
+  #     2: use math elim, binary MIP, team-wise formulation
+  #     3: use math elim, general integer MIP, team-wise formulation
+  #     4: use math elim, binary MIP, cutoff formulation
+  #     5: use math elim, general integer MIP, cutoff formulation
   ###
 	set_mode(mode)
 
@@ -167,32 +181,48 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 	num_games = num_rounds * num_games_per_round
 
 	## For output
-	avg_games_tanked = 0 # [step,cutoff], number games tanked by cutoff
-	avg_already_tank = 0 # [step,cutoff], number teams already tanking by the cutoff
-	avg_eliminated = 0 # [step,game], number teams eliminated by each game
-	avg_kend = 0 # [step,cutoff], holds KT distance for each tanking probability and cutoff for draft ranking
-	avg_kend_gold = 0 # ranking based on number of wins since elimination point
-	avg_kend_lenten = 0 # ranking in order of first-to-eliminated
-  avg_kend_nba_new = 0 # KT distance based on 
+	kend = 0 # [step,cutoff,stat], holds KT distance for each tanking probability and cutoff for draft ranking
+	games_tanked = 0 # [step,cutoff,stat], number games tanked by cutoff
+	already_tank = 0 # [step,cutoff,stat], number teams already tanking by the cutoff
+	math_eliminated = 0 # [step,game,stat], number teams eliminated by each game
+	eff_eliminated = 0 # [step,game,stat], number teams eliminated by each game
+  kend_nba = 0 # [step,odds,stat] KT distance based on NBA ranking
+	kend_gold = 0 # [:,stat] ranking based on number of wins since elimination point
+	kend_lenten = 0 # [:,stat], ranking in order of first-to-eliminated
+
+  prefix = ["avg_", "stddev_", "min_", "max_"]
 
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-		avg_kend, avg_games_tanked, avg_already_tank, avg_eliminated, avg_kend_gold, avg_kend_lenten = simulate(num_teams, num_teams_in_playoffs, num_rounds, num_replications, num_steps, gamma, breakpoint_list, true_strength, mode, USE_MATH_ELIM, CALC_MATH_ELIM, return_h2h)
-		writedlm(string(results_dir, "/avg_kend", csvext), avg_kend, ',')
-		writedlm(string(results_dir, "/avg_games_tanked", csvext), avg_games_tanked, ',')
-		writedlm(string(results_dir, "/avg_already_tank", csvext), avg_already_tank, ',')
-		writedlm(string(results_dir, "/avg_eliminated", csvext), avg_eliminated, ',')
-		writedlm(string(results_dir, "/avg_kend_gold", csvext), avg_kend_gold, ',')
-		writedlm(string(results_dir, "/avg_kend_lenten", csvext), avg_kend_lenten, ',')
+    kend, games_tanked, already_tank, math_eliminated, eff_eliminated, kend_nba, kend_gold, kend_lenten = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, [nba_odds_new, nba_odds_old, nba_odds_flat], true_strength, mode, math_elim_mode)
+
+    for stat = 1:4
+      writedlm(string(results_dir, "/", prefix[stat_ind], "kend", csvext), kend[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat_ind], "games_tanked", csvext), games_tanked[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat_ind], "already_tank", csvext), already_tank[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat_ind], "math_eliminated", csvext), math_eliminated[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat_ind], "eff_eliminated", csvext), eff_eliminated[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat_ind], "kend_nba", csvext), kend_nba[:,:,stat], ',')
+      #writedlm(string(results_dir, "/", prefix[stat_ind], "kend_gold", csvext), kend_gold[:,stat], ',')
+      #writedlm(string(results_dir, "/", prefix[stat_ind], "kend_lenten", csvext), kend_lenten[:,stat], ',')
+    end
+    writedlm(string(results_dir, "/", "kend_gold", csvext), kend_gold, ',')
+    writedlm(string(results_dir, "/", "kend_lenten", csvext), kend_lenten, ',')
 	else
-		avg_kend = readdlm(string(results_dir, "/avg_kend", csvext), ',')
-		avg_games_tanked = readdlm(string(results_dir, "/avg_games_tanked", csvext), ',')
-		avg_already_tank = readdlm(string(results_dir, "/avg_already_tank", csvext), ',')
-		avg_eliminated = readdlm(string(results_dir, "/avg_eliminated", csvext), ',')
-		avg_kend_gold = readdlm(string(results_dir, "/avg_kend_gold", csvext), ',')
-		avg_kend_lenten = readdlm(string(results_dir, "/avg_kend_lenten", csvext), ',')
-		num_steps = size(avg_kend)[1] - 1
+    for stat = 1:1
+      kend = readdlm(string(results_dir, "/", prefix[stat_ind], "kend", csvext), ',')
+      games_tanked = readdlm(string(results_dir, "/", prefix[stat_ind], "games_tanked", csvext), ',')
+      already_tank = readdlm(string(results_dir, "/", prefix[stat_ind], "already_tank", csvext), ',')
+      math_eliminated = readdlm(string(results_dir, "/", prefix[stat_ind], "math_eliminated", csvext), ',')
+      eff_eliminated = readdlm(string(results_dir, "/", prefix[stat_ind], "eff_eliminated", csvext), ',')
+      kend_nba = readdlm(string(results_dir, "/", prefix[stat_ind], "kend_nba", csvext), ',')
+      #kend_gold = readdlm(string(results_dir, "/", prefix[stat_ind], "kend_gold", csvext), ',')
+      #kend_lenten = readdlm(string(results_dir, "/", prefix[stat_ind], "kend_lenten", csvext), ',')
+    end
+    kend_gold = readdlm(string(results_dir, "/", "kend_gold", csvext), ',')
+    kend_lenten = readdlm(string(results_dir, "/", "kend_lenten", csvext), ',')
+		num_steps = size(kend,1) - 1
 	end
 
 	if (do_plotting)
@@ -201,9 +231,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 		minx = 0
 		incx = 0.1
 		maxx = 1
-		miny = Int(floor(findmin(avg_kend)[1]))
+		miny = Int(floor(findmin(kend[:,:,1])[1]))
 		incy = 1
-		maxy = Int(ceil(findmax(avg_kend)[1]))
+		maxy = Int(ceil(findmax(kend[:,:,1])[1]))
 		titlestring = L"\mbox{Effect of $\delta$ on bilevel ranking of non-playoff teams}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Distance from true ranking of non-playoff teams}"
@@ -227,7 +257,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot(0:(1/num_steps):1, avg_kend[:,r], label=curr_label, color=col[r])
+				plot(0:(1/num_steps):1, kend[:,r,1], label=curr_label, color=col[r])
 			end
 			#legend(bbox_to_anchor=[.65,.95],loc="upper left", title=legendtitlestring) 
 			legend(bbox_to_anchor=[0,.95],loc="upper left", title=legendtitlestring) 
@@ -257,7 +287,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot!(0:(1/num_steps):1, avg_kend[:,r], label=curr_label, linecolor=col[r]);
+				plot!(0:(1/num_steps):1, kend[:,r,1], label=curr_label, linecolor=col[r]);
 								#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
 			end
 			Plots.savefig(fname)
@@ -266,9 +296,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 
 		## Plot avg_games_tanked (# games tanked by draft ranking breakpoint)
 		print("Plotting avg_games_tanked: average number of games tanked\n")
-		miny = Int(floor(findmin(avg_games_tanked)[1]))
+		miny = Int(floor(findmin(games_tanked[:,:,1])[1]))
 		incy = 50 #Int(ceil((maxy - miny) / (5 * 10)) * 10)
-		maxy = Int(ceil(findmax(avg_games_tanked)[1] / incy) * incy)  #Int(floor(findmax(avg_games_tanked)[1]))
+		maxy = Int(ceil(findmax(games_tanked[:,:,1])[1] / incy) * incy)  #Int(floor(findmax(avg_games_tanked)[1]))
 		titlestring = L"\mbox{Total games tanked}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Number of tanked games}"
@@ -291,7 +321,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot(0:(1/num_steps):1, avg_games_tanked[:,r], label=curr_label, color=col[r])
+				plot(0:(1/num_steps):1, games_tanked[:,r,1], label=curr_label, color=col[r])
 			end
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
@@ -318,7 +348,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot!(0:(1/num_steps):1, avg_games_tanked[:,r], label=curr_label, linecolor=col[r]);
+				plot!(0:(1/num_steps):1, games_tanked[:,r,1], label=curr_label, linecolor=col[r]);
 								#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
 			end
 			Plots.savefig(fname)
@@ -330,9 +360,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 		minx = 0
 		incx = 0.1
 		maxx = 1
-		miny = Int(floor(findmin(avg_already_tank)[1]))
+		miny = Int(floor(findmin(already_tank[:,:,1])[1]))
 		incy = 1
-		maxy = Int(ceil(findmax(avg_already_tank)[1]))
+		maxy = Int(ceil(findmax(already_tank[:,:,1])[1]))
 		titlestring = L"\mbox{Number of tanking teams}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Average number of tanking teams}"
@@ -355,7 +385,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot(0:(1/num_steps):1, avg_already_tank[:,r], label=curr_label, color=col[r])
+				plot(0:(1/num_steps):1, already_tank[:,r,1], label=curr_label, color=col[r])
 			end
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
@@ -381,7 +411,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot!(0:(1/num_steps):1, avg_already_tank[:,r], label=curr_label, linecolor=col[r]);
+				plot!(0:(1/num_steps):1, already_tank[:,r,1], label=curr_label, linecolor=col[r]);
 								#markershape=shape[r], markersize=2, markercolor=col[r], markerstrokecolor=col[r]);
 			end
 			Plots.savefig(fname)
@@ -393,9 +423,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 		minx = 1
 		maxx = num_games
 		incx = (maxx - minx) / 5
-		miny = Int(floor(findmin(avg_eliminated)[1]))
+		miny = 0 #Int(floor(findmin(math_eliminated[:,:,1])[1]))
 		incy = 1
-		maxy = Int(ceil(findmax(avg_eliminated)[1]))
+		maxy = num_teams - num_playoff_teams # Int(ceil(findmax(math_eliminated[:,:,1])[1]))
 		titlestring = L"\mbox{Number of teams eliminated over time}"
 		xlabelstring = L"\mbox{Percent of season elapsed}"
 		ylabelstring = L"\mbox{Number of teams eliminated}"
@@ -412,7 +442,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 			yticks(Array(miny:incy:maxy))
 			#yticks=(Array(miny:incy:maxy),["\$$i\$" for i in miny:incy:maxy]),
 			x = 1:num_games
-			y = sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1)
+			y = sum(math_eliminated[:,:,1], dims=1)[1,:] / (num_steps + 1)
 			bar(x,y)
 			#plot(x,y)
 			#fill_between(x,y)
@@ -428,7 +458,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 											yticks=(Array(miny:incy:maxy),["\$$i\$" for i in miny:incy:maxy]),
 											legend=:none,
 											grid=false);
-			plot!(1:num_games, sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1), linetype=:bar);
+			plot!(1:num_games, sum(math_eliminated[:,:,1], dims=1)[1,:] / (num_steps + 1), linetype=:bar);
 			Plots.savefig(fname)
 			Plots.savefig(fname_low)
 		end
@@ -710,7 +740,7 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 					end # loop over rounds
 
 					## Calculate Kendell tau distance for this round
-					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats, 2, true_strength, mode, num_teams - num_teams_in_playoffs) / num_replications
+					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats, 2, true_strength, mode, num_teams - num_playoff_teams) / num_replications
 				end # loop over replications
 			end # loop over num_rounds_set
 		end # loop over steps
