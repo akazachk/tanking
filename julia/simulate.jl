@@ -33,6 +33,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   #     3: use math elim, general integer MIP, team-wise formulation
   #     4: use math elim, binary MIP, cutoff formulation
   #     5: use math elim, general integer MIP, cutoff formulation
+  #     <0: use effective elimination, but calculate mathematical elimination
   #
   # Teams play each other in rounds, consisting of each team playing every other team
   # Each team may or may not tank at all (decided by a tanking percentage)
@@ -214,10 +215,16 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         for r = 1:length(breakpoint_game_for_draft) 
           if game_ind == breakpoint_game_for_draft[r]
             draft_rank_of_team[:,r] = rank_of_team
-            already_tank_out[step_ind, r, avg_stat] += num_teams_tanking / num_replications
-            games_tanked_out[step_ind, r, avg_stat] += num_games_tanked / num_replications
-            already_tank_out[step_ind, r, stddev_stat] += num_teams_tanking^2 / num_replications
-            games_tanked_out[step_ind, r, stddev_stat] += num_games_tanked^2 / num_replications
+            updateStats!(already_tank_out[step_ind, r, :], num_teams_tanking, num_replications)
+            updateStats!(games_tanked_out[step_ind, r, :], num_games_tanked, num_replications)
+            #already_tank_out[step_ind, r, avg_stat] = updateAvg(already_tank_out[step_ind, r, avg_stat], num_teams_tanking, num_replications)
+            #already_tank_out[step_ind, r, stddev_stat] = updateStdDev(already_tank_out[step_ind, r, stddev_stat], num_teams_tanking, num_replications)
+            #already_tank_out[step_ind, r, min_stat] = updateMin(already_tank_out[step_ind, r, min_stat], num_teams_tanking)
+            #already_tank_out[step_ind, r, max_stat] = updateMax(already_tank_out[step_ind, r, max_stat], num_teams_tanking)
+            #games_tanked_out[step_ind, r, avg_stat] = updateAvg(games_tanked_out[step_ind, r, avg_stat], num_games_tanked, num_replications)
+            #games_tanked_out[step_ind, r, stddev_stat] = updateStdDev(games_tanked_out[step_ind, r, stddev_stat], num_games_tanked, num_replications)
+            #games_tanked_out[step_ind, r, min_stat] = updateMin(games_tanked_out[step_ind, r, min_stat], num_games_tanked)
+            #games_tanked_out[step_ind, r, max_stat] = updateMax(games_tanked_out[step_ind, r, max_stat], num_games_tanked)
           end
         end
         
@@ -247,13 +254,19 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
                 math_elim_mode, wins_ind, games_left_ind)
             num_mips_used += mips_used
             num_math_elim += is_math_elim
-            math_eliminated_out[step_ind, game_ind, avg_stat] += num_math_elim / num_replications
-            math_eliminated_out[step_ind, game_ind, stddev_stat] += num_math_elim^2 / num_replications
+            updateStats!(math_eliminated_out[step_ind, game_ind, :], num_math_elim, num_replications)
+            #math_eliminated_out[step_ind, game_ind, avg_stat] = updateAvg(math_eliminated_out[step_ind, game_ind, avg_stat], num_math_elim, num_replications)
+            #math_eliminated_out[step_ind, game_ind, stddev_stat] = updateStdDev(math_eliminated_out[step_ind, game_ind, stddev_stat], num_math_elim, num_replications)
+            #math_eliminated_out[step_ind, game_ind, min_stat] = updateMin(math_eliminated_out[step_ind, game_ind, min_stat], num_math_elim)
+            #math_eliminated_out[step_ind, game_ind, max_stat] = updateMax(math_eliminated_out[step_ind, game_ind, max_stat], num_math_elim)
           end
           is_eff_elim = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
           num_eff_elim += is_eff_elim
-          eff_eliminated_out[step_ind, game_ind, avg_stat] += num_eff_elim / num_replications
-          eff_eliminated_out[step_ind, game_ind, stddev_stat] += num_eff_elim^2 / num_replications
+          updateStats!(eff_eliminated_out[step_ind, game_ind, :], num_eff_elim, num_replications)
+          #eff_eliminated_out[step_ind, game_ind, avg_stat] = updateAvg(eff_eliminated_out[step_ind, game_ind, avg_stat], num_eff_elim, num_replications)
+          #eff_eliminated_out[step_ind, game_ind, stddev_stat] = updateStdDev(eff_eliminated_out[step_ind, game_ind, stddev_stat], num_eff_elim, num_replications)
+          #eff_eliminated_out[step_ind, game_ind, min_stat] = updateMin(eff_eliminated_out[step_ind, game_ind, min_stat], num_eff_elim)
+          #eff_eliminated_out[step_ind, game_ind, max_stat] = updateMax(eff_eliminated_out[step_ind, game_ind, max_stat], num_eff_elim)
           is_eliminated = math_elim_mode > 0 ? is_math_elim : is_eff_elim
           if is_eliminated
             num_eliminated += 1
@@ -283,8 +296,11 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         tmp_stats[:,2] = draft_rank_of_team[nonplayoff_teams, r]
         sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
         curr_kend = kendtau_sorted(sorted_ranking[:,1], true_strength, mode)
-        kend_out[step_ind, r, avg_stat] += curr_kend / num_replications
-        kend_out[step_ind, r, stddev_stat] += curr_kend / num_replications
+        updateStats!(kend_out[step_ind, r, :], curr_kend, num_replications)
+        #kend_out[step_ind, r, avg_stat] = updateAvg(kend_out[step_ind, r, avg_stat], curr_kend, num_replications)
+        #kend_out[step_ind, r, stddev_stat] = updateStdDev(kend_out[step_ind, r, stddev_stat], curr_kend, num_replications)
+        #kend_out[step_ind, r, min_stat] = updateMin(kend_out[step_ind, r, min_stat], curr_kend)
+        #kend_out[step_ind, r, max_stat] = updateMax(kend_out[step_ind, r, max_stat], curr_kend)
 
         # Now repeat with h2h
         #tmp_stats = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
@@ -300,8 +316,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         draft_order = runDraftLottery(nonplayoff_teams, odds, length(nonplayoff_teams))
         ranking_nba = draft_order[length(draft_order):-1:1]
         curr_kend = kendtau_sorted(ranking_nba, true_strength, mode)
-        kend_nba_out[step_ind, r, avg_stat] += curr_kend / num_replications
-        kend_nba_out[step_ind, r, stddev_stat] += curr_kend^2 / num_replications
+        updateStats!(kend_nba_out[step_ind, r, :], curr_kend, num_replications)
       end
 
       ## When there is no tanking, compute the Gold and Lenten methods
@@ -311,8 +326,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         ranking_gold[:,1] = nonplayoff_teams
         ranking_gold[:,2] = -1 * num_wins_since_elim[nonplayoff_teams] # negative because teams with more wins need to be ranked worse (as they are given a _better_ draft pick)
         curr_kend = kendtau(ranking_gold, 2, true_strength, mode)
-        kend_gold_out[avg_stat] += curr_kend / num_replications
-        kend_gold_out[stddev_stat] += curr_kend^2 / num_replications
+        updateStats!(kend_gold_out, curr_kend, num_replications)
 
         ## For the Lenten ranking, we need to use mathematical elimination to be correct
         ## Note that if a team is mathematically eliminated, then it is also effectively eliminated; the problem is the converse
@@ -333,8 +347,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         end
         ranking_lenten = sortslices(tmp_elim_index, dims=1, by = x -> x[2], rev=true) # descending; having a higher elimination index means Lenten ranks the team better (since it was eliminated later), i.e., it has a worse draft pick
         curr_kend = kendtau_sorted(ranking_lenten[:,1], true_strength, mode)
-        kend_lenten_out[avg_stat] += curr_kend / num_replications
-        kend_lenten_out[stddev_stat] += curr_kend^2 / num_replications
+        updateStats!(kend_lenten_out, curr_kend, num_replications)
       end # check if tank_perc == 0 (for computing Lenten and Gold rankings)
     end # do replications
 

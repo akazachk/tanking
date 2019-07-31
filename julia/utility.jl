@@ -23,6 +23,33 @@ function isVal(x, y, eps = 1e-7)
   return abs(x-y) < eps
 end # isVal
 
+function updateStats!(x, y, num_replications, avg_stat = 1, stddev_stat = 2, min_stat = 3, max_stat = 4)
+  x[avg_stat] = updateAvg(x[avg_stat], y, num_replications)
+  x[stddev_stat] = updateStdDev(x[stddev_stat], y, num_replications)
+  x[min_stat] = updateMin(x[min_stat], y)
+  x[max_stat] = updateMax(x[max_stat], y)
+end # updateStats
+function updateAvg(x, y, n)
+  return x += y/n
+end # updateAvg
+function updateStdDev(x, y, n)
+  return x += y^2/n
+end # updateStdDev
+function updateMin(x, y, eps = 1e-7)
+  if lessThanVal(y,x,eps)
+    return y
+  else
+    return x
+  end
+end # updateMin
+function updateMax(x, y, eps = 1e-7)
+  if greaterThanVal(y,x,eps)
+    return y
+  else
+    return x
+  end
+end # updateMax
+
 function runDraftLottery(nonplayoff_teams, odds, num_teams)
   ###
   # Using the given odds, calculate the draft order
@@ -34,8 +61,9 @@ function runDraftLottery(nonplayoff_teams, odds, num_teams)
     return []
   end
    
+  normalization = sum(i->(i>=-1e-7 ? i : 0), odds)
   curr_rand = rand()
-  sum = 0.
+  curr_sum = 0.
   selected_team_ind = -1
   selected_team = -1
   for curr_team_ind = 1:length(nonplayoff_teams)
@@ -43,8 +71,8 @@ function runDraftLottery(nonplayoff_teams, odds, num_teams)
       continue
     end
 
-    sum += odds[curr_team_ind]
-    if sum >= curr_rand
+    curr_sum += odds[curr_team_ind] / normalization
+    if curr_sum >= curr_rand
       selected_team = nonplayoff_teams[curr_team_ind]
       selected_team_ind = curr_team_ind
       break

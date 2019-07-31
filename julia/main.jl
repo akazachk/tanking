@@ -28,6 +28,7 @@ nba_odds_new = [.140, .140, .140, .125, .105, .090, .075, .060, .045, .030, .020
 nba_odds_flat = [1. / 14. for i in 1:14]
 nba_odds_old = nba_odds_old[14:-1:1]
 nba_odds_new = nba_odds_new[14:-1:1]
+nba_odds_list = [nba_odds_new, nba_odds_old, nba_odds_flat]
 
 ## When the (draft) ranking will be set as fraction of number games
 #breakpoint_list = [4//8; 5//8; 6//8; 7//8; 1]
@@ -170,6 +171,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
   #     3: use math elim, general integer MIP, team-wise formulation
   #     4: use math elim, binary MIP, cutoff formulation
   #     5: use math elim, general integer MIP, cutoff formulation
+  #     <0: use effective elimination, but calculate mathematical elimination
   ###
 	set_mode(mode)
 
@@ -190,35 +192,52 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 	kend_gold = 0 # [:,stat] ranking based on number of wins since elimination point
 	kend_lenten = 0 # [:,stat], ranking in order of first-to-eliminated
 
+  ## Stats we keep
+  avg_stat = 1
+  stddev_stat = 2
+  min_stat = 3
+  max_stat = 4
+  num_stats = 4
   prefix = ["avg_", "stddev_", "min_", "max_"]
 
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-    kend, games_tanked, already_tank, math_eliminated, eff_eliminated, kend_nba, kend_gold, kend_lenten = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, [nba_odds_new, nba_odds_old, nba_odds_flat], true_strength, mode, math_elim_mode)
+    kend, games_tanked, already_tank, math_eliminated, eff_eliminated, kend_nba, kend_gold, kend_lenten = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode)
 
-    for stat = 1:4
-      writedlm(string(results_dir, "/", prefix[stat_ind], "kend", csvext), kend[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat_ind], "games_tanked", csvext), games_tanked[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat_ind], "already_tank", csvext), already_tank[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat_ind], "math_eliminated", csvext), math_eliminated[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat_ind], "eff_eliminated", csvext), eff_eliminated[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat_ind], "kend_nba", csvext), kend_nba[:,:,stat], ',')
-      #writedlm(string(results_dir, "/", prefix[stat_ind], "kend_gold", csvext), kend_gold[:,stat], ',')
-      #writedlm(string(results_dir, "/", prefix[stat_ind], "kend_lenten", csvext), kend_lenten[:,stat], ',')
+    for stat = 1:num_stats
+      writedlm(string(results_dir, "/", prefix[stat], "kend", csvext), kend[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "games_tanked", csvext), games_tanked[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "already_tank", csvext), already_tank[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "math_eliminated", csvext), math_eliminated[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), eff_eliminated[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "kend_nba", csvext), kend_nba[:,:,stat], ',')
+      #writedlm(string(results_dir, "/", prefix[stat], "kend_gold", csvext), kend_gold[:,stat], ',')
+      #writedlm(string(results_dir, "/", prefix[stat], "kend_lenten", csvext), kend_lenten[:,stat], ',')
     end
     writedlm(string(results_dir, "/", "kend_gold", csvext), kend_gold, ',')
     writedlm(string(results_dir, "/", "kend_lenten", csvext), kend_lenten, ',')
 	else
-    for stat = 1:1
-      kend = readdlm(string(results_dir, "/", prefix[stat_ind], "kend", csvext), ',')
-      games_tanked = readdlm(string(results_dir, "/", prefix[stat_ind], "games_tanked", csvext), ',')
-      already_tank = readdlm(string(results_dir, "/", prefix[stat_ind], "already_tank", csvext), ',')
-      math_eliminated = readdlm(string(results_dir, "/", prefix[stat_ind], "math_eliminated", csvext), ',')
-      eff_eliminated = readdlm(string(results_dir, "/", prefix[stat_ind], "eff_eliminated", csvext), ',')
-      kend_nba = readdlm(string(results_dir, "/", prefix[stat_ind], "kend_nba", csvext), ',')
-      #kend_gold = readdlm(string(results_dir, "/", prefix[stat_ind], "kend_gold", csvext), ',')
-      #kend_lenten = readdlm(string(results_dir, "/", prefix[stat_ind], "kend_lenten", csvext), ',')
+    ## Resize things
+    num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
+    num_games_total = num_rounds * num_games_per_round
+    kend_out = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats)
+    games_tanked_out = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats)
+    already_tank_out = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats)
+    math_eliminated_out = zeros(Float64, num_steps+1, num_games_total, num_stats)
+    eff_eliminated_out = zeros(Float64, num_steps+1, num_games_total, num_stats)
+    kend_nba_out = zeros(Float64, num_steps+1, length(nba_odds_list), num_stats)
+    kend_gold_out = zeros(Float64, 1, num_stats)
+    kend_lenten_out = zeros(Float64, 1, num_stats)
+    for stat = 1:num_stats
+      kend[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "kend", csvext), ',')
+      games_tanked[:,:,stat]  = readdlm(string(results_dir, "/", prefix[stat], "games_tanked", csvext), ',')
+      already_tank[:,:,stat], = readdlm(string(results_dir, "/", prefix[stat], "already_tank", csvext), ',')
+      math_eliminated[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "math_eliminated", csvext), ',')
+      eff_eliminated[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), ',')
+      kend_nba[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "kend_nba", csvext), ',')
+      #kend_gold[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "kend_gold", csvext), ',')
+      #kend_lenten[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "kend_lenten", csvext), ',')
     end
     kend_gold = readdlm(string(results_dir, "/", "kend_gold", csvext), ',')
     kend_lenten = readdlm(string(results_dir, "/", "kend_lenten", csvext), ',')
