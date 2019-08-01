@@ -24,17 +24,14 @@ function isVal(x, y, eps = 1e-7)
 end # isVal
 
 function updateStats!(x, y, num_replications, avg_stat = 1, stddev_stat = 2, min_stat = 3, max_stat = 4)
-  x[avg_stat] = updateAvg(x[avg_stat], y, num_replications)
-  x[stddev_stat] = updateStdDev(x[stddev_stat], y, num_replications)
+  x[avg_stat] = updateMoment(1, x[avg_stat], y, num_replications)
+  x[stddev_stat] = updateMoment(2, x[stddev_stat], y, num_replications)
   x[min_stat] = updateMin(x[min_stat], y)
   x[max_stat] = updateMax(x[max_stat], y)
 end # updateStats
-function updateAvg(x, y, n)
-  return x += y/n
-end # updateAvg
-function updateStdDev(x, y, n)
-  return x += y^2/n
-end # updateStdDev
+function updateMoment(m, x, y, n=1)
+  return x += (y^m)/n
+end # updateMoment
 function updateMin(x, y, eps = 1e-7)
   if lessThanVal(y,x,eps)
     return y
@@ -104,8 +101,8 @@ function teamAdvances(i, ranks, num_playoff_teams_per_conf, conf=[])
   end
 end # teamAdvances
 
-function teamIsTanking(i, stats, games_left_when_elim_ind=4, will_tank_ind=7)
-	return stats[i,will_tank_ind] == 1 && stats[i,games_left_when_elim_ind] >= 0
+function teamIsTanking(i, stats, elim_ind=4, will_tank_ind=7)
+	return stats[i,will_tank_ind] == 1 && stats[i,elim_ind] >= 0
 end # teamIsTanking
 
 function teamIsBetter(i, j, true_strength = 30:-1:1, mode=STRICT)
@@ -156,7 +153,7 @@ function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 	end
 end # teamWillWinNoTanking
 
-function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, games_left_when_elim_ind=4, will_tank_ind=7)
+function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, elim_ind=4, will_tank_ind=7)
 	###
 	# teamWillWin
 	#
@@ -182,8 +179,8 @@ function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, gam
 	# stats[:,6] is win percentage
 	# stats[:,7] is indicator for whether team tanks
 	###
-	team_i_tanks = teamIsTanking(i, stats, games_left_when_elim_ind, will_tank_ind) 
-	team_j_tanks = teamIsTanking(j, stats, games_left_when_elim_ind, will_tank_ind) 
+	team_i_tanks = teamIsTanking(i, stats, elim_ind, will_tank_ind) 
+	team_j_tanks = teamIsTanking(j, stats, elim_ind, will_tank_ind) 
 
 	if (team_i_tanks && team_j_tanks) || (!team_i_tanks && !team_j_tanks)
 		# Neither team is tanking, or both are; we treat this the same, as non-tanking
