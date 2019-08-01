@@ -7,6 +7,8 @@ This project contains the code for a simulator of an NBA season aimed at underst
 ### Requirements
 Julia 1.x. If `PyPlot` is available, the figures in the paper can be plotted using `do_plotting=true` in the commands below.
 
+On a Mac, for plotting, one needs to install XQuartz.
+
 ### Running the code
 To run a simulation, parse NBA data, and reproduce data regarding noisiness of the reverse order ranking:
 				
@@ -26,6 +28,7 @@ To run a simulation, parse NBA data, and reproduce data regarding noisiness of t
 				
 2. Number of teams can be changed in the code (`num_teams`).
 3. There are other plotting mechanisms implemented, but not all have been tested thoroughly.
+4. `math_elim_mode`
 
 ### Assumptions
 1. No simulataneous games
