@@ -77,7 +77,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   kend_nba_out        = zeros(Float64, num_steps+1, length(nba_odds_list), num_stats) # Kendall tau distance for NBA draft lottery system
   kend_gold_out       = zeros(Float64, 1, num_stats) # Kendall tau distance for Gold proposal
   kend_lenten_out     = zeros(Float64, 1, num_stats) # Kendall tau distance for Lenten proposal
-  num_mips_out   = zeros(Float64, 1, num_stats) # number of MIPs solved in the course of a season
+  num_mips_out        = zeros(Float64, 1, num_stats) # number of MIPs solved in the course of a season
+  num_unelim_out      = zeros(Float64, 1, num_stats) # number teams eff elim then not not elim
 
   # Set min default (avg / stddev / max set to 0 is okay)
   BIG_NUMBER = max(num_teams^2, num_games_total)
@@ -89,7 +90,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   kend_nba_out[:,:,min_stat]        = BIG_NUMBER * ones(num_steps+1, length(nba_odds_list))
   kend_gold_out[min_stat]           = BIG_NUMBER
   kend_lenten_out[min_stat]         = BIG_NUMBER
-  num_mips_out[min_stat]       = BIG_NUMBER
+  num_mips_out[min_stat]            = BIG_NUMBER
+  num_unelim_out[min_stat]          = BIG_NUMBER
 
   ## Set up for game order 
   # Alternative to below is using Combinatorics; ord_games = collect(combinations(1:num_teams,2))
@@ -159,6 +161,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       math_elim_game      = -ones(Int, num_teams) # for Lenten ranking
       h2h                 = zeros(Int, num_teams, num_teams)
       h2h_left            = num_rounds * ones(Int, num_teams, num_teams)
+
+      is_unelim           = zeros(Bool, num_teams)
 
       ## Set up initial ranking
       rank_of_team = sortperm(randn(num_teams)) # initial ranking (returns rank of team i)
@@ -261,7 +265,22 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             is_eff_elim[k] = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
             num_eff_elim += is_eff_elim[k]
             eff_elim_game[k] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
+            old_val = eff_eliminated_out[step_ind, game_ind, avg_stat]
+            should_be = old_val + num_eff_elim / num_replications
             @views updateStats!(eff_eliminated_out[step_ind, game_ind, :], num_eff_elim, num_replications)
+            new_val = eff_eliminated_out[step_ind, game_ind, avg_stat]
+            @assert( new_val == should_be )
+            #if (num_eff_elim > num_teams - num_playoff_teams || eff_eliminated_out[step_ind, game_ind, avg_stat] > num_teams - num_playoff_teams)
+            if (num_eff_elim > num_teams || eff_eliminated_out[step_ind, game_ind, avg_stat] > num_teams )
+              println("num_replications: $num_replications")
+              println("eff_elim_out: $old_val, $should_be, $new_val")
+              println("avg: ", (stats[:,wins_ind] + stats[:,games_left_ind]) / num_team_games)
+              println("cutoff_avg: ", cutoff_avg)
+              println("is_eff_elim: ", is_eff_elim)
+              println("num_eff_elim: $num_eff_elim")
+              println("avg: ", eff_eliminated_out[step_ind, game_ind, avg_stat])
+              abort()
+            end
           end
 
           # If current team is eliminated, and it has not been recorded before, do so
@@ -271,16 +290,27 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             stats[k,elim_ind] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
             num_teams_tanking += stats[k,will_tank_ind] == 1
           end
+
+          # Check whether an effectively eliminated team is no longer eliminated
+          if is_eff_elim[k] && !is_unelim[k]
+             if (rank_of_team[k] <= num_playoff_teams)
+               is_unelim[k] = true
+             end
+          end
         end # check elimination
       end # iterate over games
       ## end of a season
-
+      
       ## Make sure teams that were eliminated actually did not make the playoffs
       for i = 1:num_teams
         if (best_rank[i] < 0)
           @assert(rank_of_team[i] > num_playoff_teams)
         end
       end
+
+      ## Update uneliminated stats
+      num_unelim = sum(is_unelim)
+      @views updateStats!(num_unelim_out, num_unelim, num_replications)
 
       ## Get non-playoff teams at end of season
       nonplayoff_teams = team_in_pos[num_playoff_teams+1:num_teams]
@@ -355,6 +385,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
     end
   end # looping over tanking percentages
 
-  return kend_out, games_tanked_out, already_tank_out, math_eliminated_out, 
-      eff_eliminated_out, kend_nba_out, kend_gold_out, kend_lenten_out, num_mips_out
+  return kend_out, games_tanked_out, already_tank_out, 
+      math_eliminated_out, eff_eliminated_out, num_unelim_out,
+      kend_nba_out, kend_gold_out, kend_lenten_out, num_mips_out
 end # simulate
