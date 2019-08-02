@@ -154,7 +154,9 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       outcome             = zeros(Int, num_games_total)
       is_eff_elim         = zeros(Bool, num_teams)
       is_math_elim        = zeros(Bool, num_teams)
-      num_wins_since_elim = zeros(Int, num_teams)
+      num_wins_since_elim = zeros(Int, num_teams) # for Gold ranking
+      eff_elim_game       = -ones(Int, num_teams)
+      math_elim_game      = -ones(Int, num_teams) # for Lenten ranking
       h2h                 = zeros(Int, num_teams, num_teams)
       h2h_left            = num_rounds * ones(Int, num_teams, num_teams)
 
@@ -212,7 +214,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           rank_of_team, team_in_pos = updateRank(stats, rank_of_team, team_in_pos, k, team_k_wins, num_teams, win_pct_ind, games_left_ind, h2h) # update rank
           
           # If team k wins and has been eliminated, increment num wins since elim (for Gold ranking)
-          if team_k_wins && stats[k,elim_ind] >= 0
+          is_elim = math_elim_mode == 0 ? is_eff_elim[k] : is_math_elim[k] # note that we use math elimination if it has been calculated
+          if team_k_wins && is_elim
             num_wins_since_elim[k] += 1
           end
         end
@@ -230,7 +233,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         
         # Check whether teams are eliminated
         # Prepare for elimination calculations
-        if math_elim_mode > 0
+        if math_elim_mode != 0
           # Update mathematical elimination
           updateHeuristicBestRank!(outcome[game_ind], game_ind, schedule, h2h, best_outcomes, best_h2h, best_num_wins, best_rank)
           fixOutcome!(model, outcome[game_ind], game_ind, schedule, math_elim_mode)
@@ -250,26 +253,25 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
                 math_elim_mode, wins_ind, games_left_ind)
             num_mips += mips_used
             num_math_elim += is_math_elim[k]
+            math_elim_game[k] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
             @views updateStats!(num_mips_out, num_mips, num_replications)
             @views updateStats!(math_eliminated_out[step_ind, game_ind, :], num_math_elim, num_replications)
           end
           if !is_eff_elim[k]
             is_eff_elim[k] = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
             num_eff_elim += is_eff_elim[k]
+            eff_elim_game[k] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
             @views updateStats!(eff_eliminated_out[step_ind, game_ind, :], num_eff_elim, num_replications)
           end
 
           # If current team is eliminated, and it has not been recorded before, do so
-          curr_is_eliminated = math_elim_mode > 0 ? is_math_elim[k] : is_eff_elim[k]
-          if curr_is_eliminated && stats[k,elim_ind] < 0
+          is_elim = math_elim_mode > 0 ? is_math_elim[k] : is_eff_elim[k]
+          if is_elim && stats[k,elim_ind] < 0
             num_eliminated += 1
             stats[k,elim_ind] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
             num_teams_tanking += stats[k,will_tank_ind] == 1
           end
         end # check elimination
-        #print("Game $game_ind\tNum MIPs: $num_mips\tNum elim: $num_eliminated\n")
-
-        # Update elimination stats
       end # iterate over games
       ## end of a season
 
@@ -320,7 +322,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         ## Lenten ranking: the fewer games a team has played when it is eliminated, the higher it is in the draft
         ranking_lenten = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
         ranking_lenten[:,1] = nonplayoff_teams
-        ranking_lenten[:,2] = stats[nonplayoff_teams, elim_ind] # not using negative, because we will sort high-to-low later
+        ranking_lenten[:,2] = math_elim_mode == 0 ? eff_elim_game[nonplayoff_teams] : math_elim_game[nonplayoff_teams] # not using negative, because we will sort high-to-low later
         for tmp_team_ind = 1:num_teams - num_playoff_teams
           if ranking_lenten[tmp_team_ind,2] < 0 # was never eliminated
             # Team was not eliminated but did not make the playoffs
