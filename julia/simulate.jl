@@ -258,29 +258,11 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             num_mips += mips_used
             num_math_elim += is_math_elim[k]
             math_elim_game[k] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
-            @views updateStats!(num_mips_out, num_mips, num_replications)
-            @views updateStats!(math_eliminated_out[step_ind, game_ind, :], num_math_elim, num_replications)
           end
           if !is_eff_elim[k]
             is_eff_elim[k] = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
             num_eff_elim += is_eff_elim[k]
             eff_elim_game[k] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
-            old_val = eff_eliminated_out[step_ind, game_ind, avg_stat]
-            should_be = old_val + num_eff_elim / num_replications
-            @views updateStats!(eff_eliminated_out[step_ind, game_ind, :], num_eff_elim, num_replications)
-            new_val = eff_eliminated_out[step_ind, game_ind, avg_stat]
-            @assert( new_val == should_be )
-            #if (num_eff_elim > num_teams - num_playoff_teams || eff_eliminated_out[step_ind, game_ind, avg_stat] > num_teams - num_playoff_teams)
-            if (num_eff_elim > num_teams || eff_eliminated_out[step_ind, game_ind, avg_stat] > num_teams )
-              println("num_replications: $num_replications")
-              println("eff_elim_out: $old_val, $should_be, $new_val")
-              println("avg: ", (stats[:,wins_ind] + stats[:,games_left_ind]) / num_team_games)
-              println("cutoff_avg: ", cutoff_avg)
-              println("is_eff_elim: ", is_eff_elim)
-              println("num_eff_elim: $num_eff_elim")
-              println("avg: ", eff_eliminated_out[step_ind, game_ind, avg_stat])
-              abort()
-            end
           end
 
           # If current team is eliminated, and it has not been recorded before, do so
@@ -290,6 +272,11 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             stats[k,elim_ind] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
             num_teams_tanking += stats[k,will_tank_ind] == 1
           end
+
+          # Update elimination stats
+          @views updateStats!(num_mips_out, num_mips, num_replications)
+          @views updateStats!(math_eliminated_out[step_ind, game_ind, :], num_math_elim, num_replications)
+          @views updateStats!(eff_eliminated_out[step_ind, game_ind, :], num_eff_elim, num_replications)
 
           # Check whether an effectively eliminated team is no longer eliminated
           if is_eff_elim[k] && !is_unelim[k]
