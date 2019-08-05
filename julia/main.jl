@@ -146,7 +146,7 @@ end
 
 function main_simulate(;do_simulation = true, num_replications = 100000, 
     do_plotting=true, mode=MODE, results_dir = "../results", 
-    num_rounds = 3,  num_steps = 20, gamma = 0.75, 
+    num_rounds = 3, num_steps = 20, gamma = 0.75, 
     math_elim_mode = 2)
   ###
   # main_simulate: Simulate a season and plot output
@@ -180,73 +180,72 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 
 	## Set constants
 	num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
-	num_games = num_rounds * num_games_per_round
+	num_games           = num_rounds * num_games_per_round
 
 	## For output
 	kend            = 0 # [step,cutoff,stat], holds KT distance for each tanking probability and cutoff for draft ranking
+  kend_nba        = 0 # [step,odds,stat], KT distance based on NBA ranking
+	kend_gold       = 0 # [:,stat], ranking based on number of wins since elimination point
+	kend_lenten     = 0 # [:,stat], ranking in order of first-to-eliminated
 	games_tanked    = 0 # [step,cutoff,stat], number games tanked by cutoff
 	already_tank    = 0 # [step,cutoff,stat], number teams already tanking by the cutoff
 	math_eliminated = 0 # [step,game,stat], number teams eliminated by each game
 	eff_eliminated  = 0 # [step,game,stat], number teams eliminated by each game
-  kend_nba        = 0 # [step,odds,stat], KT distance based on NBA ranking
-	kend_gold       = 0 # [:,stat], ranking based on number of wins since elimination point
-	kend_lenten     = 0 # [:,stat], ranking in order of first-to-eliminated
   num_mips        = 0  # [:,stat], number of MIPs solved
   num_unelim      = 0  # [:,stat], number of teams eff elim, then uneliminated
 
   ## Stats we keep
-  avg_stat = 1
+  avg_stat    = 1
   stddev_stat = 2
-  min_stat = 3
-  max_stat = 4
-  num_stats = 4
-  prefix = ["avg_", "stddev_", "min_", "max_"]
+  min_stat    = 3
+  max_stat    = 4
+  num_stats   = 4
+  prefix      = ["avg_", "stddev_", "min_", "max_"]
 
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-    kend, games_tanked, already_tank, math_eliminated, eff_eliminated, num_unelim, kend_nba, kend_gold, kend_lenten, num_mips  = 
+    kend, kend_nba, kend_gold, kend_lenten, games_tanked, already_tank, math_eliminated, eff_eliminated, num_mips, num_unelim = 
         simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode)
 
     for stat = 1:num_stats
       writedlm(string(results_dir, "/", prefix[stat], "kend", csvext), kend[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "kend_nba", csvext), kend_nba[:,:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "games_tanked", csvext), games_tanked[:,:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "already_tank", csvext), already_tank[:,:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "math_eliminated", csvext), math_eliminated[:,:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), eff_eliminated[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "kend_nba", csvext), kend_nba[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "num_mips", csvext), num_mips[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "num_unelim", csvext), num_unelim[:,stat], ',')
     end
     writedlm(string(results_dir, "/", "kend_gold", csvext), kend_gold, ',')
     writedlm(string(results_dir, "/", "kend_lenten", csvext), kend_lenten, ',')
-    writedlm(string(results_dir, "/", "num_mips", csvext), num_mips, ',')
-    writedlm(string(results_dir, "/", "num_unelim", csvext), num_unelim, ',')
 	else
     ## Resize things
     num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
     num_games_total     = num_rounds * num_games_per_round
     kend                = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats)
+    kend_nba            = zeros(Float64, num_steps+1, length(nba_odds_list), num_stats)
+    kend_gold           = zeros(Float64, 1, num_stats)
+    kend_lenten         = zeros(Float64, 1, num_stats)
     games_tanked        = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats)
     already_tank        = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats)
     math_eliminated     = zeros(Float64, num_steps+1, num_games_total, num_stats)
     eff_eliminated      = zeros(Float64, num_steps+1, num_games_total, num_stats)
-    kend_nba            = zeros(Float64, num_steps+1, length(nba_odds_list), num_stats)
-    kend_gold           = zeros(Float64, 1, num_stats)
-    kend_lenten         = zeros(Float64, 1, num_stats)
-    num_mips            = zeros(Float64, 1, num_stats)
-    num_unelim          = zeros(Float64, 1, num_stats)
+    num_mips            = zeros(Float64, num_steps+1, num_stats)
+    num_unelim          = zeros(Float64, num_steps+1, num_stats)
     for stat = 1:num_stats
-      kend[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "kend", csvext), ',')
-      games_tanked[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "games_tanked", csvext), ',')
-      already_tank[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "already_tank", csvext), ',')
+      kend[:,:,stat]            = readdlm(string(results_dir, "/", prefix[stat], "kend", csvext), ',')
+      kend_nba[:,:,stat]        = readdlm(string(results_dir, "/", prefix[stat], "kend_nba", csvext), ',')
+      games_tanked[:,:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "games_tanked", csvext), ',')
+      already_tank[:,:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "already_tank", csvext), ',')
       math_eliminated[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "math_eliminated", csvext), ',')
-      eff_eliminated[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), ',')
-      kend_nba[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "kend_nba", csvext), ',')
+      eff_eliminated[:,:,stat]  = readdlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), ',')
+      num_mips[:,stat]          = readdlm(string(results_dir, "/", prefix[stat], "num_mips", csvext), ',')
+      num_unelim[:,stat]        = readdlm(string(results_dir, "/", prefix[stat], "num_unelim", csvext), ',')
     end
     kend_gold = readdlm(string(results_dir, "/", "kend_gold", csvext), ',')
     kend_lenten = readdlm(string(results_dir, "/", "kend_lenten", csvext), ',')
-    num_mips = readdlm(string(results_dir, "/", "num_mips", csvext), ',')
-    num_unelim = readdlm(string(results_dir, "/", "num_unelim", csvext), ',')
-		num_steps = size(kend,1) - 1
 	end
   num_eliminated = (math_elim_mode > 0) ? math_eliminated : eff_eliminated
 
@@ -260,7 +259,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 		incy = 1
 		maxy = Int(ceil(findmax(kend[:,:,1])[1]))
 		titlestring = L"\mbox{Effect of $\delta$ on bilevel ranking of non-playoff teams}"
-		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+		xlabelstrikng = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Distance from true ranking of non-playoff teams}"
 		legendtitlestring = L"\mbox{Breakpoint ($\delta$)}"
 		fname_stub = "avg_kend"
