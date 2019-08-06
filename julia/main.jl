@@ -259,7 +259,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 		incy = 1
 		maxy = Int(ceil(findmax(kend[:,:,1])[1]))
 		titlestring = L"\mbox{Effect of $\delta$ on bilevel ranking of non-playoff teams}"
-		xlabelstrikng = L"\mbox{Probability of tanking once eliminated}"
+		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Distance from true ranking of non-playoff teams}"
 		legendtitlestring = L"\mbox{Breakpoint ($\delta$)}"
 		fname_stub = "avg_kend"
