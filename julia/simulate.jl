@@ -273,16 +273,16 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             num_teams_tanking += stats[k,will_tank_ind] == 1
           end
 
-          # Update elimination stats
-          @views updateStats!(num_mips_out[step_ind,:], num_mips, num_replications)
-          @views updateStats!(math_eliminated_out[step_ind, game_ind, :], num_math_elim, num_replications)
-          @views updateStats!(eff_eliminated_out[step_ind, game_ind, :], num_eff_elim, num_replications)
-
           # Check whether an effectively eliminated team is no longer eliminated
           if is_eff_elim[k] && !is_unelim[k] && (rank_of_team[k] <= num_playoff_teams)
             is_unelim[k] = true
           end
         end # check elimination
+        
+        # Update elimination stats
+        @views updateStats!(num_mips_out[step_ind,:], num_mips, num_replications)
+        @views updateStats!(math_eliminated_out[step_ind, game_ind, :], num_math_elim, num_replications)
+        @views updateStats!(eff_eliminated_out[step_ind, game_ind, :], num_eff_elim, num_replications)
       end # iterate over games
       ## end of a season
       
