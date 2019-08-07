@@ -63,7 +63,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
 
   ## Prepare output
   # For each stat, keep: 1. avg, 2. stddev, 3. min, 4. max
-  num_stats   = 5
+  num_stats   = 4
   avg_stat    = 1
   stddev_stat = 2
   min_stat    = 3
