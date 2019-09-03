@@ -168,7 +168,7 @@ function thisTeamWinsRemainingGames!(k, t, schedule, stats, outcome, h2h,
       
     outcome[game_ind] = k
     stats[k, num_wins_ind] += 1
-    h2h[k,i] += 1
+    h2h[k,j] += 1
     for i in [k,j]
       stats[i,games_left_ind] -= 1
     end
@@ -238,6 +238,7 @@ function updateHeuristicBestRank!(winner, t, schedule, h2h,
   # We assume that h2h has already been updated with the win
   ###
   num_teams = length(best_rank)
+  num_games_total = size(schedule,1)
   loser = (winner == schedule[t,1]) ? schedule[t,2] : schedule[t,1]
 
   for i = 1:num_teams
@@ -255,7 +256,7 @@ function updateHeuristicBestRank!(winner, t, schedule, h2h,
     if num_future_wins_by_winner > 0
       # Find the next game that winner was supposed to win
       game_ind = t+1
-      while game_ind <= length(best_outcomes[i,:])
+      while game_ind <= num_games_total
         if best_outcomes[i,game_ind] == winner
           break
         end
@@ -263,8 +264,10 @@ function updateHeuristicBestRank!(winner, t, schedule, h2h,
       end
 
       # Set winner as winner of current game, and loser as winner of game_ind
-      best_outcomes[i,t] = winner
-      best_outcomes[i,game_ind] = loser
+      if game_ind <= num_games_total
+        best_outcomes[i,t] = winner
+        best_outcomes[i,game_ind] = loser
+      end
       continue # continue iterating through the teams
     end
     
@@ -841,7 +844,7 @@ function updateOthersUsingBestSolution!(k, t, schedule, num_playoff_teams,
   for i = 1:num_teams
     if best_rank[i] == 0 || best_rank[i] > rank_of_team[i]
       best_outcomes[i,:] = best_outcomes[k,:]
-      best_h2h[i,:] = best_h2h[k,:]
+      best_h2h[i,:,:] = best_h2h[k,:,:]
       best_num_wins[i,:] = best_num_wins[k,:]
       best_rank[i] = rank_of_team[i]
     end

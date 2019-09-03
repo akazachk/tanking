@@ -14,6 +14,9 @@
 ###
 
 ## Required dependencies
+import Random
+Random.seed!(628) # for reproducibility
+
 using DelimitedFiles
 using LaTeXStrings
 using Printf

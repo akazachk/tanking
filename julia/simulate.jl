@@ -252,7 +252,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           if math_elim_mode != 0 && !is_math_elim[k]
             # Mathematical elimination: solve MIP if heuristic does not find good schedule
             (is_math_elim[k], mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
-                schedule, stats, outcome, best_outcomes, best_h2h, best_num_wins, best_rank, model,
+                schedule, stats, outcome, h2h, best_outcomes, best_h2h, best_num_wins, best_rank, model,
                 num_teams, num_playoff_teams, num_team_games, num_games_total,
                 math_elim_mode, wins_ind, games_left_ind)
             num_mips += mips_used
