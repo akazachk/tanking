@@ -8,7 +8,7 @@ This project contains the code for a simulator of an NBA season aimed at underst
 Julia 1.x. If `PyPlot` is available, the figures in the paper can be plotted using `do_plotting=true` in the commands below.
 
 ### Running the code
-To run a simulation, parse NBA data, and reproduce data regarding noisiness of the reverse order ranking:
+To run a simulation, parse NBA data, and reproduce data regarding noisiness of the reverse order ranking, first change directories to the `julia` subdirectory, then start `julia`, type `]` to enter `pkg` mode, and type `activate ./` to activate the tanking environment. Pressing `backspace` will return you to the normal prompt. Afterwards, the code can be run with the following commands:
 				
 		include("main.jl")
 		main_simulate(do_simulation=true, num_replications=100000, do_plotting=false, mode=1) 
