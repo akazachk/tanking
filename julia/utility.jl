@@ -243,7 +243,7 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
     else
       best_rank[k] = -1
     end
-    resetMIP!(model, t+1, schedule, stats, math_elim_mode)
+    resetMIP!(model, t+1, schedule, h2h, stats, math_elim_mode)
     mips_used = 1
   end
 

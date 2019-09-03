@@ -147,35 +147,39 @@ else
 	end
 end
 
+@doc """
+`main_simulate`: Simulate a season and plot output
+
+Parameters
+---
+* `do_simulation`: when false, read data from files in results_dir
+* `num_replications`: how many times to simulate each data point
+* `do_plotting`: if false, only gather data, without plotting it
+* `mode`: which kind of true ranking is used;
+     1 or 2: 
+       When two non-tanking teams or two tanking teams play each other, 
+       the better team wins with probability gamma.
+       When a tanking team plays a non-tanking team, the tanking team always loses.
+     3 or 4:
+       Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game.
+
+* `results_dir`: where results should be saved and can be found
+ * `num_rounds`: a round consists of each team playing each other team
+ * `num_steps`: discretization of [0,1] for tanking probability
+ * `gamma`: probability a better-ranked team wins over a worse-ranked team
+ * `math_elim_mode`: 
+   0: use effective elimination, 
+   1: use mathematical elimination, but calculated by heuristics only, 
+   2: use math elim, binary MIP, team-wise formulation
+   3: use math elim, general integer MIP, team-wise formulation
+   4: use math elim, binary MIP, cutoff formulation
+   5: use math elim, general integer MIP, cutoff formulation
+   <0: use effective elimination, but calculate mathematical elimination
+"""
 function main_simulate(;do_simulation = true, num_replications = 100000, 
     do_plotting=true, mode=MODE, results_dir = "../results", 
     num_rounds = 3, num_steps = 20, gamma = 0.75, 
     math_elim_mode = 2)
-  ###
-  # main_simulate: Simulate a season and plot output
-  #   * do_simulation: when false, read data from files in results_dir
-  #   * num_replications: how many times to simulate each data point
-  #   * do_plotting: if false, only gather data, without plotting it
-  #   * mode: which kind of true ranking is used
-  #     1 or 2: 
-  #       When two non-tanking teams or two tanking teams play each other, 
-  #       the better team wins with probability gamma
-  #       When a tanking team plays a non-tanking team, the tanking team always loses
-  #     3 or 4:
-  #       Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game
-  #   * results_dir: where results should be saved and can be found
-	#   * num_rounds: a round consists of each team playing each other team
-  #   * num_steps: discretization of [0,1] for tanking probability
-	#   * gamma: probability a better-ranked team wins over a worse-ranked team
-  #   * math_elim_mode: 
-  #     0: use effective elimination, 
-  #     1: use mathematical elimination, but calculated by heuristics only, 
-  #     2: use math elim, binary MIP, team-wise formulation
-  #     3: use math elim, general integer MIP, team-wise formulation
-  #     4: use math elim, binary MIP, cutoff formulation
-  #     5: use math elim, general integer MIP, cutoff formulation
-  #     <0: use effective elimination, but calculate mathematical elimination
-  ###
 	set_mode(mode)
 
 	## Variables that need to be set
