@@ -15,8 +15,6 @@
 
 ## Required dependencies
 import Random
-Random.seed!(628) # for reproducibility
-
 using DelimitedFiles
 using LaTeXStrings
 using Printf
@@ -181,6 +179,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
     num_rounds = 3, num_steps = 20, gamma = 0.75, 
     math_elim_mode = 2)
 	set_mode(mode)
+  Random.seed!(628) # for reproducibility
 
 	## Variables that need to be set
 	## end variables that need to be set

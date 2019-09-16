@@ -329,6 +329,7 @@ Returns
 ---
 Return the following MIP model
 
+```
  Constants:
    `k`: index of the team we are solving the min rank problem for
    `M`: total number of games each team plays
@@ -343,11 +344,11 @@ Return the following MIP model
    `z_i`: binary; whether team `i` is ranked above team `k` at end
 
  Objective:
-   min 1 + \\sum_i z_i
+   min rank = 1 + \\sum_i z_i
 
  Constraints:
-   math_elim_mode == 2: \\sum_{i \\in G_t} x_{it} = 1     (for all t)
-   math_elim_mode == 3: x_{ij} + x_{ji} = g_{ij}        (for all i,j)
+   math_elim_mode == 2: \\sum_{i \\in G_t} x_{it} = 1    (for all t)
+   math_elim_mode == 3: x_{ij} + x_{ji} = g_{ij}       (for all i,j)
    w_i = \\sum x_{i,:}                                  (for all i)
    z_i \\ge (w_i - W) / M                               (for all i)
    y_i \\ge z_i                                         (for all i)
@@ -364,6 +365,7 @@ Return the following MIP model
    x \\ge 0
    math_elim_mode == 3: x_{i,i} = 0
    y_i \\ge 0                                           (for all i)
+```
 """
 function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode)
   if math_elim_mode != 2 && math_elim_mode != 3
@@ -405,13 +407,11 @@ function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_te
     @variable(model, x[1:num_teams,1:num_teams] >= 0, Int)
     for i = 1:num_teams
       set_upper_bound(x[i,i], 0)
-      for j = 1:num_teams
-        if j == i
-          continue
-        end
+      for j = i+1:num_teams
         con = @constraint(model, x[i,j] + x[j,i] == h2h_left[i,j]) # total wins in series matches total games played
         set_name(con, "series_$(i)_$(j)")
         set_upper_bound(x[i,j], h2h_left[i,j]) # redundant, but could be useful for some solvers
+        set_upper_bound(x[j,i], h2h_left[j,i]) # redundant, but could be useful for some solvers
       end
     end
   end # x variables
@@ -444,56 +444,64 @@ function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_te
   return model
 end # setupMIPByTeam
 
+"""
+setupMIPByCutoff
+
+Parameters
+---
+* `schedule`: Matrix{Int}(num_games_total, 2)
+* `h2h_left`: Matrix{Int}{num_teams,num_teams}
+* `num_teams`, `num_playoff_teams`, `num_team_games`, `num_games_total`: scalars
+* `math_elim_mode`: see main.jl or simulate.jl
+
+Returns
+---
+Return the following MIP model
+
+```
+  Constants:
+    k: index of the team we are solving the min rank problem for
+    M: total number of games each team plays
+    G_t: set of two teams that are playing in game t (for each t \\in [T])
+    n^*: number of teams in playoffs
+ 
+  Variables:
+    W: number of wins by last team that makes the playoffs
+    w_i: number of wins by team i
+    math_elim_mode == 4: x_{it}: binary; whether team i wins game t
+    math_elim_mode == 5: x_{ij}: general integer; number of wins team i has over team j
+    alpha_i: binary; 0 if W >= num wins of team i (i.e., will = 1 for first n^* teams)
+ 
+  Objective:
+    min W
+ 
+  Constraints:
+    math_elim_mode == 4: \\sum_{i \\in G_t} x_{it} = 1    (for all t)
+    math_elim_mode == 5: x_{ij} + x_{ji} = g_{ij}       (for all i,j)
+    w_i = \\sum x_{i,:}
+    W \\ge \\sum x_{i,:} - M \\alpha_i                     (for all i)
+    \\sum_i \\alpha_i = n^*                               (for all i)
+ 
+  Binaries:
+    math_elim_mode == 4: x \\in \\{0,1\\}
+    alpha \\in {0,1}^n
+ 
+  Integers:
+    math_elim_mode == 5: x_{ij} \\in [0,g_{ij}]
+ 
+  Bounds:
+    math_elim_mode == 5: x_{ii} = 0
+```
+"""
 function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode)
-  ###
-  # Arguments:
-  #   schedule: Matrix{Int}(num_games_total, 2)
-  #   h2h_left: Matrix{Int}{num_teams,num_teams}
-  #   num_teams, num_playoff_teams, num_team_games, num_games_total: scalars
-  #   math_elim_mode: see main.jl or simulate.jl
-  #
-  # Return the following MIP model
-  #
-  # Constants:
-  #   k: index of the team we are solving the min rank problem for
-  #   M: total number of games each team plays
-  #   G_t: set of two teams that are playing in game t (for each t \in [T])
-  #   n^*: number of teams in playoffs
-  #
-  # Variables:
-  #   W: number of wins by last team that makes the playoffs
-  #   w_i: number of wins by team i
-  #   math_elim_mode == 4: x_{it}: binary; whether team i wins game t
-  #   math_elim_mode == 5: x_{ij}: general integer; number of wins team i has over team j
-  #   alpha_i: binary; 0 if W >= num wins of team i (i.e., will = 1 for first n^* teams)
-  #
-  # Objective:
-  #   min W
-  #
-  # Constraints:
-  #   math_elim_mode == 4: \sum_{i \in G_t} x_{it} = 1     (for all t)
-  #   math_elim_mode == 5: x_{ij} + x_{ji} = g_{ij}        (for all i,j)
-  #   w_i = \sum x_{i,:}
-  #   W \ge \sum x_{i,:} - M \alpha_i                     (for all i)
-  #   \sum_i \alpha_i = n^*                               (for all i)
-  #
-  # Binaries:
-  #   math_elim_mode == 4: x \in \{0,1\}
-  #   alpha \in {0,1}^n
-  #
-  # Integers:
-  #   math_elim_mode == 5: x_{ij} \in [0,g_{ij}]
-  #
-  # Bounds:
-  #   math_elim_mode == 5: x_{ii} = 0
-  ###
   if math_elim_mode != 4 && math_elim_mode != 5
     return 0
   end
   
   #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0)) # about five times slower than Gurobi (or worse)
   #model = Model(with_optimizer(GLPK.Optimizer))
-  model = Model(with_optimizer(Gurobi.Optimizer, TimeLimit=10, OutputFlag=1))
+  #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=10, OutputFlag=0))
+  model = Model(with_optimizer(Gurobi.Optimizer, TimeLimit=10, OutputFlag=0))
   
   ## Set up variables and constraints
   @variable(model, W >= 0)
@@ -514,8 +522,8 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
       end
       xit = x[i, game_ind_for_team[i]]
       xjt = x[j, game_ind_for_team[j]]
-      #set_name(xit, "x_{$i,$t}")
-      #set_name(xjt, "x_{$j,$t}")
+      set_name(xit, "x[$i,$t]")
+      set_name(xjt, "x[$j,$t]")
       con = @constraint(model, xit + xjt == 1) # exactly one team wins game t
       set_name(con, "game$t")
     end
@@ -524,13 +532,11 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
     @variable(model, x[1:num_teams,1:num_teams] >= 0, Int)
     for i = 1:num_teams
       set_upper_bound(x[i,i], 0)
-      for j = 1:num_teams
-        if j == i
-          continue
-        end
+      for j = i+1:num_teams
         con = @constraint(model, x[i,j] + x[j,i] == h2h_left[i,j]) # total wins in series matches total games played
         set_name(con, "series_$(i)_$(j)")
         set_upper_bound(x[i,j], h2h_left[i,j]) # redundant, but could be useful for some solvers
+        set_upper_bound(x[j,i], h2h_left[j,i]) # redundant, but could be useful for some solvers
       end
     end
   end # x variables
@@ -571,11 +577,9 @@ function resetMIP!(model, t, schedule, h2h, stats, math_elim_mode)
     end
   elseif math_elim_mode in [3,5]
     for i = 1:num_teams
-      for j = 1:num_teams
-        if i == j
-          continue
-        end
+      for j = i+1:num_teams
         set_lower_bound(variable_by_name(model, "x[$i,$j]"), h2h[i,j])
+        set_lower_bound(variable_by_name(model, "x[$j,$i]"), h2h[i,j])
       end
     end
   end
@@ -802,7 +806,7 @@ function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_team
     best_num_wins[k, i] = Int(round(value.(w[i])))
   end
 
-  if math_elim_mode in [2,3]
+  if math_elim_mode in [2,4] # xit
     for game_ind = t:num_games_total
       i = schedule[game_ind,1]
       j = schedule[game_ind,2]
@@ -812,23 +816,24 @@ function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_team
 
       best_outcomes[k, game_ind] = winner
     end
-
-    #best_rank[k] = Int(round(objective_value(model)))
-    best_rank[k] = Int(round(value.(model[:rank])))
-  elseif math_elim_mode in [4,5]
+  elseif math_elim_mode in [3,5] # xij
     for i = 1:num_teams
-      for j = 1:num_teams 
-        if i == j
-          continue
-        end
+      for j = i+1:num_teams 
         xij = variable_by_name(model, "x[$i,$j]")
         xji = variable_by_name(model, "x[$j,$i]")
         best_h2h[k,i,j] = Int(round(value.(xij)))
         best_h2h[k,j,i] = Int(round(value.(xji)))
       end
     end
-    if (model[:W] <= W)
-      best_rank[k] = num_playoff_teamss
+  end
+
+  if math_elim_mode in [2,3] # xit
+    best_rank[k] = Int(round(value.(model[:rank])))
+  elseif math_elim_mode in [4,5] # xij
+    if (value.(model[:W]) <= W)
+      best_rank[k] = num_playoff_teams
+    else
+      best_rank[k] = num_playoff_teams+1
     end
   end
 

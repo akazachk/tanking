@@ -249,7 +249,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
 
         # Loop through teams, checking each one's elimination status
         for k in 1:num_teams
-          if math_elim_mode != 0 && !is_math_elim[k]
+          if math_elim_mode != 0 && !is_math_elim[k] && (math_elim_mode <= 3 || math_elim_mode >= 6 || k == 1)
             # Mathematical elimination: solve MIP if heuristic does not find good schedule
             (is_math_elim[k], mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
                 schedule, stats, outcome, h2h, best_outcomes, best_h2h, best_num_wins, best_rank, model,
@@ -374,6 +374,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       kend_gold_out[stddev_stat]   -= kend_gold_out[avg_stat]^2
       kend_lenten_out[stddev_stat] -= kend_lenten_out[avg_stat]^2
     end
+    println("num_mips_out: ", num_mips_out[step_ind,:])
+    quit()
   end # looping over tanking percentages
 
   return kend_out, kend_nba_out, kend_gold_out, kend_lenten_out,
