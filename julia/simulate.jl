@@ -289,7 +289,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             num_math_elim += is_math_elim[k]
         end
         
-        println("(step $step_ind, game $game_ind): num_mips: $num_mips\tnum_math_elim: $num_math_elim")
+        #println("(step $step_ind, game $game_ind): num_mips: $num_mips\tnum_math_elim: $num_math_elim")
         
         # Update elimination stats
         @views updateStats!(math_eliminated_out[step_ind, game_ind, :], num_math_elim, num_replications)
@@ -386,8 +386,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       kend_gold_out[stddev_stat]   -= kend_gold_out[avg_stat]^2
       kend_lenten_out[stddev_stat] -= kend_lenten_out[avg_stat]^2
     end
-    println("num_mips_out: ", num_mips_out[step_ind,:])
-    quit()
+    #println("num_mips_out: ", num_mips_out[step_ind,:])
+    #quit()
   end # looping over tanking percentages
 
   return kend_out, kend_nba_out, kend_gold_out, kend_lenten_out,
