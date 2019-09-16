@@ -90,8 +90,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   already_tank_out[:,:,min_stat]    = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
   math_eliminated_out[:,:,min_stat] = BIG_NUMBER * ones(num_steps+1, num_games_total)
   eff_eliminated_out[:,:,min_stat]  = BIG_NUMBER * ones(num_steps+1, num_games_total)
-  num_mips_out[:,min_stat]            = BIG_NUMBER * ones(num_steps+1)
-  num_unelim_out[:,min_stat]          = BIG_NUMBER * ones(num_steps+1)
+  num_mips_out[:,min_stat]          = BIG_NUMBER * ones(num_steps+1)
+  num_unelim_out[:,min_stat]        = BIG_NUMBER * ones(num_steps+1)
 
   ## Set up for game order 
   # Alternative to below is using Combinatorics; ord_games = collect(combinations(1:num_teams,2))
@@ -278,12 +278,24 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             is_unelim[k] = true
           end
         end # check elimination
+
+        # For math elimination modes that use the cutoff formulation, we solve one MIP per game
+        if 0
+            (is_math_elim[k], mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
+                schedule, stats, outcome, h2h, best_outcomes, best_h2h, best_num_wins, best_rank, model,
+                num_teams, num_playoff_teams, num_team_games, num_games_total,
+                math_elim_mode, wins_ind, games_left_ind)
+            num_mips += mips_used
+            num_math_elim += is_math_elim[k]
+        end
+        
+        println("(step $step_ind, game $game_ind): num_mips: $num_mips\tnum_math_elim: $num_math_elim")
         
         # Update elimination stats
-        @views updateStats!(num_mips_out[step_ind,:], num_mips, num_replications)
         @views updateStats!(math_eliminated_out[step_ind, game_ind, :], num_math_elim, num_replications)
         @views updateStats!(eff_eliminated_out[step_ind, game_ind, :], num_eff_elim, num_replications)
       end # iterate over games
+      @views updateStats!(num_mips_out[step_ind,:], num_mips, num_replications)
       ## end of a season
       
       ## Make sure teams that were eliminated actually did not make the playoffs
