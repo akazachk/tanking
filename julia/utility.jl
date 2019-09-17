@@ -256,11 +256,11 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
     end
               ### START DEBUG
               if false
-              ## Save the hard LP
-              lp_file = MathOptFormat.LP.Model()
-              MOI.copy_to(lp_file, backend(model))
-              name = string("model", math_elim_mode, ".lp")
-              MOI.write_to_file(lp_file, name)
+                ## Save the hard LP
+                lp_file = MathOptFormat.LP.Model()
+                MOI.copy_to(lp_file, backend(model))
+                name = string("model", math_elim_mode, ".lp")
+                MOI.write_to_file(lp_file, name)
               end
               ### END DEBUG
     resetMIP!(model, t+1, schedule, h2h, stats, math_elim_mode)

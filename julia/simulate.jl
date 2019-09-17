@@ -259,35 +259,37 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         for k in 1:num_teams
           if math_elim_mode != 0 && !is_math_elim[k] && (math_elim_mode <= 3 || math_elim_mode >= 6 || k == 1)
             ### START DEBUG DEBUG DEBUG
-            best_outcomes2 = copy(best_outcomes)
-            best_h2h2 = copy(best_h2h)
-            best_num_wins2 = copy(best_num_wins)
-            best_rank2 = copy(best_rank)
-            (is_elim2, mips_used2) = teamIsMathematicallyEliminated!(k, game_ind, 
-                schedule, stats, outcome, h2h, best_outcomes2, best_h2h2, best_num_wins2, best_rank2, model2,
-                num_teams, num_playoff_teams, num_team_games, num_games_total,
-                2, wins_ind, games_left_ind)
+            if false
+              best_outcomes2 = copy(best_outcomes)
+              best_h2h2 = copy(best_h2h)
+              best_num_wins2 = copy(best_num_wins)
+              best_rank2 = copy(best_rank)
+              (is_elim2, mips_used2) = teamIsMathematicallyEliminated!(k, game_ind, 
+                  schedule, stats, outcome, h2h, best_outcomes2, best_h2h2, best_num_wins2, best_rank2, model2,
+                  num_teams, num_playoff_teams, num_team_games, num_games_total,
+                  2, wins_ind, games_left_ind)
 
-            best_outcomes3 = copy(best_outcomes)
-            best_h2h3 = copy(best_h2h)
-            best_num_wins3 = copy(best_num_wins)
-            best_rank3 = copy(best_rank)
-            (is_elim3, mips_used3) = teamIsMathematicallyEliminated!(k, game_ind, 
-                schedule, stats, outcome, h2h, best_outcomes3, best_h2h3, best_num_wins3, best_rank3, model3,
-                num_teams, num_playoff_teams, num_team_games, num_games_total,
-                3, wins_ind, games_left_ind)
+              best_outcomes3 = copy(best_outcomes)
+              best_h2h3 = copy(best_h2h)
+              best_num_wins3 = copy(best_num_wins)
+              best_rank3 = copy(best_rank)
+              (is_elim3, mips_used3) = teamIsMathematicallyEliminated!(k, game_ind, 
+                  schedule, stats, outcome, h2h, best_outcomes3, best_h2h3, best_num_wins3, best_rank3, model3,
+                  num_teams, num_playoff_teams, num_team_games, num_games_total,
+                  3, wins_ind, games_left_ind)
 
-            if (is_elim2 != is_elim3)
-              println("(step $step_ind, game $game_ind, team $k): is_elim2: $is_elim2, is_elim3: $is_elim3")
-              ## Team k is eliminated in one but not the other model; impossible. We should be able to find the schedule in which the team is not eliminated
-              println("using 2: best_num_wins = ", best_num_wins2[k, k], ", best_rank2 = ", best_rank2[k])
-              println("using 3: best_num_wins = ", best_num_wins3[k, k], ", best_rank3 = ", best_rank3[k])
+              if (is_elim2 != is_elim3)
+                println("step $step_ind, game $game_ind, team $k: is_elim2: $is_elim2, is_elim3: $is_elim3")
+                ## Team k is eliminated in one but not the other model; impossible. We should be able to find the schedule in which the team is not eliminated
+                println("using 2: best_num_wins = ", best_num_wins2[k, k], ", best_rank2 = ", best_rank2[k])
+                println("using 3: best_num_wins = ", best_num_wins3[k, k], ", best_rank3 = ", best_rank3[k])
 
-              if !is_elim2
-                # Check team k's rank
+                if !is_elim2
+                  # Check team k's rank
+                end
               end
+              @assert(is_elim2 == is_elim3)
             end
-            @assert(is_elim2 == is_elim3)
             ### END DEBUG DEBUG DEBUG
 
             # Mathematical elimination: solve MIP if heuristic does not find good schedule
@@ -329,7 +331,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             num_math_elim += is_math_elim[k]
         end
         
-        println("(step $step_ind, game $game_ind): num_mips: $num_mips\tnum_math_elim: $num_math_elim")
+        #println("(step $step_ind, game $game_ind): num_mips: $num_mips\tnum_math_elim: $num_math_elim")
         
         # Update elimination stats
         @views updateStats!(math_eliminated_out[step_ind, game_ind, :], num_math_elim, num_replications)

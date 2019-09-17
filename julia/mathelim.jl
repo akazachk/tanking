@@ -380,7 +380,7 @@ function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_te
   
   #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0)) # about five times slower than Gurobi (or worse)
   #model = Model(with_optimizer(GLPK.Optimizer))
-  model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=10, OutputFlag=0))
+  model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams+1e-3, BestBdStop=num_playoff_teams+1e-3, TimeLimit=10, OutputFlag=0))
   
   ## Set up variables and constraints
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
