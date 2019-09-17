@@ -139,7 +139,7 @@ else
 		rc("figure", figsize=[6*upscale,4*upscale]) # note that axes may change depending on label size
 		#rc("figure", figsize=[6*1.5,4*1.5])
 		rc("savefig", transparent=false)
-		rc("savefig", bbox="tight")
+		#rc("savefig", bbox="tight")
 		rc("savefig", pad_inches=0.0015 * upscale) # to allow for g,y,f to be not cut off
 		rc("savefig", dpi=DPI)
 	end

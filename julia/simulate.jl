@@ -7,49 +7,49 @@
 include("utility.jl")
 include("mathelim.jl")
 
+"""
+simulate: Simulates a season
+  * num_teams
+  * num_playoff_teams
+  * num_rounds
+  * num_replications
+  * num_steps
+  * gamma
+  * breakpoint_list
+  * nba_odds_list: list of odds to use by the NBA
+  * true_strength
+  * mode: defines how the ranking and winner determination works
+    1 or 2: 
+      When two non-tanking teams or two tanking teams play each other, 
+      the better team wins with probability gamma
+      When a tanking team plays a non-tanking team, the tanking team always loses
+    3 or 4:
+      Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game
+  * math_elim_mode: 
+    0: use effective elimination, 
+    1: use mathematical elimination, but calculated by heuristics only, 
+    2: use math elim, binary MIP, team-wise formulation
+    3: use math elim, general integer MIP, team-wise formulation
+    4: use math elim, binary MIP, cutoff formulation
+    5: use math elim, general integer MIP, cutoff formulation
+    <0: use effective elimination, but calculate mathematical elimination
+
+Teams play each other in rounds, consisting of each team playing every other team
+Each team may or may not tank at all (decided by a tanking percentage)
+
+If a team might tank, it will tank when it decides it has no chance of making the playoffs
+(after a minimum number of games have been played, currently set to half their games)
+This is when it would not be enough for the team to win all its remaining games 
+to have a win percentage at least as good as the last playoff team
+(assuming that cutoff win percentage remains the same)
+
+Assumptions:
+1. No simultaneous games
+2. Teams keep same relative true ranking throughout season
+3. No conferences / divisions
+4. No home / away games (i.e., no home / away advantages)
+"""
 function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode=2)
-  ###
-  # Simulates a season
-  #   * num_teams
-  #   * num_playoff_teams
-  #   * num_rounds
-  #   * num_replications
-  #   * num_steps
-  #   * gamma
-  #   * breakpoint_list
-  #   * nba_odds_list: list of odds to use by the NBA
-  #   * true_strength
-  #   * mode: defines how the ranking and winner determination works
-  #     1 or 2: 
-  #       When two non-tanking teams or two tanking teams play each other, 
-  #       the better team wins with probability gamma
-  #       When a tanking team plays a non-tanking team, the tanking team always loses
-  #     3 or 4:
-  #       Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game
-  #   * math_elim_mode: 
-  #     0: use effective elimination, 
-  #     1: use mathematical elimination, but calculated by heuristics only, 
-  #     2: use math elim, binary MIP, team-wise formulation
-  #     3: use math elim, general integer MIP, team-wise formulation
-  #     4: use math elim, binary MIP, cutoff formulation
-  #     5: use math elim, general integer MIP, cutoff formulation
-  #     <0: use effective elimination, but calculate mathematical elimination
-  #
-  # Teams play each other in rounds, consisting of each team playing every other team
-  # Each team may or may not tank at all (decided by a tanking percentage)
-  #
-  # If a team might tank, it will tank when it decides it has no chance of making the playoffs
-  # (after a minimum number of games have been played, currently set to half their games)
-  # This is when it would not be enough for the team to win all its remaining games 
-  # to have a win percentage at least as good as the last playoff team
-  # (assuming that cutoff win percentage remains the same)
-  #
-  # Assumptions:
-  # 1. No simultaneous games
-  # 2. Teams keep same relative true ranking throughout season
-  # 3. No conferences / divisions
-  # 4. No home / away games (i.e., no home / away advantages)
-  ###
 
   ## Set constants
   step_size                       = 1 / num_steps
@@ -186,6 +186,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       best_rank     = zeros(Int, num_teams)
       num_mips = 0
       model = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode)
+      # START DEBUG
+      model2 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 2)
+      model3 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 3)
+      # END DEBUG
 
       ## Run one season
       for game_ind = 1:num_games_total
@@ -241,6 +245,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           # Update mathematical elimination
           updateHeuristicBestRank!(outcome[game_ind], game_ind, schedule, h2h, best_outcomes, best_h2h, best_num_wins, best_rank)
           fixOutcome!(model, outcome[game_ind], game_ind, schedule, math_elim_mode)
+            ### START DEBUG
+          fixOutcome!(model2, outcome[game_ind], game_ind, schedule, 2)
+          fixOutcome!(model3, outcome[game_ind], game_ind, schedule, 3)
+            ### END DEBUG
         end
         
         # Find cutoff win percentage and set elimination status for teams eliminated after this game
@@ -250,6 +258,38 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         # Loop through teams, checking each one's elimination status
         for k in 1:num_teams
           if math_elim_mode != 0 && !is_math_elim[k] && (math_elim_mode <= 3 || math_elim_mode >= 6 || k == 1)
+            ### START DEBUG DEBUG DEBUG
+            best_outcomes2 = copy(best_outcomes)
+            best_h2h2 = copy(best_h2h)
+            best_num_wins2 = copy(best_num_wins)
+            best_rank2 = copy(best_rank)
+            (is_elim2, mips_used2) = teamIsMathematicallyEliminated!(k, game_ind, 
+                schedule, stats, outcome, h2h, best_outcomes2, best_h2h2, best_num_wins2, best_rank2, model2,
+                num_teams, num_playoff_teams, num_team_games, num_games_total,
+                2, wins_ind, games_left_ind)
+
+            best_outcomes3 = copy(best_outcomes)
+            best_h2h3 = copy(best_h2h)
+            best_num_wins3 = copy(best_num_wins)
+            best_rank3 = copy(best_rank)
+            (is_elim3, mips_used3) = teamIsMathematicallyEliminated!(k, game_ind, 
+                schedule, stats, outcome, h2h, best_outcomes3, best_h2h3, best_num_wins3, best_rank3, model3,
+                num_teams, num_playoff_teams, num_team_games, num_games_total,
+                3, wins_ind, games_left_ind)
+
+            if (is_elim2 != is_elim3)
+              println("(step $step_ind, game $game_ind, team $k): is_elim2: $is_elim2, is_elim3: $is_elim3")
+              ## Team k is eliminated in one but not the other model; impossible. We should be able to find the schedule in which the team is not eliminated
+              println("using 2: best_num_wins = ", best_num_wins2[k, k], ", best_rank2 = ", best_rank2[k])
+              println("using 3: best_num_wins = ", best_num_wins3[k, k], ", best_rank3 = ", best_rank3[k])
+
+              if !is_elim2
+                # Check team k's rank
+              end
+            end
+            @assert(is_elim2 == is_elim3)
+            ### END DEBUG DEBUG DEBUG
+
             # Mathematical elimination: solve MIP if heuristic does not find good schedule
             (is_math_elim[k], mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
                 schedule, stats, outcome, h2h, best_outcomes, best_h2h, best_num_wins, best_rank, model,
@@ -280,7 +320,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         end # check elimination
 
         # For math elimination modes that use the cutoff formulation, we solve one MIP per game
-        if 0
+        if false
             (is_math_elim[k], mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
                 schedule, stats, outcome, h2h, best_outcomes, best_h2h, best_num_wins, best_rank, model,
                 num_teams, num_playoff_teams, num_team_games, num_games_total,
@@ -289,7 +329,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             num_math_elim += is_math_elim[k]
         end
         
-        #println("(step $step_ind, game $game_ind): num_mips: $num_mips\tnum_math_elim: $num_math_elim")
+        println("(step $step_ind, game $game_ind): num_mips: $num_mips\tnum_math_elim: $num_math_elim")
         
         # Update elimination stats
         @views updateStats!(math_eliminated_out[step_ind, game_ind, :], num_math_elim, num_replications)

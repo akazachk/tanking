@@ -26,6 +26,12 @@ Say this means team k ends up with W wins
 We first check whether there is already a schedule we can copy
   -> if there is a schedule in which the last playoff team has W or fewer wins
 Any team that can never or will always have W wins (or more) will win their remaining games
+
+Returns
+  * set of outcomes
+  * head-to-head records
+  * number of wins each team has
+  * rank of each team
 """
 function heuristicBestRank(k, t, schedule, in_stats, in_outcome, in_h2h,
     best_outcomes, best_h2h, best_num_wins, best_rank, num_playoff_teams,
@@ -407,7 +413,10 @@ function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_te
     @variable(model, x[1:num_teams,1:num_teams] >= 0, Int)
     for i = 1:num_teams
       set_upper_bound(x[i,i], 0)
-      for j = i+1:num_teams
+      for j = 1:num_teams
+        if i == j
+          continue
+        end
         con = @constraint(model, x[i,j] + x[j,i] == h2h_left[i,j]) # total wins in series matches total games played
         set_name(con, "series_$(i)_$(j)")
         set_upper_bound(x[i,j], h2h_left[i,j]) # redundant, but could be useful for some solvers
@@ -532,7 +541,10 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
     @variable(model, x[1:num_teams,1:num_teams] >= 0, Int)
     for i = 1:num_teams
       set_upper_bound(x[i,i], 0)
-      for j = i+1:num_teams
+      for j = 1:num_teams
+        if i == j
+          continue
+        end
         con = @constraint(model, x[i,j] + x[j,i] == h2h_left[i,j]) # total wins in series matches total games played
         set_name(con, "series_$(i)_$(j)")
         set_upper_bound(x[i,j], h2h_left[i,j]) # redundant, but could be useful for some solvers
@@ -577,9 +589,12 @@ function resetMIP!(model, t, schedule, h2h, stats, math_elim_mode)
     end
   elseif math_elim_mode in [3,5]
     for i = 1:num_teams
-      for j = i+1:num_teams
+      for j = 1:num_teams
+        if i == j
+          continue
+        end
         set_lower_bound(variable_by_name(model, "x[$i,$j]"), h2h[i,j])
-        set_lower_bound(variable_by_name(model, "x[$j,$i]"), h2h[i,j])
+        set_lower_bound(variable_by_name(model, "x[$j,$i]"), h2h[j,i])
       end
     end
   end
@@ -637,15 +652,17 @@ function fixOutcome!(model, k, t, schedule, math_elim_mode)
   return
 end # fixOutcome
 
+"""
+fixVariables!
+Fix variables with respect to team k
+
+We do not do this for the cutoff-based formulation
+
+This means adjusting 
+  * W (i.e., changing the right-hand side of the appropriate constraints)
+  * fixing new variables as needed
+"""
 function fixVariables!(model, k, t, W, schedule, math_elim_mode)
-  ###
-  # Fix variables with respect to team k
-  # We do not do this for the cutoff-based formulation
-  #
-  # This means adjusting 
-  #   * W (i.e., changing the right-hand side of the appropriate constraints)
-  #   * fixing new variables as needed
-  ###
   if math_elim_mode < 1 || math_elim_mode in [4,5]
     return
   end
@@ -789,6 +806,12 @@ end # checkMIP
 
 """
 updateUsingMIPSolution!: Given a solution to the MIP, update best set of outcomes
+
+Updates
+  * best_outcomes
+  * best_h2h
+  * best_num_wins
+  * best_rank
 """
 function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_teams,
     best_outcomes, best_h2h, best_num_wins, best_rank, math_elim_mode)
@@ -818,7 +841,10 @@ function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_team
     end
   elseif math_elim_mode in [3,5] # xij
     for i = 1:num_teams
-      for j = i+1:num_teams 
+      for j = 1:num_teams 
+        if i == j
+          continue
+        end
         xij = variable_by_name(model, "x[$i,$j]")
         xji = variable_by_name(model, "x[$j,$i]")
         best_h2h[k,i,j] = Int(round(value.(xij)))
@@ -827,9 +853,9 @@ function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_team
     end
   end
 
-  if math_elim_mode in [2,3] # xit
+  if math_elim_mode in [2,3]
     best_rank[k] = Int(round(value.(model[:rank])))
-  elseif math_elim_mode in [4,5] # xij
+  elseif math_elim_mode in [4,5]
     if (value.(model[:W]) <= W)
       best_rank[k] = num_playoff_teams
     else
@@ -841,6 +867,12 @@ end # updateUsingMIPSolution
 
 """
 updateOtherUsingBestSolution!: Check whether other teams best schedule can be updated
+
+Updates
+  * best_outcomes
+  * best_h2h
+  * best_num_wins
+  * best_rank
 """
 function updateOthersUsingBestSolution!(k, t, schedule, num_playoff_teams,
     best_outcomes, best_h2h, best_num_wins, best_rank)

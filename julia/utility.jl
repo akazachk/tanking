@@ -195,23 +195,34 @@ function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, eli
 	return
 end # teamWillWin
 
+"""
+teamIsMathematicallyEliminated
+Check whether team k is mathematically eliminated
+
+Sets the best known rank each non-eliminated team can achieve
+as well as the corresponding stats and outcomes
+
+Parameters
+---
+  * k: team ind
+  * t: game ind
+  * conf: which conference each team belongs to (if empty, then assumed one conference)
+
+Updates
+  * model
+  * best_outcomes
+  * best_h2h
+  * best_num_wins
+  * best_rank
+
+Returns whether team k is eliminated and if a MIP solve was used
+"""
 function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
     best_outcomes, best_h2h, best_num_wins, best_rank, model,
     num_teams, num_playoff_teams, num_team_games, num_games_total, 
     math_elim_mode = 2, num_wins_ind = 2, games_left_ind = 3, conf=[])
-  ###
-  # teamIsMathematicallyEliminated
-  #   conf: which conference each team belongs to (if empty, then assumed one conference)
-  #
-  # Check whether team k is mathematically eliminated
-  #
-  # Sets the best known rank each non-eliminated team can achieve
-  # as well as the corresponding stats and outcomes
-  #
-  # Returns whether a MIP solve was used
-  ###
-  ## Return if team k is not eliminated in the existing heuristic solution
   mips_used = 0
+  ## Return immediately if team k is not eliminated in the existing heuristic solution
   if best_rank[k] > 0 && best_rank[k] <= num_playoff_teams
     return false, mips_used
   end
@@ -243,6 +254,15 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
     else
       best_rank[k] = -1
     end
+              ### START DEBUG
+              if false
+              ## Save the hard LP
+              lp_file = MathOptFormat.LP.Model()
+              MOI.copy_to(lp_file, backend(model))
+              name = string("model", math_elim_mode, ".lp")
+              MOI.write_to_file(lp_file, name)
+              end
+              ### END DEBUG
     resetMIP!(model, t+1, schedule, h2h, stats, math_elim_mode)
     mips_used = 1
   end
