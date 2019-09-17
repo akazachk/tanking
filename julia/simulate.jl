@@ -7,6 +7,8 @@
 include("utility.jl")
 include("mathelim.jl")
 
+DEBUG = false
+
 """
 simulate: Simulates a season
   * num_teams
@@ -187,8 +189,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       num_mips = 0
       model = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode)
       # START DEBUG
-      model2 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 2)
-      model3 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 3)
+      if DEBUG
+        model2 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 2)
+        model3 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 3)
+      end
       # END DEBUG
 
       ## Run one season
@@ -246,8 +250,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           updateHeuristicBestRank!(outcome[game_ind], game_ind, schedule, h2h, best_outcomes, best_h2h, best_num_wins, best_rank)
           fixOutcome!(model, outcome[game_ind], game_ind, schedule, math_elim_mode)
             ### START DEBUG
-          fixOutcome!(model2, outcome[game_ind], game_ind, schedule, 2)
-          fixOutcome!(model3, outcome[game_ind], game_ind, schedule, 3)
+            if DEBUG
+              fixOutcome!(model2, outcome[game_ind], game_ind, schedule, 2)
+              fixOutcome!(model3, outcome[game_ind], game_ind, schedule, 3)
+            end
             ### END DEBUG
         end
         
@@ -258,8 +264,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         # Loop through teams, checking each one's elimination status
         for k in 1:num_teams
           if math_elim_mode != 0 && !is_math_elim[k] && (math_elim_mode <= 3 || math_elim_mode >= 6 || k == 1)
-            ### START DEBUG DEBUG DEBUG
-            if false
+            ### START DEBUG
+            if DEBUG
               best_outcomes2 = copy(best_outcomes)
               best_h2h2 = copy(best_h2h)
               best_num_wins2 = copy(best_num_wins)
@@ -290,7 +296,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
               end
               @assert(is_elim2 == is_elim3)
             end
-            ### END DEBUG DEBUG DEBUG
+            ### END DEBUG
 
             # Mathematical elimination: solve MIP if heuristic does not find good schedule
             (is_math_elim[k], mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
