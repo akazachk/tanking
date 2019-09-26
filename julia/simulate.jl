@@ -187,7 +187,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       best_num_wins = zeros(Int, num_teams, num_teams)
       best_rank     = zeros(Int, num_teams)
       num_mips = 0
-      model = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode)
+      model = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, abs(math_elim_mode))
       # START DEBUG
       if DEBUG
         model2 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 2)
@@ -226,7 +226,9 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           rank_of_team, team_in_pos = updateRank(stats, rank_of_team, team_in_pos, k, team_k_wins, num_teams, win_pct_ind, games_left_ind, h2h) # update rank
           
           # If team k wins and has been eliminated, increment num wins since elim (for Gold ranking)
-          is_elim = math_elim_mode == 0 ? is_eff_elim[k] : is_math_elim[k] # note that we use math elimination if it has been calculated
+          # NB: this is NOT the same as the is_elim used for tanking decisions later
+          # Namely, we use math elimination here if it has been calculated, even if math_elim_mode < 0
+          is_elim = math_elim_mode == 0 ? is_eff_elim[k] : is_math_elim[k]
           if team_k_wins && is_elim
             num_wins_since_elim[k] += 1
           end
@@ -248,7 +250,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         if math_elim_mode != 0
           # Update mathematical elimination
           updateHeuristicBestRank!(outcome[game_ind], game_ind, schedule, h2h, best_outcomes, best_h2h, best_num_wins, best_rank)
-          fixOutcome!(model, outcome[game_ind], game_ind, schedule, math_elim_mode)
+          fixOutcome!(model, outcome[game_ind], game_ind, schedule, abs(math_elim_mode))
             ### START DEBUG
             if DEBUG
               fixOutcome!(model2, outcome[game_ind], game_ind, schedule, 2)
@@ -263,7 +265,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
 
         # Loop through teams, checking each one's elimination status
         for k in 1:num_teams
-          if math_elim_mode != 0 && !is_math_elim[k] && (math_elim_mode <= 3 || math_elim_mode >= 6 || k == 1)
+          if math_elim_mode != 0 && !is_math_elim[k] && (abs(math_elim_mode) <= 3 || abs(math_elim_mode) >= 6 || k == 1)
             ### START DEBUG
             if DEBUG
               best_outcomes2 = copy(best_outcomes)
@@ -302,7 +304,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             (is_math_elim[k], mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
                 schedule, stats, outcome, h2h, best_outcomes, best_h2h, best_num_wins, best_rank, model,
                 num_teams, num_playoff_teams, num_team_games, num_games_total,
-                math_elim_mode, wins_ind, games_left_ind)
+                abs(math_elim_mode), wins_ind, games_left_ind)
             num_mips += mips_used
             num_math_elim += is_math_elim[k]
             math_elim_game[k] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
@@ -332,7 +334,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
             (is_math_elim[k], mips_used) = teamIsMathematicallyEliminated!(k, game_ind, 
                 schedule, stats, outcome, h2h, best_outcomes, best_h2h, best_num_wins, best_rank, model,
                 num_teams, num_playoff_teams, num_team_games, num_games_total,
-                math_elim_mode, wins_ind, games_left_ind)
+                abs(math_elim_mode), wins_ind, games_left_ind)
             num_mips += mips_used
             num_math_elim += is_math_elim[k]
         end
