@@ -36,7 +36,7 @@ nba_odds_list = [nba_odds_new, nba_odds_old, nba_odds_flat]
 breakpoint_list = [1//2; 2//3; 3//4; 5//6; 7//8; 1]
 num_rankings = length(breakpoint_list)
 shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
-col = ["red", "orange", "green", "blue", "violet", "black"]
+col = ["red", "orange", "green", "blue", "violet", "black", "gray"]
 #color_for_cutoff_point = ["c" "b" "m" "r" "k"]
 num_teams = 30 # number of teams
 num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
@@ -139,7 +139,7 @@ else
 		rc("figure", figsize=[6*upscale,4*upscale]) # note that axes may change depending on label size
 		#rc("figure", figsize=[6*1.5,4*1.5])
 		rc("savefig", transparent=false)
-		#rc("savefig", bbox="tight")
+		rc("savefig", bbox="tight")
 		rc("savefig", pad_inches=0.0015 * upscale) # to allow for g,y,f to be not cut off
 		rc("savefig", dpi=DPI)
 	end
@@ -287,8 +287,18 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot(0:(1/num_steps):1, kend[:,r,1], label=curr_label, color=col[r])
+				plot(0:(1/num_steps):1, kend[:,r,avg_stat], label=curr_label, color=col[r])
 			end
+
+      # Also plot kend_nba (current and new) and kend_lenten (flat line)
+      curr_label = "NBA (current)"
+      plot(0:(1/num_steps):1, kend_nba[:,1,avg_stat], label=curr_label, color="gray")
+      curr_label = "NBA (new)"
+      plot(0:(1/num_steps):1, kend_nba[:,2,avg_stat], label=curr_label, color="gray", marker=".")
+      curr_label = "Lenten"
+      plot(0:(1/num_steps):1, [kend_lenten[avg_stat] for i in 0:(1/num_steps):1], label=curr_label, color="gray", marker="x")
+      #axhline(kend_lenten[avg_stat], label=curr_label, color="gray", marker="x")
+
 			#legend(bbox_to_anchor=[.65,.95],loc="upper left", title=legendtitlestring) 
 			legend(bbox_to_anchor=[0,.95],loc="upper left", title=legendtitlestring) 
 			PyPlot.savefig(fname)
