@@ -74,7 +74,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   kend_out            = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats) # Kendall tau distance for bilevel ranking
   kend_nba_out        = zeros(Float64, num_steps+1, length(nba_odds_list), num_stats) # Kendall tau distance for NBA draft lottery system
   kend_gold_out       = zeros(Float64, 1, num_stats) # Kendall tau distance for Gold proposal
-  kend_lenten_out     = zeros(Float64, 1, num_stats) # Kendall tau distance for Lenten proposal
+  kend_lenten_out     = zeros(Float64, num_steps+1, num_stats) # Kendall tau distance for Lenten proposal
   num_mips_out        = zeros(Float64, num_steps+1, num_stats) # number of MIPs solved in the course of a season
   games_tanked_out    = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats) # number of games tanked by each breakpoint
   already_tank_out    = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats) # number of teams tanking by each breakpoint
@@ -87,7 +87,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   kend_out[:,:,min_stat]            = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
   kend_nba_out[:,:,min_stat]        = BIG_NUMBER * ones(num_steps+1, length(nba_odds_list))
   kend_gold_out[min_stat]           = BIG_NUMBER
-  kend_lenten_out[min_stat]         = BIG_NUMBER
+  kend_lenten_out[:,min_stat]       = BIG_NUMBER
   games_tanked_out[:,:,min_stat]    = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
   already_tank_out[:,:,min_stat]    = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
   math_eliminated_out[:,:,min_stat] = BIG_NUMBER * ones(num_steps+1, num_games_total)
@@ -387,6 +387,22 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         @views updateStats!(kend_nba_out[step_ind, r, :], curr_kend, num_replications)
       end
 
+      ## Compute Lenten Kendall tau distance
+      ## Lenten ranking: the fewer games a team has played when it is eliminated, the higher it is in the draft
+      ranking_lenten = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
+      ranking_lenten[:,1] = nonplayoff_teams
+      ranking_lenten[:,2] = math_elim_mode == 0 ? eff_elim_game[nonplayoff_teams] : math_elim_game[nonplayoff_teams] # not using negative, because we will sort high-to-low later
+      for tmp_team_ind = 1:num_teams - num_playoff_teams
+        if ranking_lenten[tmp_team_ind,2] < 0 # was never eliminated
+          # Team was not eliminated but did not make the playoffs
+          # It is so far unranked from Lenten perspective
+          # Should be ranked higher than teams eliminated earlier
+          ranking_lenten[tmp_team_ind,2] = num_games_total + 1
+        end
+      end
+      curr_kend = kendtau(ranking_lenten, 2, true_strength, mode) # having a higher elimination index means Lenten ranks the team better (since it was eliminated later), i.e., it has a worse draft pick
+      @views updateStats!(kend_lenten_out[step_ind,:], curr_kend, num_replications)
+
       ## When there is no tanking, compute the Gold and Lenten methods
       if (tank_perc == 0.0)
         ## Gold's ranking: based on number of wins since a team was eliminated
@@ -395,21 +411,6 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         ranking_gold[:,2] = -1 * num_wins_since_elim[nonplayoff_teams] # negative because teams with more wins need to be ranked worse (as they are given a _better_ draft pick)
         curr_kend = kendtau(ranking_gold, 2, true_strength, mode)
         @views updateStats!(kend_gold_out, curr_kend, num_replications)
-
-        ## Lenten ranking: the fewer games a team has played when it is eliminated, the higher it is in the draft
-        ranking_lenten = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
-        ranking_lenten[:,1] = nonplayoff_teams
-        ranking_lenten[:,2] = math_elim_mode == 0 ? eff_elim_game[nonplayoff_teams] : math_elim_game[nonplayoff_teams] # not using negative, because we will sort high-to-low later
-        for tmp_team_ind = 1:num_teams - num_playoff_teams
-          if ranking_lenten[tmp_team_ind,2] < 0 # was never eliminated
-            # Team was not eliminated but did not make the playoffs
-            # It is so far unranked from Lenten perspective
-            # Should be ranked higher than teams eliminated earlier
-            ranking_lenten[tmp_team_ind,2] = num_games_total + 1
-          end
-        end
-        curr_kend = kendtau(ranking_lenten, 2, true_strength, mode) # having a higher elimination index means Lenten ranks the team better (since it was eliminated later), i.e., it has a worse draft pick
-        @views updateStats!(kend_lenten_out, curr_kend, num_replications)
       end # check if tank_perc == 0 (for computing Lenten and Gold rankings)
     end # do replications
 
@@ -431,10 +432,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
 
     num_mips_out[step_ind, stddev_stat]   -= num_mips_out[step_ind, avg_stat]^2
     num_unelim_out[step_ind, stddev_stat] -= num_unelim_out[step_ind, avg_stat]^2
+    kend_lenten_out[step_ind, stddev_stat] -= kend_lenten_out[step_ind, avg_stat]^2
 
     if (tank_perc == 0.0)
       kend_gold_out[stddev_stat]   -= kend_gold_out[avg_stat]^2
-      kend_lenten_out[stddev_stat] -= kend_lenten_out[avg_stat]^2
     end
     #println("num_mips_out: ", num_mips_out[step_ind,:])
     #quit()
