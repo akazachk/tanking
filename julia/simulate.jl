@@ -87,7 +87,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   kend_out[:,:,min_stat]            = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
   kend_nba_out[:,:,min_stat]        = BIG_NUMBER * ones(num_steps+1, length(nba_odds_list))
   kend_gold_out[min_stat]           = BIG_NUMBER
-  kend_lenten_out[:,min_stat]       = BIG_NUMBER
+  kend_lenten_out[:,min_stat]       = BIG_NUMBER * ones(num_steps+1)
   games_tanked_out[:,:,min_stat]    = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
   already_tank_out[:,:,min_stat]    = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
   math_eliminated_out[:,:,min_stat] = BIG_NUMBER * ones(num_steps+1, num_games_total)
