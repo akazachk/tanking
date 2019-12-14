@@ -541,7 +541,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 	num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718 = parseNBASeason("games1718.csv", breakpoint_list, data_dir)
 
 	# Retrieve data for avg_eliminated
-	avg_eliminated = readdlm(string(results_dir, "/avg_eliminated", csvext), ',')
+	avg_eliminated = readdlm(string(results_dir, "/avg_eff_eliminated", csvext), ',')
 	num_steps = size(avg_eliminated)[1] - 1
 	avg_eliminated = sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1)
 
@@ -716,6 +716,8 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 			Plots.savefig(fname)
 			Plots.savefig(fname_low)
 		end
+
+    writedlm(string(results_dir, "/", "nba_num_eliminated", csvext), num_teams_eliminated, ",")
 
 		# Print number of teams eliminated
 #		print("Plotting num_teams_eliminated: number of eliminated teams by the breakpoint mark\n")

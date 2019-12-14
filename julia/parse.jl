@@ -29,8 +29,11 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 	cutoff_game_for_draft = [round(breakpoint_list[i] * num_games_total) for i in 1:length(breakpoint_list)]
 
 	## Set constants
-  USE_MATH_ELIM = true # false: use effective elimination, true: use mathematical elimination
-  CALC_MATH_ELIM = 2 # 0: do not calculate, 1: use heuristic only, 2: use MIP
+  USE_MATH_ELIM = false # false: use effective elimination, true: use mathematical elimination
+  CALC_MATH_ELIM = 0 # 0: do not calculate, 1: use heuristic only, 2: use MIP
+  h2h_left = []
+  math_elim_mode = 0
+
 	num_teams = 30
 	num_teams_per_conf = 15
 	num_playoff_teams_per_conf = 8
@@ -64,7 +67,7 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
   best_num_wins = zeros(Int, num_teams, num_teams)
   best_rank = zeros(Int, num_teams)
   num_mips = 0
-  model = CALC_MATH_ELIM > 1 ? setupMIP(schedule, num_teams, num_playoff_teams, num_team_games, num_games_total) : 0
+  model = CALC_MATH_ELIM > 1 ? setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode) : 0
 
 	## Critical game is the point at which the team is eliminated (effectively or mathematically)
 	## where effectively means that it cannot make the playoffs if the last team continues playing at the same average win rate
@@ -78,7 +81,7 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 	games_left_ind = 4
   elim_ind = 5 # games left when eliminated
 	win_pct_ind = 6
-	stats = Matrix{Any}(undef, num_teams, 5) # [team name, wins, losses, games left, win pct]
+	stats = Matrix{Any}(undef, num_teams, 6) # [team name, wins, losses, games left, win pct]
 	for i = 1:num_teams
 		stats[i,name_ind] = i # name
 		stats[i,wins_ind] = 0 # wins
