@@ -49,7 +49,7 @@ function heuristicBestRank(k, t, schedule, in_stats, in_outcome, in_h2h,
   end
   
   ## Make copies of input data
-  # TODO is calling copy needed?
+  # Calling copy is needed
   stats = copy(in_stats)
   outcome = copy(in_outcome)
   h2h = copy(in_h2h)
@@ -925,15 +925,15 @@ so a ``retrospective'' worst rank is not possible without first updating outcome
 Returns outcome, h2h, num_wins, rank_of_team
 """
 function heuristicWorstRank(k, t, schedule, in_stats, in_outcome, in_h2h, num_wins_ind = 2, games_left_ind = 3)
-  num_games_total = size(schedule, 1)
-  num_teams = size(in_stats, 1)
-  
   ## Make copies of input data
-  # TODO is calling copy needed?
+  # Calling copy is needed
   stats = copy(in_stats)
   outcome = copy(in_outcome)
   h2h = copy(in_h2h)
 
+  num_games_total = size(schedule, 1)
+  num_teams = size(stats, 1)
+  
   ## Calculate W
   thisTeamLosesRemainingGames!(k, t, schedule, stats, outcome, h2h, num_wins_ind, games_left_ind)
   W = stats[k, num_wins_ind]

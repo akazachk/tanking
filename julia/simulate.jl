@@ -56,6 +56,23 @@ Parameters
 
 Returns
 ---
+  * kend
+  * kend_nba
+  * kend_gold
+  * kend_lenten
+  * games_tanked
+  * already_tank
+  * math_eliminated
+  * eff_eliminated
+  * num_mips
+  * num_unelim
+  * avg_rank_strat
+  * avg_rank_moral
+  * avg_elim_rank_strat
+  * avg_elim_rank_moral
+  * avg_diff_rank_strat
+  * avg_diff_rank_moral
+  * num_missing_case
 """
 function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode=-2)
 
@@ -89,6 +106,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   num_unelim_out      = zeros(Float64, num_steps+1, num_stats) # number teams eff elim then not not elim
   avg_rank_strat_out  = zeros(Float64, num_steps+1, num_stats) # avg rank of strategic teams
   avg_rank_moral_out  = zeros(Float64, num_steps+1, num_stats) # avg rank of moral teams
+  avg_elim_rank_strat_out = zeros(Float64, num_steps+1, num_stats) # avg rank of eliminated strategic teams
+  avg_elim_rank_moral_out = zeros(Float64, num_steps+1, num_stats) # avg rank of eliminated moral teams
   avg_diff_rank_strat_out = zeros(Float64, num_steps+1, num_stats) # avg of diff between true and calc ranks of strategic teams
   avg_diff_rank_moral_out = zeros(Float64, num_steps+1, num_stats) # avg of diff between true and calc ranks of moral teams
   num_missing_case_out = zeros(Float64, num_steps+1, num_stats) # number teams eff elim then not not elim
@@ -107,6 +126,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   num_unelim_out[:,min_stat]        = BIG_NUMBER * ones(num_steps+1)
   avg_rank_strat_out[:,min_stat]    = BIG_NUMBER * ones(num_steps+1)
   avg_rank_moral_out[:,min_stat]    = BIG_NUMBER * ones(num_steps+1)
+  avg_elim_rank_strat_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
+  avg_elim_rank_moral_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
   avg_diff_rank_strat_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
   avg_diff_rank_moral_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
 
@@ -143,12 +164,26 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   draft_rank_of_team = Array{Any}(undef, num_teams, length(breakpoint_game_for_draft))
 
   ## Begin calculations
+  decide_tanking_with_prob = true
+  if num_steps == num_teams
+    decide_tanking_with_prob = false
+  end
   for step_ind in 1:length(array_of_tanking_probabilities)
     tank_perc = array_of_tanking_probabilities[step_ind]
+    num_repl_for_avg = 0
     print("Simulating season with $tank_perc ratio of teams tanking\n")
     for rep = 1:num_replications
       print("\tReplication $rep/$num_replications, ratio $tank_perc\n")
       
+      ## Prepare to decide strategic teams
+      num_tanking = 0
+      teamperm = 0
+      if !decide_tanking_with_prob
+        num_tanking = Int(round(tank_perc * num_teams))
+        teamperm = randperm(num_teams)
+        teamperm = teamperm[1:num_tanking]
+      end
+
       ## Set up stats for current replication
       for i = 1:num_teams
         stats[i,name_ind]       = i # team name
@@ -157,10 +192,19 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         stats[i,games_left_ind] = num_team_games # num games left
         stats[i,elim_ind]       = -1 # when team is eliminated (game_ind)
         stats[i,win_pct_ind]    = 0.0 # win percentage
-        if rand() > tank_perc
-          stats[i,will_tank_ind] = 0 # will not tank (team is "moral")
+        if decide_tanking_with_prob
+          if rand() > tank_perc
+            stats[i,will_tank_ind] = 0 # will not tank (team is "moral")
+          else
+            stats[i,will_tank_ind] = 1 # will tank (team is "strategic")
+            num_tanking += 1
+          end
         else
-          stats[i,will_tank_ind] = 1 # will tank (team is "strategic")
+          if num_tanking > 0 && i in teamperm
+            stats[i,will_tank_ind] = 1 # will tank (team is "strategic")
+          else
+            stats[i,will_tank_ind] = 0 # will not tank (team is "moral")
+          end
         end
       end # set up stats array
 
@@ -172,6 +216,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       num_games_tanked    = 0
       rank_strat          = 0
       rank_moral          = 0
+      elim_rank_strat     = 0
+      elim_rank_moral     = 0
       diff_rank_strat     = 0
       diff_rank_moral     = 0
       outcome             = zeros(Int, num_games_total)
@@ -422,6 +468,11 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       ## Make sure teams that were eliminated actually did not make the playoffs
       for i = 1:num_teams
         if (best_rank[i] < 0)
+          if (rank_of_team[i] <= num_playoff_teams)
+            println("violation found for team $i")
+            println("best_rank: ", best_rank)
+            println("rank_of_team: ", rank_of_team)
+          end
           @assert(rank_of_team[i] > num_playoff_teams)
         end
       end
@@ -485,31 +536,61 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       end # check if tank_perc == 0 (for computing Lenten and Gold rankings)
 
       ## Compute true vs calculated ranking among nonplayoff teams
-      num_tanking = 0
-      for tmp_i = 1:length(nonplayoff_teams)
-        i = nonplayoff_teams[tmp_i]
+      # We look at eliminated teams, and we recalculated the number of eliminated teams that tank
+      # This number may be different from num_teams_tanking because we want to account for cases
+      # in which teams would have tanked if given the chance, but did not
+      # (otherwise, we are overstating the effect that tanking teams can have)
+      num_elim_tanking = 0
+      for i in team_in_pos[1:num_playoff_teams]
         if (stats[i,will_tank_ind] == 1)
-          rank_strat += rank_of_team[i]
-          diff_rank_strat += (rank_of_team[i] - i)
-          num_tanking += 1
+          rank_strat += rank_of_team[i] / num_teams
         else
-          rank_moral += rank_of_team[i]
+          rank_moral += rank_of_team[i] / num_teams
+        end
+      end
+      for i in nonplayoff_teams
+        if (stats[i,will_tank_ind] == 1)
+          num_elim_tanking += 1
+          rank_strat += rank_of_team[i] / num_teams
+          elim_rank_strat += rank_of_team[i]
+          diff_rank_strat += (rank_of_team[i] - i)
+        else
+          rank_moral += rank_of_team[i] / num_teams
+          elim_rank_moral += rank_of_team[i]
           diff_rank_moral += (rank_of_team[i] - i)
         end
       end
-      if num_tanking > 0
-        rank_strat /= num_tanking
-        diff_rank_strat /= num_tanking
+      if num_elim_tanking > 0
+        elim_rank_strat /= num_elim_tanking
+        diff_rank_strat /= num_elim_tanking
       end
-      if num_teams - num_playoff_teams - num_tanking > 0
-        rank_moral /= (num_teams - num_playoff_teams - num_tanking)
-        diff_rank_moral /= (num_teams - num_playoff_teams - num_tanking)
+      if num_teams - num_playoff_teams - num_elim_tanking > 0
+        elim_rank_moral /= (num_teams - num_playoff_teams - num_elim_tanking)
+        diff_rank_moral /= (num_teams - num_playoff_teams - num_elim_tanking)
       end
+
       @views updateStats!(avg_rank_strat_out[step_ind,:], rank_strat, num_replications)
       @views updateStats!(avg_rank_moral_out[step_ind,:], rank_moral, num_replications)
-      @views updateStats!(avg_diff_rank_strat_out[step_ind,:], diff_rank_strat, num_replications)
-      @views updateStats!(avg_diff_rank_moral_out[step_ind,:], diff_rank_moral, num_replications)
+      if (num_elim_tanking > 0) && (num_teams - num_playoff_teams - num_elim_tanking > 0)
+        num_repl_for_avg += 1
+        @views updateStats!(avg_elim_rank_strat_out[step_ind,:], elim_rank_strat, 1)
+        @views updateStats!(avg_elim_rank_moral_out[step_ind,:], elim_rank_moral, 1)
+        @views updateStats!(avg_diff_rank_strat_out[step_ind,:], diff_rank_strat, 1)
+        @views updateStats!(avg_diff_rank_moral_out[step_ind,:], diff_rank_moral, 1)
+      end
     end # do replications
+
+    ## Update average for those stats that were not over all replications
+    # avg
+    avg_elim_rank_strat_out[step_ind,avg_stat] /= num_repl_for_avg
+    avg_elim_rank_moral_out[step_ind,avg_stat] /= num_repl_for_avg
+    avg_diff_rank_strat_out[step_ind,avg_stat] /= num_repl_for_avg
+    avg_diff_rank_moral_out[step_ind,avg_stat] /= num_repl_for_avg
+    # stddev
+    avg_elim_rank_strat_out[step_ind,stddev_stat] /= num_repl_for_avg
+    avg_elim_rank_moral_out[step_ind,stddev_stat] /= num_repl_for_avg
+    avg_diff_rank_strat_out[step_ind,stddev_stat] /= num_repl_for_avg
+    avg_diff_rank_moral_out[step_ind,stddev_stat] /= num_repl_for_avg
 
     ## Compute standard deviation
     # Var[X] = E[X^2] - E[X]^2 
@@ -532,6 +613,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
     kend_lenten_out[step_ind, stddev_stat] -= kend_lenten_out[step_ind, avg_stat]^2
     avg_rank_strat_out[step_ind, stddev_stat] -= avg_rank_strat_out[step_ind, avg_stat]^2
     avg_rank_moral_out[step_ind, stddev_stat] -= avg_rank_moral_out[step_ind, avg_stat]^2
+    avg_elim_rank_strat_out[step_ind, stddev_stat] -= avg_elim_rank_strat_out[step_ind, avg_stat]^2
+    avg_elim_rank_moral_out[step_ind, stddev_stat] -= avg_elim_rank_moral_out[step_ind, avg_stat]^2
     avg_diff_rank_strat_out[step_ind, stddev_stat] -= avg_diff_rank_strat_out[step_ind, avg_stat]^2
     avg_diff_rank_moral_out[step_ind, stddev_stat] -= avg_diff_rank_moral_out[step_ind, avg_stat]^2
     num_missing_case_out[step_ind, stddev_stat] -= num_missing_case_out[step_ind, avg_stat]^2
@@ -539,8 +622,6 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
     if (tank_perc == 0.0)
       kend_gold_out[stddev_stat] -= kend_gold_out[avg_stat]^2
     end
-    #println("num_mips_out: ", num_mips_out[step_ind,:])
-    #quit()
   end # looping over tanking percentages
 
   return kend_out, kend_nba_out, kend_gold_out, kend_lenten_out,
@@ -548,6 +629,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       math_eliminated_out, eff_eliminated_out, 
       num_mips_out, num_unelim_out,
       avg_rank_strat_out, avg_rank_moral_out,
+      avg_elim_rank_strat_out, avg_elim_rank_moral_out,
       avg_diff_rank_strat_out, avg_diff_rank_moral_out,
       num_missing_case_out
 end # simulate

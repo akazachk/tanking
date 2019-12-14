@@ -175,8 +175,8 @@ Parameters
   <0: use effective elimination for tanking, but calculate mathematical elimination
 """
 function main_simulate(;do_simulation = true, num_replications = 100000, 
-    do_plotting = true, mode=MODE, results_dir = "../results", 
-    num_rounds = 3, num_steps = 20, gamma = 0.75, 
+    do_plotting = true, mode = MODE, results_dir = "../results", 
+    num_rounds = 3, num_steps = num_teams, gamma = 0.75, 
     math_elim_mode = -2)
 	set_mode(mode)
   Random.seed!(628) # for reproducibility
@@ -201,6 +201,8 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
   num_unelim            = 0 # [step,stat], number of teams eff elim, then uneliminated
   avg_rank_strat        = 0 # [step,stat], average rank of strategic teams
   avg_rank_moral        = 0 # [step,stat], average rank of moral teams
+  avg_elim_rank_strat   = 0 # [step,stat], average rank of eliminated strategic teams
+  avg_elim_rank_moral   = 0 # [step,stat], average rank of eliminated moral teams
   avg_diff_rank_strat   = 0 # [step,stat], average of differences between true and calculated ranks of strategic teams
   avg_diff_rank_moral   = 0 # [step,stat], average of differences between true and calculated ranks of moral teams
   num_missing_case      = 0 # [step,stat], number of times incomplete case is encountered (\delta < \tau_i \le t + conditions)
@@ -219,6 +221,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
     kend, kend_nba, kend_gold, kend_lenten, games_tanked, already_tank, 
       math_eliminated, eff_eliminated, num_mips, num_unelim, 
       avg_rank_strat, avg_rank_moral,
+      avg_elim_rank_strat, avg_elim_rank_moral,
       avg_diff_rank_strat, avg_diff_rank_moral,
       num_missing_case = 
         simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode)
@@ -235,6 +238,8 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
       writedlm(string(results_dir, "/", prefix[stat], "num_unelim", csvext), num_unelim[:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "avg_rank_strat", csvext), avg_rank_strat[:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "avg_rank_moral", csvext), avg_rank_moral[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_strat", csvext), avg_elim_rank_strat[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_moral", csvext), avg_elim_rank_moral[:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_strat", csvext), avg_diff_rank_strat[:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_moral", csvext), avg_diff_rank_moral[:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "num_missing_case", csvext), num_missing_case[:,stat], ',')
@@ -256,6 +261,8 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
     num_unelim          = zeros(Float64, num_steps+1, num_stats)
     avg_rank_strat      = zeros(Float64, num_steps+1, num_stats)
     avg_rank_moral      = zeros(Float64, num_steps+1, num_stats)
+    avg_elim_rank_strat = zeros(Float64, num_steps+1, num_stats)
+    avg_elim_rank_moral = zeros(Float64, num_steps+1, num_stats)
     avg_diff_rank_strat = zeros(Float64, num_steps+1, num_stats)
     avg_diff_rank_moral = zeros(Float64, num_steps+1, num_stats)
     num_missing_case    = zeros(Float64, num_steps+1, num_stats)
@@ -271,6 +278,8 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
       num_unelim[:,stat]        = readdlm(string(results_dir, "/", prefix[stat], "num_unelim", csvext), ',')
       avg_rank_strat[:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "avg_rank_strat", csvext), ',') 
       avg_rank_moral[:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "avg_rank_moral", csvext), ',') 
+      avg_elim_rank_strat[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_strat", csvext), ',') 
+      avg_elim_rank_moral[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_moral", csvext), ',') 
       avg_diff_rank_strat[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_strat", csvext), ',') 
       avg_diff_rank_moral[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_moral", csvext), ',') 
       num_missing_case[:,stat]  = readdlm(string(results_dir, "/", prefix[stat], "num_missing_case", csvext), ',')
