@@ -145,7 +145,7 @@ else
 	end
 end
 
-@doc """
+"""
 `main_simulate`: Simulate a season and plot output
 
 Parameters
@@ -162,22 +162,22 @@ Parameters
        Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game.
 
 * `results_dir`: where results should be saved and can be found
- * `num_rounds`: a round consists of each team playing each other team
- * `num_steps`: discretization of [0,1] for tanking probability
- * `gamma`: probability a better-ranked team wins over a worse-ranked team
- * `math_elim_mode`: 
-   0: use effective elimination, 
-   1: use mathematical elimination, but calculated by heuristics only, 
-   2: use math elim, binary MIP, team-wise formulation
-   3: use math elim, general integer MIP, team-wise formulation
-   4: use math elim, binary MIP, cutoff formulation
-   5: use math elim, general integer MIP, cutoff formulation
-   <0: use effective elimination, but calculate mathematical elimination
+* `num_rounds`: a round consists of each team playing each other team
+* `num_steps`: discretization of [0,1] for tanking probability
+* `gamma`: probability a better-ranked team wins over a worse-ranked team
+* `math_elim_mode`: identify when a team is eliminated, and will stop tanking
+  0: use effective elimination, 
+  1: use mathematical elimination, but calculated by heuristics only, 
+  2: use math elim, binary MIP, team-wise formulation
+  3: use math elim, general integer MIP, team-wise formulation
+  4: use math elim, binary MIP, cutoff formulation
+  5: use math elim, general integer MIP, cutoff formulation
+  <0: use effective elimination for tanking, but calculate mathematical elimination
 """
 function main_simulate(;do_simulation = true, num_replications = 100000, 
-    do_plotting=true, mode=MODE, results_dir = "../results", 
+    do_plotting = true, mode=MODE, results_dir = "../results", 
     num_rounds = 3, num_steps = 20, gamma = 0.75, 
-    math_elim_mode = 2)
+    math_elim_mode = -2)
 	set_mode(mode)
   Random.seed!(628) # for reproducibility
 
@@ -189,16 +189,21 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 	num_games           = num_rounds * num_games_per_round
 
 	## For output
-	kend            = 0 # [step,cutoff,stat], holds KT distance for each tanking probability and cutoff for draft ranking
-  kend_nba        = 0 # [step,odds,stat], KT distance based on NBA ranking
-	kend_gold       = 0 # [:,stat], ranking based on number of wins since elimination point
-	kend_lenten     = 0 # [step,stat], ranking in order of first-to-eliminated
-	games_tanked    = 0 # [step,cutoff,stat], number games tanked by cutoff
-	already_tank    = 0 # [step,cutoff,stat], number teams already tanking by the cutoff
-	math_eliminated = 0 # [step,game,stat], number teams eliminated by each game
-	eff_eliminated  = 0 # [step,game,stat], number teams eliminated by each game
-  num_mips        = 0  # [step,stat], number of MIPs solved
-  num_unelim      = 0  # [step,stat], number of teams eff elim, then uneliminated
+	kend                  = 0 # [step,cutoff,stat], holds KT distance for each tanking probability and cutoff for draft ranking
+  kend_nba              = 0 # [step,odds,stat], KT distance based on NBA ranking
+	kend_gold             = 0 # [:,stat], ranking based on number of wins since elimination point
+	kend_lenten           = 0 # [step,stat], ranking in order of first-to-eliminated
+	games_tanked          = 0 # [step,cutoff,stat], number games tanked by cutoff
+	already_tank          = 0 # [step,cutoff,stat], number teams already tanking by the cutoff
+	math_eliminated       = 0 # [step,game,stat], number teams eliminated by each game
+	eff_eliminated        = 0 # [step,game,stat], number teams eliminated by each game
+  num_mips              = 0 # [step,stat], number of MIPs solved
+  num_unelim            = 0 # [step,stat], number of teams eff elim, then uneliminated
+  avg_rank_strat        = 0 # [step,stat], average rank of strategic teams
+  avg_rank_moral        = 0 # [step,stat], average rank of moral teams
+  avg_diff_rank_strat   = 0 # [step,stat], average of differences between true and calculated ranks of strategic teams
+  avg_diff_rank_moral   = 0 # [step,stat], average of differences between true and calculated ranks of moral teams
+  num_missing_case      = 0 # [step,stat], number of times incomplete case is encountered (\delta < \tau_i \le t + conditions)
 
   ## Stats we keep
   avg_stat    = 1
@@ -211,7 +216,11 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 	## Do simulation or retrieve data
 	if do_simulation
 		## Do simulation
-    kend, kend_nba, kend_gold, kend_lenten, games_tanked, already_tank, math_eliminated, eff_eliminated, num_mips, num_unelim = 
+    kend, kend_nba, kend_gold, kend_lenten, games_tanked, already_tank, 
+      math_eliminated, eff_eliminated, num_mips, num_unelim, 
+      avg_rank_strat, avg_rank_moral,
+      avg_diff_rank_strat, avg_diff_rank_moral,
+      num_missing_case = 
         simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode)
 
     for stat = 1:num_stats
@@ -224,6 +233,11 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
       writedlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), eff_eliminated[:,:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "num_mips", csvext), num_mips[:,stat], ',')
       writedlm(string(results_dir, "/", prefix[stat], "num_unelim", csvext), num_unelim[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_rank_strat", csvext), avg_rank_strat[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_rank_moral", csvext), avg_rank_moral[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_strat", csvext), avg_diff_rank_strat[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_moral", csvext), avg_diff_rank_moral[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "num_missing_case", csvext), num_missing_case[:,stat], ',')
     end
     writedlm(string(results_dir, "/", "kend_gold", csvext), kend_gold, ',')
 	else
@@ -240,6 +254,11 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
     eff_eliminated      = zeros(Float64, num_steps+1, num_games_total, num_stats)
     num_mips            = zeros(Float64, num_steps+1, num_stats)
     num_unelim          = zeros(Float64, num_steps+1, num_stats)
+    avg_rank_strat      = zeros(Float64, num_steps+1, num_stats)
+    avg_rank_moral      = zeros(Float64, num_steps+1, num_stats)
+    avg_diff_rank_strat = zeros(Float64, num_steps+1, num_stats)
+    avg_diff_rank_moral = zeros(Float64, num_steps+1, num_stats)
+    num_missing_case    = zeros(Float64, num_steps+1, num_stats)
     for stat = 1:num_stats
       kend[:,:,stat]            = readdlm(string(results_dir, "/", prefix[stat], "kend", csvext), ',')
       kend_lenten[:,stat]       = readdlm(string(results_dir, "/", prefix[stat], "kend_lenten", csvext), ',')
@@ -250,6 +269,11 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
       eff_eliminated[:,:,stat]  = readdlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), ',')
       num_mips[:,stat]          = readdlm(string(results_dir, "/", prefix[stat], "num_mips", csvext), ',')
       num_unelim[:,stat]        = readdlm(string(results_dir, "/", prefix[stat], "num_unelim", csvext), ',')
+      avg_rank_strat[:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "avg_rank_strat", csvext), ',') 
+      avg_rank_moral[:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "avg_rank_moral", csvext), ',') 
+      avg_diff_rank_strat[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_strat", csvext), ',') 
+      avg_diff_rank_moral[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_moral", csvext), ',') 
+      num_missing_case[:,stat]  = readdlm(string(results_dir, "/", prefix[stat], "num_missing_case", csvext), ',')
     end
     kend_gold = readdlm(string(results_dir, "/", "kend_gold", csvext), ',')
 	end

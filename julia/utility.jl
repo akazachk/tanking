@@ -220,7 +220,7 @@ Returns whether team k is eliminated and if a MIP solve was used
 function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
     best_outcomes, best_h2h, best_num_wins, best_rank, model,
     num_teams, num_playoff_teams, num_team_games, num_games_total, 
-    math_elim_mode = 2, num_wins_ind = 2, games_left_ind = 3, conf=[])
+    math_elim_mode = -2, wins_ind = 2, games_left_ind = 3, conf=[])
   mips_used = 0
   ## Return immediately if team k is not eliminated in the existing heuristic solution
   if best_rank[k] > 0 && best_rank[k] <= num_playoff_teams
@@ -234,7 +234,7 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
   heur_outcome, heur_h2h, heur_num_wins, heur_rank = 
       heuristicBestRank(k, t, schedule, stats, outcome, h2h,
           best_outcomes, best_h2h, best_num_wins, best_rank,
-          num_playoff_teams, num_wins_ind, games_left_ind)
+          num_playoff_teams, wins_ind, games_left_ind)
 
   ## If the heuristic solution is enough, stop here; else, go on to the MIP
   if heur_rank[k] <= num_playoff_teams
@@ -244,7 +244,7 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
     best_rank[k] = heur_rank[k]
   elseif math_elim_mode > 1
     #print("Game $t, Team $k: Running MIP. Best rank: ", best_rank[k], " Heur rank: ", heur_rank[k], "\n")
-    W =  stats[k, num_wins_ind] + stats[k, games_left_ind]
+    W =  stats[k, wins_ind] + stats[k, games_left_ind]
     fixVariables!(model, k, t+1, W, schedule, math_elim_mode)
     #W, w, x, y, z = setIncumbent!(model, k, t, schedule, heur_outcome)
     if solveMIP!(model)
@@ -350,41 +350,84 @@ function sortTeams(stats, best_to_worst = true, win_pct_ind = 5, games_left_ind 
 	return sorted
 end # sortTeams
 
-function rankTeamsFromWinTotals(num_wins)
+"""
+rankTeamsFromWinTotals
+
+Parameters
+---
+  * `num_wins`
+  * `be_optimistic`: (default true) assume teams can achieve best-possible ranking based on win total (if false, use worst-possible)
+
+Returns list `rank_of_team`
+"""
+function rankTeamsFromWinTotals(num_wins, be_optimistic = true)
   num_teams = length(num_wins)
  
   ## Identify ranking of teams based on the outcomes
   sorted_teams = sortperm(num_wins, rev=true)
   rank_of_team = Array{Int}(undef, num_teams)
-  rank_of_team[sorted_teams[1]] = 1
-  ct = 1
-  for i = 2:num_teams
-    last_team = sorted_teams[i-1]
-    curr_team = sorted_teams[i]
-    last_wins = num_wins[last_team]
-    curr_wins = num_wins[curr_team]
-    rank_of_team[curr_team] = rank_of_team[last_team]
-    if last_wins > curr_wins
-      rank_of_team[curr_team] += ct
-      ct = 1
-    else
-      ct += 1
-    end
+  if be_optimistic # use optimistic ordering
+    rank_of_team[sorted_teams[1]] = 1
+    ct = 1
+    for i = 2:num_teams
+      last_team = sorted_teams[i-1]
+      curr_team = sorted_teams[i]
+      last_wins = num_wins[last_team]
+      curr_wins = num_wins[curr_team]
+      rank_of_team[curr_team] = rank_of_team[last_team]
+      if last_wins > curr_wins
+        rank_of_team[curr_team] += ct
+        ct = 1
+      else
+        ct += 1
+      end
+    end # loop over teams
+  else # else, use pessimistic ordering
+    rank_of_team[sorted_teams[num_teams]] = num_teams
+    ct = 1
+    for i = num_teams-1:-1:1
+      last_team = sorted_teams[i+1]
+      curr_team = sorted_teams[i]
+      last_wins = num_wins[last_team]
+      curr_wins = num_wins[curr_team]
+      rank_of_team[curr_team] = rank_of_team[last_team]
+      if last_wins < curr_wins
+        rank_of_team[curr_team] -= ct
+        ct = 1
+      else
+        ct += 1
+      end
+    end # loop over teams
   end
   return rank_of_team
 end # rankTeamsFromWinTotals
 
-function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, num_teams, win_pct_ind = 6, games_left_ind = 3, h2h = [])
-	###
-	# updateRank
-	#
-	# After updating win percentage for team i and j, find their new postions
-	# Tie breaking is as follows:
-	# 1. win pct
-	# 2. if tied, then head-to-head record
-	# 3. if tied, then fewest games left
-	# 4. if tied, then flip an unbiased coin
-	###
+"""
+updateRank
+Update strict ranking and inverse map
+
+After updating win percentage for team i and j, find their new postions
+Tie breaking is as follows:
+  1. win pct
+  2. if tied, then head-to-head record
+  3. if tied, then fewest games left
+  4. if tied, then flip an unbiased coin
+
+Parameters
+---
+  * [in/out] rank_of_team: current strict ranking
+  * [in/out] team_in_pos
+  * [in] stats
+  * [in] team_i
+  * [in] team_i_wins
+  * [in] num_teams
+  * [in] win_pct_ind
+  * [in] games_left_ind
+  * [in] h2h
+
+Return strict ranking of teams and inverse (team that is in each position)
+"""
+function updateRank(rank_of_team, team_in_pos, stats, team_i, team_i_wins, num_teams, win_pct_ind = 6, games_left_ind = 3, h2h = [])
 	old_rank_i = rank_of_team[team_i]
 	win_pct = stats[team_i, win_pct_ind]
 	games_left = stats[team_i, games_left_ind]
@@ -425,3 +468,31 @@ function updateRank(stats, rank_of_team, team_in_pos, team_i, team_i_wins, num_t
 	end
 	return rank_of_team, team_in_pos
 end # updateRank
+
+"""
+teamIsContender
+Check whether team k is a contender (is neither eliminated from the playoffs, nor guaranteed to make the playoffs) after game t
+
+*Currently only checks that team is not eliminated from the playoffs before time t*
+
+Parameters
+---
+  * [in] k: team ind
+  * [in] t: game ind
+  * [in] schedule: 
+  * [in] stats:
+  * [in] outcome:
+  * [in] h2h:
+  * [in] math_elim_game_total: game in which team was mathematically eliminated (< 0: never eliminated)
+  * [in] num_playoff_teams
+
+Returns whether team k is a contender after game t
+"""
+function teamIsContender(k, t, schedule, stats, outcome, h2h, math_elim_game_total, num_playoff_teams, wins_ind = 2, games_left_ind = 3)
+  is_contender = math_elim_game_total[k] < 0 || math_elim_game_total[k] > t # team k is not eliminated yet (by game t)
+  if is_contender
+    _, _, _, rank_of_team = heuristicWorstRank(k, t, schedule, stats, outcome, h2h, wins_ind, games_left_ind)
+    is_contender = (rank_of_team[k] > num_playoff_teams)
+  end
+  return is_contender
+end # teamIsContender

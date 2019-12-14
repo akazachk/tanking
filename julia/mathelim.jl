@@ -908,3 +908,179 @@ function updateOthersUsingBestSolution!(k, t, schedule, num_playoff_teams,
     end
   end
 end # updateOthersUsingBestSolution
+
+"""
+heuristicWorstRank: Heuristic for a ``bad'' set of outcomes for team k for the remainder of the season
+
+Let w_i, g_i denote the current number of wins and remaining games for team i
+In this heuristic, we assume team k loses its remaining games, ending up with W := w_k wins
+
+To ensure as many teams as possible end up with more wins than team k:
+Any team with w_i + g_i < W will lose its remaining games, WLOG
+Any team with w_i >= W will also lose its remaining games, WLOG
+
+Note that we do not reset outcomes that are fixed after game t,
+so a ``retrospective'' worst rank is not possible without first updating outcome and h2h correctly
+
+Returns outcome, h2h, num_wins, rank_of_team
+"""
+function heuristicWorstRank(k, t, schedule, in_stats, in_outcome, in_h2h, num_wins_ind = 2, games_left_ind = 3)
+  num_games_total = size(schedule, 1)
+  num_teams = size(in_stats, 1)
+  
+  ## Make copies of input data
+  # TODO is calling copy needed?
+  stats = copy(in_stats)
+  outcome = copy(in_outcome)
+  h2h = copy(in_h2h)
+
+  ## Calculate W
+  thisTeamLosesRemainingGames!(k, t, schedule, stats, outcome, h2h, num_wins_ind, games_left_ind)
+  W = stats[k, num_wins_ind]
+
+  ## If a team's relative position to k is decided, it will win its remaining games
+  losingHeuristicHelper!(k, t, schedule, stats, outcome, h2h, num_wins_ind, games_left_ind)
+
+  ## Run rest of reason
+  for game_ind = t:num_games_total
+    # Skip the game if the outcome has already been decided
+    if outcome[game_ind] > 0
+      continue
+    end
+
+    # Current teams playing
+    i = schedule[game_ind,1] 
+    j = schedule[game_ind,2]
+
+    # Assign win to team with most wins
+    # If same number of wins, assign it to the team with the _fewest_ games remaining
+    if stats[i, num_wins_ind] > stats[j, num_wins_ind]
+      winner = i
+      loser = j
+    elseif stats[i, num_wins_ind] < stats[j, num_wins_ind]
+      winner = j
+      loser = i
+    elseif stats[i, games_left_ind] <= stats[j, games_left_ind]
+      winner = i
+      loser = j
+    else
+      winner = j
+      loser = i
+    end
+    outcome[game_ind] = winner
+
+    # Do updates
+    stats[winner, num_wins_ind] += 1
+    stats[i,games_left_ind] -= 1
+    stats[j,games_left_ind] -= 1
+    h2h[winner,loser] += 1
+
+    # Check if more game outcomes can be fixed
+    if stats[winner, num_wins_ind] >= W
+      thisTeamLosesRemainingGames!(winner, game_ind, schedule, 
+          stats, outcome, h2h, num_wins_ind, games_left_ind)
+    end
+    if stats[loser, num_wins_ind] + stats[loser, games_left_ind] < W
+      thisTeamLosesRemainingGames!(loser, game_ind, schedule, 
+          stats, outcome, h2h, num_wins_ind, games_left_ind)
+    end
+  end # iterate over remaining games
+
+  ## Identify ranking of teams based on the outcomes
+  num_wins = stats[:,num_wins_ind]
+  rank_of_team = rankTeamsFromWinTotals(num_wins, false) # get pessimistic ranking
+
+  return outcome, h2h, num_wins, rank_of_team
+end # heuristicWorstRank
+
+"""
+thisTeamLosesRemainingGames!: Set team k as loser of all its remaining games
+
+Updates stats, outcome, and h2h
+"""
+function thisTeamLosesRemainingGames!(k, t, schedule, stats, outcome, h2h,
+    num_wins_ind = 2, games_left_ind = 3)
+  num_games_total = length(outcome)
+  num_games_decided = 0
+  for game_ind = t:num_games_total
+    if outcome[game_ind] > 0
+      continue # outcome is already decided and accounted for
+    end
+    if (schedule[game_ind, 1] != k) && (schedule[game_ind, 2] != k)
+      continue # only look at games in which team k plays
+    end
+    num_games_decided += 1
+
+    if (schedule[game_ind, 1] != k)
+      j = schedule[game_ind, 1]  
+    else
+      j = schedule[game_ind, 2]  
+    end
+      
+    outcome[game_ind] = k
+    stats[j, num_wins_ind] += 1
+    h2h[j,k] += 1
+    for i in [k,j]
+      stats[i,games_left_ind] -= 1
+    end
+  end # k loses remaining games
+  return num_games_decided
+end # thisTeamLosesRemainingGames
+
+"""
+losingHeuristicHelper!: Teams with relative position to k decided will lose their remaining games
+
+    if i/j has at least W wins, that team loses
+    elseif i/j will surely have fewer than W wins, that team loses
+
+Updates stats, outcome, h2h
+
+Returns num games decided
+"""
+function losingHeuristicHelper!(k, t, schedule, stats, outcome, h2h,
+    num_wins_ind = 2, games_left_ind = 3)
+  num_games_total = length(outcome)
+  num_games_decided = 0
+  game_ind = t
+  W = stats[k, num_wins_ind]
+  while game_ind <= num_games_total
+    # Skip the game if the outcome has already been decided
+    if outcome[game_ind] > 0
+      game_ind += 1
+      continue
+    end
+
+    # Current teams playing
+    i = schedule[game_ind,1] 
+    j = schedule[game_ind,2]
+
+    # Check whether winner can be set
+    w_i = stats[i, num_wins_ind]
+    g_i = stats[i, games_left_ind]
+    W_i = w_i + g_i
+    w_j = stats[i, num_wins_ind]
+    g_j = stats[j, games_left_ind]
+    W_j = w_j + g_j
+
+    winner = 0
+    if (w_i >= W)
+      winner = j
+    elseif (w_j >= W)
+      winner = i
+    elseif (W_i < W)
+      winner = j
+    elseif (W_j < W)
+      winner = i
+    end
+
+    # If winner is determined, do updates for rest of season for that team, and reset game_ind
+    if (winner > 0)
+      num_games_decided += 
+          thisTeamLosesRemainingGames!(winner, game_ind, schedule, 
+              stats, outcome, h2h, num_wins_ind, games_left_ind)
+       game_ind = t-1
+    end
+    game_ind += 1
+  end
+  return num_games_decided
+end # losingHeuristicHelper

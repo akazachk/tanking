@@ -140,9 +140,9 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 			stats[k,win_pct_ind] = stats[k,wins_ind] / teamcounter[k] # update current win pct
 			#results[k,teamcounter[k]] = team_k_wins
 			if is_east[k]
-				rank_of_team, team_in_pos_east = updateRank(stats, rank_of_team, team_in_pos_east, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind, h2h) # update rank
+				rank_of_team, team_in_pos_east = updateRank(rank_of_team, team_in_pos_east, stats, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind, h2h) # update rank
 			else
-				rank_of_team, team_in_pos_west = updateRank(stats, rank_of_team, team_in_pos_west, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind, h2h) # update rank
+				rank_of_team, team_in_pos_west = updateRank(rank_of_team, team_in_pos_west, stats, k, team_k_wins, num_teams_per_conf, win_pct_ind, games_left_ind, h2h) # update rank
 			end
 		end
 
