@@ -550,6 +550,8 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 	num_teams_eliminated_1516, num_games_tanked_1516, stats1516, critical_game1516 = parseNBASeason("games1516.csv", breakpoint_list, data_dir)
 	num_teams_eliminated_1617, num_games_tanked_1617, stats1617, critical_game1617 = parseNBASeason("games1617.csv", breakpoint_list, data_dir)
 	num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718 = parseNBASeason("games1718.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1819, num_games_tanked_1819, stats1819, critical_game1819 = parseNBASeason("games1819.csv", breakpoint_list, data_dir)
+
 
 	# Retrieve data for avg_eliminated
 	avg_eliminated = readdlm(string(results_dir, "/avg_eff_eliminated", csvext), ',')
@@ -576,6 +578,10 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		print("\nYear 2017-2018\n")
 		print("num teams eliminated: ",num_teams_eliminated_1718,"\n")
 		print("num possible games tanked: ",num_games_tanked_1718,"\n")
+
+		print("\nYear 2018-2019\n")
+		print("num teams eliminated: ",num_teams_eliminated_1819,"\n")
+		print("num possible games tanked: ",num_games_tanked_1819,"\n")
 	end
 
 	if (do_plotting)
@@ -593,7 +599,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		#num_games_tanked[3,:] = num_games_tanked_1516
 		#num_games_tanked[4,:] = num_games_tanked_1617
 		#num_games_tanked[5,:] = num_games_tanked_1718
-		num_games_tanked = hcat(num_games_tanked_1314, num_games_tanked_1415, num_games_tanked_1516, num_games_tanked_1617, num_games_tanked_1718)
+		num_games_tanked = hcat(num_games_tanked_1314, num_games_tanked_1415, num_games_tanked_1516, num_games_tanked_1617, num_games_tanked_1718, num_games_tanked1819)
 		num_games_tanked = num_games_tanked'
 		#print(num_games_tanked,"\n")
 
@@ -673,7 +679,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		## Plot number of teams eliminated
 		print("Plotting num_teams_eliminated: number of eliminated teams by every game of the season\n")
 		num_games = 15 * 82;
-		num_teams_eliminated = hcat(num_teams_eliminated_1314, num_teams_eliminated_1415, num_teams_eliminated_1516, num_teams_eliminated_1617, num_teams_eliminated_1718)
+		num_teams_eliminated = hcat(num_teams_eliminated_1314, num_teams_eliminated_1415, num_teams_eliminated_1516, num_teams_eliminated_1617, num_teams_eliminated_1718, num_teams_eliminated_1819)
 		num_teams_eliminated = num_teams_eliminated'
 
 		minx = 1 / num_games
