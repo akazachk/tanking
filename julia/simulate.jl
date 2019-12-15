@@ -7,6 +7,8 @@
 include("utility.jl")
 include("mathelim.jl")
 
+import Random.randperm
+
 DEBUG = false
 
 """
@@ -74,7 +76,7 @@ Returns
   * avg_diff_rank_moral
   * num_missing_case
 """
-function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode=-2)
+function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode=-2, ONLY_RETURN_WIN_PCT=false)
 
   ## Set constants
   step_size                       = 1 / num_steps
@@ -93,43 +95,48 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   stddev_stat = 2
   min_stat    = 3
   max_stat    = 4
-
-  kend_out            = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats) # Kendall tau distance for bilevel ranking
-  kend_nba_out        = zeros(Float64, num_steps+1, length(nba_odds_list), num_stats) # Kendall tau distance for NBA draft lottery system
-  kend_gold_out       = zeros(Float64, 1, num_stats) # Kendall tau distance for Gold proposal
-  kend_lenten_out     = zeros(Float64, num_steps+1, num_stats) # Kendall tau distance for Lenten proposal
-  num_mips_out        = zeros(Float64, num_steps+1, num_stats) # number of MIPs solved in the course of a season
-  games_tanked_out    = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats) # number of games tanked by each breakpoint
-  already_tank_out    = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats) # number of teams tanking by each breakpoint
-  math_eliminated_out = zeros(Float64, num_steps+1, num_games_total, num_stats) # number of teams mathematically eliminated by each game
-  eff_eliminated_out  = zeros(Float64, num_steps+1, num_games_total, num_stats) # number of teams effectively eliminated by each game
-  num_unelim_out      = zeros(Float64, num_steps+1, num_stats) # number teams eff elim then not not elim
-  avg_rank_strat_out  = zeros(Float64, num_steps+1, num_stats) # avg rank of strategic teams
-  avg_rank_moral_out  = zeros(Float64, num_steps+1, num_stats) # avg rank of moral teams
-  avg_elim_rank_strat_out = zeros(Float64, num_steps+1, num_stats) # avg rank of eliminated strategic teams
-  avg_elim_rank_moral_out = zeros(Float64, num_steps+1, num_stats) # avg rank of eliminated moral teams
-  avg_diff_rank_strat_out = zeros(Float64, num_steps+1, num_stats) # avg of diff between true and calc ranks of strategic teams
-  avg_diff_rank_moral_out = zeros(Float64, num_steps+1, num_stats) # avg of diff between true and calc ranks of moral teams
-  num_missing_case_out = zeros(Float64, num_steps+1, num_stats) # number teams eff elim then not not elim
-
-  # Set min default (avg / stddev / max set to 0 is okay)
   BIG_NUMBER = max(num_teams^2, num_games_total)
-  kend_out[:,:,min_stat]            = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
-  kend_nba_out[:,:,min_stat]        = BIG_NUMBER * ones(num_steps+1, length(nba_odds_list))
-  kend_gold_out[min_stat]           = BIG_NUMBER
-  kend_lenten_out[:,min_stat]       = BIG_NUMBER * ones(num_steps+1)
-  games_tanked_out[:,:,min_stat]    = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
-  already_tank_out[:,:,min_stat]    = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
-  math_eliminated_out[:,:,min_stat] = BIG_NUMBER * ones(num_steps+1, num_games_total)
-  eff_eliminated_out[:,:,min_stat]  = BIG_NUMBER * ones(num_steps+1, num_games_total)
-  num_mips_out[:,min_stat]          = BIG_NUMBER * ones(num_steps+1)
-  num_unelim_out[:,min_stat]        = BIG_NUMBER * ones(num_steps+1)
-  avg_rank_strat_out[:,min_stat]    = BIG_NUMBER * ones(num_steps+1)
-  avg_rank_moral_out[:,min_stat]    = BIG_NUMBER * ones(num_steps+1)
-  avg_elim_rank_strat_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
-  avg_elim_rank_moral_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
-  avg_diff_rank_strat_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
-  avg_diff_rank_moral_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
+
+  if ONLY_RETURN_WIN_PCT
+    win_pct_out = zeros(Float64, num_steps+1, num_teams, num_stats)
+    win_pct_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1, num_teams)
+  else
+    kend_out            = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats) # Kendall tau distance for bilevel ranking
+    kend_nba_out        = zeros(Float64, num_steps+1, length(nba_odds_list), num_stats) # Kendall tau distance for NBA draft lottery system
+    kend_gold_out       = zeros(Float64, 1, num_stats) # Kendall tau distance for Gold proposal
+    kend_lenten_out     = zeros(Float64, num_steps+1, num_stats) # Kendall tau distance for Lenten proposal
+    num_mips_out        = zeros(Float64, num_steps+1, num_stats) # number of MIPs solved in the course of a season
+    games_tanked_out    = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats) # number of games tanked by each breakpoint
+    already_tank_out    = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats) # number of teams tanking by each breakpoint
+    math_eliminated_out = zeros(Float64, num_steps+1, num_games_total, num_stats) # number of teams mathematically eliminated by each game
+    eff_eliminated_out  = zeros(Float64, num_steps+1, num_games_total, num_stats) # number of teams effectively eliminated by each game
+    num_unelim_out      = zeros(Float64, num_steps+1, num_stats) # number teams eff elim then not not elim
+    avg_rank_strat_out  = zeros(Float64, num_steps+1, num_stats) # avg rank of strategic teams
+    avg_rank_moral_out  = zeros(Float64, num_steps+1, num_stats) # avg rank of moral teams
+    avg_elim_rank_strat_out = zeros(Float64, num_steps+1, num_stats) # avg rank of eliminated strategic teams
+    avg_elim_rank_moral_out = zeros(Float64, num_steps+1, num_stats) # avg rank of eliminated moral teams
+    avg_diff_rank_strat_out = zeros(Float64, num_steps+1, num_stats) # avg of diff between true and calc ranks of strategic teams
+    avg_diff_rank_moral_out = zeros(Float64, num_steps+1, num_stats) # avg of diff between true and calc ranks of moral teams
+    num_missing_case_out = zeros(Float64, num_steps+1, num_stats) # number teams eff elim then not not elim
+
+    # Set min default (avg / stddev / max set to 0 is okay)
+    kend_out[:,:,min_stat]            = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
+    kend_nba_out[:,:,min_stat]        = BIG_NUMBER * ones(num_steps+1, length(nba_odds_list))
+    kend_gold_out[min_stat]           = BIG_NUMBER
+    kend_lenten_out[:,min_stat]       = BIG_NUMBER * ones(num_steps+1)
+    games_tanked_out[:,:,min_stat]    = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
+    already_tank_out[:,:,min_stat]    = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
+    math_eliminated_out[:,:,min_stat] = BIG_NUMBER * ones(num_steps+1, num_games_total)
+    eff_eliminated_out[:,:,min_stat]  = BIG_NUMBER * ones(num_steps+1, num_games_total)
+    num_mips_out[:,min_stat]          = BIG_NUMBER * ones(num_steps+1)
+    num_unelim_out[:,min_stat]        = BIG_NUMBER * ones(num_steps+1)
+    avg_rank_strat_out[:,min_stat]    = BIG_NUMBER * ones(num_steps+1)
+    avg_rank_moral_out[:,min_stat]    = BIG_NUMBER * ones(num_steps+1)
+    avg_elim_rank_strat_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
+    avg_elim_rank_moral_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
+    avg_diff_rank_strat_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
+    avg_diff_rank_moral_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
+  end # ONLY_RETURN_WIN_PCT
 
   ## Set up for game order 
   # Alternative to below is using Combinatorics; ord_games = collect(combinations(1:num_teams,2))
@@ -446,6 +453,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         
         #println("(step $step_ind, game $game_ind): num_mips: $num_mips\tnum_math_elim: $num_math_elim")
 
+        if ONLY_RETURN_WIN_PCT
+          continue
+        end
+
         # When the breakpoint for choosing a playoff ranking has been reached, set the ranking
         for r = 1:length(breakpoint_game_for_draft) 
           if game_ind == breakpoint_game_for_draft[r]
@@ -460,6 +471,14 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         @views updateStats!(eff_eliminated_out[step_ind, game_ind, :], num_eff_elim, num_replications)
       end # iterate over games
       ## end of a season
+
+      if ONLY_RETURN_WIN_PCT
+        for i in 1:num_teams
+          # Make sure we use sorted ranking
+          @views updateStats!(win_pct_out[step_ind, i, :], stats[team_in_pos[i], win_pct_ind], num_replications)
+        end
+        continue
+      end
 
       ## Update num_mips and num_missing_case stats
       @views updateStats!(num_mips_out[step_ind,:], num_mips, num_replications)
@@ -623,6 +642,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       kend_gold_out[stddev_stat] -= kend_gold_out[avg_stat]^2
     end
   end # looping over tanking percentages
+
+  if ONLY_RETURN_WIN_PCT
+    return win_pct_out
+  end
 
   return kend_out, kend_nba_out, kend_gold_out, kend_lenten_out,
       games_tanked_out, already_tank_out, 

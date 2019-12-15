@@ -20,6 +20,7 @@ using LaTeXStrings
 using Printf
 include("simulate.jl")
 include("parse.jl")
+include("utility.jl") # imports MODE definitions
 
 ## NBA draft odds (for non-playoff teams, in reverse order)
 # If teams are tied, then those teams receive odds that are the average of the odds for the positions they occupy
@@ -46,7 +47,7 @@ num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
 # 2: ties: [1,5] \succ [6,10] \succ \cdots \succ [26,30]
 # 3: BT_uniform: Bradley-Terry with P(i>j) = p_i / (p_i + p_j); must also set distribution, where default is each team gets a strength score from U[0,1]
 # 4: BT_exponential: Bradley-Terry with P(i>j) = exp(p_i) / (exp(p_i) + exp(p_j)); must also set distribution, where default is each team gets a strength score from U[0,1]; can consider others such as, e.g., using Beta(alpha=2, beta=5)
-MODE = STRICT
+MODE = STRICT # imported from utility.jl
 
 ranking_type = ""
 true_strength = []
@@ -178,8 +179,8 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
     do_plotting = true, mode = MODE, results_dir = "../results", 
     num_rounds = 3, num_steps = num_teams, gamma = 0.75, 
     math_elim_mode = -2)
-	set_mode(mode)
   Random.seed!(628) # for reproducibility
+	set_mode(mode)
 
 	## Variables that need to be set
 	## end variables that need to be set
@@ -541,6 +542,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 end; # main_simulate
 
 function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_dir="../results")
+  Random.seed!(628) # for reproducibility
 	set_mode(mode)
 
 	num_teams_eliminated_1314, num_games_tanked_1314, stats1314, critical_game1314 = parseNBASeason("games1314.csv", breakpoint_list, data_dir)
@@ -884,7 +886,51 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 			Plots.savefig(fname_low)
 		end
 	end # if do_plotting
-end; # rankings_are_noisy
+end # rankings_are_noisy
+
+function model_validation(;do_simulation = true, num_replications = 100000, 
+    data_dir = "../data", results_dir = "../results",
+    num_rounds = 3, num_steps = num_teams, gamma = 0.75, 
+    math_elim_mode = 0)
+  Random.seed!(628) # for reproducibility
+
+  mode_list = [STRICT BT_UNIFORM BT_EXPONENTIAL]
+  for mode in mode_list
+    set_mode(mode)
+
+    ## Stats we keep
+    avg_stat    = 1
+    stddev_stat = 2
+    min_stat    = 3
+    max_stat    = 4
+    num_stats   = 4
+    prefix      = ["avg_", "stddev_", "min_", "max_"]
+
+    ## Retrieve win_pct matrix [step_ind, team_ind, stat]
+    win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode, true)
+
+    for stat = 1:num_stats
+      writedlm(string(results_dir, "/", prefix[stat], "win_pct", csvext), num_missing_case[:,stat], ',')
+    end
+
+    win_pct_nba = readdlm(string(data_dir, "/winpct.csv"), ',')
+    num_header_rows = 1
+    start_row = num_header_rows + 1
+    num_years = size(win_pct_nba, 2)
+
+    loss = 0
+    num_pts = num_teams * num_years
+    for pos = 1:num_teams
+      curr_calc = win_pct[pos]
+      for year = 1:num_years
+        curr_real = win_pct_nba[start_row + pos,year]
+        loss += (curr_real-curr_calc)^2 / num_pts # mean squared error
+      end
+    end
+
+    println("Loss from mode $MODE: $loss")
+  end # iterate over modes in mode_list
+end # model_validation
 
 function tanking_unit_tests()
 	test_ranking = 1:num_teams
