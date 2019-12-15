@@ -924,17 +924,22 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     start_row = num_header_rows + 1
     num_years = size(win_pct_nba, 2)
 
-    loss = 0
-    num_pts = num_teams * num_years
-    for pos = 1:num_teams
-      curr_calc = win_pct[pos]
-      for year = 1:num_years
-        curr_real = win_pct_nba[start_row + pos,year]
-        loss += (curr_real-curr_calc)^2 / num_pts # mean squared error
-      end
-    end
-
-    println("Loss from mode $MODE: $loss")
+    ## Plot simulated vs real average win pct, with error bars
+    # TODO
+    
+    ## Calculate mean squared error
+    for step_ind = 1:num_steps+1
+      loss = 0
+      num_pts = num_teams * num_years
+      for pos = 1:num_teams
+        curr_calc = win_pct[step_ind, pos, avg_stat]
+        for year = 1:num_years
+          curr_real = win_pct_nba[start_row + pos,year]
+          loss += (curr_real-curr_calc)^2 / num_pts # mean squared error
+        end # loop over years
+      end # loop over teams
+      println("Step ", step_ind - 1, ": Loss from mode $MODE: $loss")
+    end # loop over steps
   end # iterate over modes in mode_list
 end # model_validation
 
