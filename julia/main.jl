@@ -940,9 +940,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         end # loop over years
       end # loop over teams
       loss_list[mode_ind, step_ind] = loss
-      #println("Step ", step_ind - 1, ": Loss from mode ", mode_list[mode_ind], ": ", loss_list[mode_ind, step_ind])
+      println("Step ", step_ind - 1, ": Loss from mode ", mode_list[mode_ind], ": ", loss_list[mode_ind, step_ind])
     end # loop over steps
   end # iterate over modes in mode_list
+
+  println("## Summary of model validation experiments ##")
   for mode_ind = 1:length(mode_list)
     for step_ind = 1:num_steps+1 
       println("Step ", step_ind - 1, ": Loss from mode ", mode_list[mode_ind], ": ", loss_list[mode_ind, step_ind])
