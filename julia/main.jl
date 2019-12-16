@@ -916,12 +916,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode, true)
 
     for stat = 1:num_stats
-      writedlm(string(results_dir, "/", prefix[stat], "win_pct", csvext), num_missing_case[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "win_pct", csvext), win_pct[:,:,stat], ',')
     end
 
     win_pct_nba = readdlm(string(data_dir, "/winpct.csv"), ',')
     num_header_rows = 1
-    start_row = num_header_rows + 1
     num_years = size(win_pct_nba, 2)
 
     ## Plot simulated vs real average win pct, with error bars
@@ -934,7 +933,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
       for pos = 1:num_teams
         curr_calc = win_pct[step_ind, pos, avg_stat]
         for year = 1:num_years
-          curr_real = win_pct_nba[start_row + pos,year]
+          curr_real = win_pct_nba[num_header_rows + pos,year]
           loss += (curr_real-curr_calc)^2 / num_pts # mean squared error
         end # loop over years
       end # loop over teams

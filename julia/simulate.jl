@@ -99,7 +99,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
 
   if ONLY_RETURN_WIN_PCT
     win_pct_out = zeros(Float64, num_steps+1, num_teams, num_stats)
-    win_pct_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1, num_teams)
+    win_pct_out[:,:,min_stat] = BIG_NUMBER * ones(num_steps+1, num_teams)
   else
     kend_out            = zeros(Float64, num_steps+1, length(breakpoint_list), num_stats) # Kendall tau distance for bilevel ranking
     kend_nba_out        = zeros(Float64, num_steps+1, length(nba_odds_list), num_stats) # Kendall tau distance for NBA draft lottery system
@@ -475,7 +475,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       if ONLY_RETURN_WIN_PCT
         for i in 1:num_teams
           # Make sure we use sorted ranking
-          @views updateStats!(win_pct_out[step_ind, i, :], stats[team_in_pos[i], win_pct_ind], num_replications)
+          @views updateStats!(win_pct_out[step_ind, i, :], 100 * stats[team_in_pos[i], win_pct_ind], num_replications)
         end
         continue
       end
@@ -596,6 +596,13 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         @views updateStats!(avg_diff_rank_moral_out[step_ind,:], diff_rank_moral, 1)
       end
     end # do replications
+
+    if ONLY_RETURN_WIN_PCT
+      for i in 1:num_teams
+        win_pct_out[step_ind, i, stddev_stat] -= win_pct_out[step_ind, i, avg_stat]^2
+      end
+      continue
+    end
 
     if num_repl_for_avg > 0
       ## Update average for those stats that were not over all replications
