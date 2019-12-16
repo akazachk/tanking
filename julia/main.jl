@@ -901,8 +901,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   Random.seed!(628) # for reproducibility
 
   mode_list = [STRICT BT_UNIFORM BT_EXPONENTIAL]
+  loss_list = zeros(Float64, length(mode_list), num_steps+1)
+  mode_ind = 0
   for mode in mode_list
     set_mode(mode)
+    mode_ind += 1
 
     ## Stats we keep
     avg_stat    = 1
@@ -938,8 +941,14 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         end # loop over years
       end # loop over teams
       println("Step ", step_ind - 1, ": Loss from mode $MODE: $loss")
+      loss_list[mode_ind, step_ind] = loss
     end # loop over steps
   end # iterate over modes in mode_list
+  for mode_ind = 1:length(mode_list)
+    for step_ind = 1:num_steps+1 
+      println("Step ", step_ind - 1, ": Loss from mode ", mode_list[mode_ind], ": ", loss_list[mode_ind, step_ind])
+    end
+  end
 end # model_validation
 
 function tanking_unit_tests()

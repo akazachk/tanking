@@ -180,7 +180,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
     num_repl_for_avg = 0
     print("Simulating season with $tank_perc ratio of teams tanking\n")
     for rep = 1:num_replications
-      print("\tReplication $rep/$num_replications, ratio $tank_perc\n")
+      #print("\tReplication $rep/$num_replications, ratio $tank_perc\n")
       
       ## Prepare to decide strategic teams
       num_tanking = 0
