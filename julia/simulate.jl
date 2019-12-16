@@ -560,21 +560,19 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       # in which teams would have tanked if given the chance, but did not
       # (otherwise, we are overstating the effect that tanking teams can have)
       num_elim_tanking = 0
-      for i in team_in_pos[1:num_playoff_teams]
+      for i in 1:num_teams
         if (stats[i,will_tank_ind] == 1)
-          rank_strat += rank_of_team[i] / num_teams
+          rank_strat += rank_of_team[i] / num_tanking
         else
-          rank_moral += rank_of_team[i] / num_teams
+          rank_moral += rank_of_team[i] / (num_teams - num_tanking)
         end
       end
       for i in nonplayoff_teams
         if (stats[i,will_tank_ind] == 1)
           num_elim_tanking += 1
-          rank_strat += rank_of_team[i] / num_teams
           elim_rank_strat += rank_of_team[i]
           diff_rank_strat += (rank_of_team[i] - i)
         else
-          rank_moral += rank_of_team[i] / num_teams
           elim_rank_moral += rank_of_team[i]
           diff_rank_moral += (rank_of_team[i] - i)
         end
@@ -599,17 +597,19 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       end
     end # do replications
 
-    ## Update average for those stats that were not over all replications
-    # avg
-    avg_elim_rank_strat_out[step_ind,avg_stat] /= num_repl_for_avg
-    avg_elim_rank_moral_out[step_ind,avg_stat] /= num_repl_for_avg
-    avg_diff_rank_strat_out[step_ind,avg_stat] /= num_repl_for_avg
-    avg_diff_rank_moral_out[step_ind,avg_stat] /= num_repl_for_avg
-    # stddev
-    avg_elim_rank_strat_out[step_ind,stddev_stat] /= num_repl_for_avg
-    avg_elim_rank_moral_out[step_ind,stddev_stat] /= num_repl_for_avg
-    avg_diff_rank_strat_out[step_ind,stddev_stat] /= num_repl_for_avg
-    avg_diff_rank_moral_out[step_ind,stddev_stat] /= num_repl_for_avg
+    if num_repl_for_avg > 0
+      ## Update average for those stats that were not over all replications
+      # avg
+      avg_elim_rank_strat_out[step_ind,avg_stat] /= num_repl_for_avg
+      avg_elim_rank_moral_out[step_ind,avg_stat] /= num_repl_for_avg
+      avg_diff_rank_strat_out[step_ind,avg_stat] /= num_repl_for_avg
+      avg_diff_rank_moral_out[step_ind,avg_stat] /= num_repl_for_avg
+      # stddev
+      avg_elim_rank_strat_out[step_ind,stddev_stat] /= num_repl_for_avg
+      avg_elim_rank_moral_out[step_ind,stddev_stat] /= num_repl_for_avg
+      avg_diff_rank_strat_out[step_ind,stddev_stat] /= num_repl_for_avg
+      avg_diff_rank_moral_out[step_ind,stddev_stat] /= num_repl_for_avg
+    end
 
     ## Compute standard deviation
     # Var[X] = E[X^2] - E[X]^2 
