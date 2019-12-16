@@ -900,12 +900,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     math_elim_mode = 0)
   Random.seed!(628) # for reproducibility
 
-  mode_list = [STRICT BT_UNIFORM BT_EXPONENTIAL]
+  mode_list = [STRICT TIES BT_UNIFORM BT_EXPONENTIAL]
   loss_list = zeros(Float64, length(mode_list), num_steps+1)
-  mode_ind = 0
-  for mode in mode_list
-    set_mode(mode)
-    mode_ind += 1
+  for mode_ind = 1:length(mode_list)
+    println("Mode should be set to mode $mode_ind: ", mode_list[mode_ind])
+    set_mode(mode_list[mode_ind])
 
     ## Stats we keep
     avg_stat    = 1
@@ -916,7 +915,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     prefix      = ["avg_", "stddev_", "min_", "max_"]
 
     ## Retrieve win_pct matrix [step_ind, team_ind, stat]
-    win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode, true)
+    win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode_list[mode_ind], math_elim_mode, true)
 
     for stat = 1:num_stats
       writedlm(string(results_dir, "/", prefix[stat], "win_pct", csvext), win_pct[:,:,stat], ',')
@@ -940,8 +939,8 @@ function model_validation(;do_simulation = true, num_replications = 100000,
           loss += (curr_real-curr_calc)^2 / num_pts # mean squared error
         end # loop over years
       end # loop over teams
-      println("Step ", step_ind - 1, ": Loss from mode $MODE: $loss")
       loss_list[mode_ind, step_ind] = loss
+      #println("Step ", step_ind - 1, ": Loss from mode ", mode_list[mode_ind], ": ", loss_list[mode_ind, step_ind])
     end # loop over steps
   end # iterate over modes in mode_list
   for mode_ind = 1:length(mode_list)
