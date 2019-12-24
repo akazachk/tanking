@@ -10,7 +10,7 @@ Julia 1.x. If `PyPlot` is available, the figures in the paper can be plotted usi
 On a Mac, for plotting, one needs to install XQuartz.
 
 ### Running the code
-To run a simulation, parse NBA data, and reproduce data regarding noisiness of the reverse order ranking:
+To run a simulation, parse NBA data, and reproduce data regarding noisiness of the reverse order ranking, first change directories to the `julia` subdirectory, then start `julia`, type `]` to enter `pkg` mode, and type `activate ./` to activate the tanking environment. Type `instantiate` to get the required packages. Afterwards, pressing `backspace` will return you to the normal prompt. Afterwards, the code can be run with the following commands:
 				
 		include("main.jl")
 		main_simulate(do_simulation=true, num_replications=100000, do_plotting=false, mode=1) 
