@@ -18,6 +18,7 @@ import Random
 using DelimitedFiles
 using LaTeXStrings
 using Printf
+import Distributions.Beta
 include("simulate.jl")
 include("parse.jl")
 include("utility.jl") # imports MODE definitions
@@ -46,7 +47,7 @@ num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
 # 1: strict: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
 # 2: ties: [1,5] \succ [6,10] \succ \cdots \succ [26,30]
 # 3: BT_uniform: Bradley-Terry with P(i>j) = p_i / (p_i + p_j); must also set distribution, where default is each team gets a strength score from U[0,1]
-# 4: BT_exponential: Bradley-Terry with P(i>j) = exp(p_i) / (exp(p_i) + exp(p_j)); must also set distribution, where default is each team gets a strength score from U[0,1]; can consider others such as, e.g., using Beta(alpha=2, beta=5)
+# 4: BT_exponential: Bradley-Terry with P(i>j) = exp(p_i) / (exp(p_i) + exp(p_j)); must also set distribution, where default is each team gets a strength score from U[0,1]; can consider others such as, e.g., using Beta(alpha=3, beta=5)
 MODE = STRICT # imported from utility.jl
 
 ranking_type = ""
@@ -59,16 +60,17 @@ lowext = string(ranking_type,"_low",".",lowext_folder)
 
 function set_mode(mode=MODE)
   ### Set global variables based on which mode is being used
+  tmp_true_strength = 0
 	if mode == NONE
 		cssvext = ".csv"
 	elseif mode == STRICT
 		# 1 \succ 2 \succ \cdots \succ 30
 		global ranking_type="_strict"
-		global true_strength = num_teams:-1:1
+		tmp_true_strength = num_teams:-1:1
 	elseif mode == TIES
 		# [1,5] \succ [6,10] \succ \cdots \succ [26,30]
 		global ranking_type="_ties"
-		global true_strength = [Int(ceil(i/5)) for i in num_teams:-1:1] # allows for ties # old: [i:i+4 for i in 1:5:num_teams-4]
+		tmp_true_strength = [Int(ceil(i/5)) for i in num_teams:-1:1] # allows for ties # old: [i:i+4 for i in 1:5:num_teams-4]
 	elseif mode == BT_UNIFORM
 		# Options to consider:
 		# uniform distribution (same as beta(1,1))
@@ -76,14 +78,19 @@ function set_mode(mode=MODE)
 		# nonuniform distribution, beta(2,2), or maybe we should do some kind of bimodal distribution
 		# --> more weight on middle teams, smaller probability of very weak or very strong teams
 		global ranking_type="_BT_uniform"
-		global true_strength = rand(30,1)
+		#tmp_true_strength = rand(30)
+    distr = Beta(3,5)
+    tmp_true_strength = rand(distr, 30)
 	elseif mode == BT_EXPONENTIAL
 		global ranking_type="_BT_exponential"
-		global true_strength = rand(30,1)
+		#tmp_true_strength = rand(30)
+    distr = Beta(3,5)
+    tmp_true_strength = rand(distr, 30)
 	end
 	global csvext = string(ranking_type,".csv")
 	global ext = string(ranking_type,".",ext_folder)
 	global lowext = string(ranking_type,"_low",".",lowext_folder)
+  global true_strength = sort(tmp_true_strength, rev=true)
 end # set_mode
 
 ## For plotting
@@ -900,11 +907,12 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     math_elim_mode = 0)
   Random.seed!(628) # for reproducibility
 
-  mode_list = [STRICT TIES BT_UNIFORM BT_EXPONENTIAL]
+  mode_list = [STRICT BT_UNIFORM]
   loss_list = zeros(Float64, length(mode_list), num_steps+1)
   for mode_ind = 1:length(mode_list)
     println("Mode should be set to mode $mode_ind: ", mode_list[mode_ind])
     set_mode(mode_list[mode_ind])
+    println("True strength: ", true_strength)
 
     ## Stats we keep
     avg_stat    = 1
