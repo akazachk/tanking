@@ -194,5 +194,5 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 	#print("Teams not in the playoffs in the east and their win pct:\n\t", teams[np_index_east], "\n\t", stats[np_index_east,win_pct_ind],"\n"); 
 	#print("Teams not in the playoffs in the west and their win pct:\n\t", teams[np_index_west], "\n\t", stats[np_index_west,win_pct_ind],"\n"); 
 
-	return num_eliminated_by_game, num_games_tanked_at_cutoff, stats, critical_game
+	return num_eliminated_by_game, num_games_tanked_at_cutoff, stats, critical_game, h2h
 end # parse

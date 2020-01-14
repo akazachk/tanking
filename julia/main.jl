@@ -86,6 +86,10 @@ function set_mode(mode=MODE)
 		#tmp_true_strength = rand(30)
     distr = Beta(3,5)
     tmp_true_strength = rand(distr, 30)
+  elseif mode == BT_ESTIMATED
+    global ranking_type="_BT_est"
+    # Need to estimate true_strength
+    tmp_true_strength = BT_MLE()
 	end
 	global csvext = string(ranking_type,".csv")
 	global ext = string(ranking_type,".",ext_folder)
@@ -552,12 +556,12 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
   Random.seed!(628) # for reproducibility
 	set_mode(mode)
 
-	num_teams_eliminated_1314, num_games_tanked_1314, stats1314, critical_game1314 = parseNBASeason("games1314.csv", breakpoint_list, data_dir)
-	num_teams_eliminated_1415, num_games_tanked_1415, stats1415, critical_game1415 = parseNBASeason("games1415.csv", breakpoint_list, data_dir)
-	num_teams_eliminated_1516, num_games_tanked_1516, stats1516, critical_game1516 = parseNBASeason("games1516.csv", breakpoint_list, data_dir)
-	num_teams_eliminated_1617, num_games_tanked_1617, stats1617, critical_game1617 = parseNBASeason("games1617.csv", breakpoint_list, data_dir)
-	num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718 = parseNBASeason("games1718.csv", breakpoint_list, data_dir)
-	num_teams_eliminated_1819, num_games_tanked_1819, stats1819, critical_game1819 = parseNBASeason("games1819.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1314, num_games_tanked_1314, stats1314, critical_game1314, _ = parseNBASeason("games1314.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1415, num_games_tanked_1415, stats1415, critical_game1415, _ = parseNBASeason("games1415.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1516, num_games_tanked_1516, stats1516, critical_game1516, _ = parseNBASeason("games1516.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1617, num_games_tanked_1617, stats1617, critical_game1617, _ = parseNBASeason("games1617.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718, _ = parseNBASeason("games1718.csv", breakpoint_list, data_dir)
+	num_teams_eliminated_1819, num_games_tanked_1819, stats1819, critical_game1819, _ = parseNBASeason("games1819.csv", breakpoint_list, data_dir)
 
 
 	# Retrieve data for avg_eliminated
@@ -787,7 +791,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 	end
 
 	return
-end; # main_parse
+end # main_parse
 
 function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plotting=true, mode=MODE, results_dir="../results")
 	set_mode(mode)
@@ -907,7 +911,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     math_elim_mode = 0)
   Random.seed!(628) # for reproducibility
 
-  mode_list = [STRICT BT_UNIFORM]
+  mode_list = [STRICT BT_ESTIMATED]
   loss_list = zeros(Float64, length(mode_list), num_steps+1)
   for mode_ind = 1:length(mode_list)
     println("Mode should be set to mode $mode_ind: ", mode_list[mode_ind])
@@ -959,6 +963,107 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     end
   end
 end # model_validation
+
+"""
+Look at number of wins team with rank i won against team of rank j in every year
+to calculate MLE for Bradley-Terry model
+"""
+function BT_MLE(;data_dir="../data")
+  years = ["games1314.csv", "games1415.csv", "games1516.csv", "games1617.csv", "games1718.csv", "games1819.csv"]
+  num_years = length(years)
+
+  num_stats = 6 # name, wins, losses, games_left, elim, win_pct
+  win_pct_ind = 6
+
+  h2h = zeros(Float64, num_years, num_teams, num_teams)
+  stats = zeros(Float64, num_years, num_teams, num_stats)
+
+  ## Retrieve stats for each year
+  # h2hYYYY will have number of times team i beat team j
+  # so total games between teams i and j are given there too
+  # We also collect stats1314 to identify the ranking of each team at the end of each season
+  total_games_played = zeros(Int, num_teams, num_teams)
+  h2h_final = zeros(Float64, num_teams, num_teams)
+  for yr = 1:num_years
+    _, _, stats[yr, :, :], _, h2h[yr, :, :] = parseNBASeason(years[yr], breakpoint_list, data_dir)
+
+    # Get ranking from this season
+    rank_of_team = sortperm(stats[yr, :, win_pct_ind])
+    team_in_pos = Array{Int}(undef, num_teams) # inverse ranking (returns team that is in position i)
+    for i = 1:num_teams
+      team_in_pos[rank_of_team[i]] = i
+    end
+
+    # Update h2h totals
+    for i = 1:num_teams
+      team_i = team_in_pos[i]
+      for j = i+1:num_teams
+        team_j = team_in_pos[j]
+        total_games_played[i,j] += h2h[yr, team_i, team_j] + h2h[yr, team_j, team_i]
+        h2h_final[i,j] += h2h[yr, team_i, team_j]
+        h2h_final[j,i] += h2h[yr, team_j, team_i]
+      end
+    end
+  end # loop over years
+
+  # Normalize h2h_final
+  # Also, calculate number of comparisons won by i
+  W = zeros(Int, num_teams)
+  for i = 1:num_teams
+    for j = i+1:num_teams
+      if total_games_played[i,j] > 0
+        h2h_final[i,j] /= total_games_played[i,j]
+        h2h_final[j,i] /= total_games_played[i,j]
+      else
+        h2h_final[i,j] = 0
+        h2h_final[j,i] = 0
+      end
+
+      if h2h_final[i,j] > h2h_final[j,i]
+        W[i] += 1
+      else
+        W[j] += 1
+      end
+    end
+  end
+  println(W) 
+  println(h2h_final)
+
+  p = ones(Float64, num_teams)
+  eps = 1e-5
+  for step = 1:100
+    p_new = BT_MLE_step(h2h_final, W, p)
+
+    # Calculate differences
+    sum_diff = 0.0
+    for i = 1:num_teams
+      sum_diff += abs(p[i] - p_new[i])
+    end
+    if sum_diff < eps
+      break
+    end
+  end
+
+  p = sort(p, rev=true)
+  return p
+end # BT_MLE
+
+function BT_MLE_step(h2h, W, p)
+  num_teams = length(p)
+  p_new = p
+  for i = 1:num_teams
+    val = 0
+    for j = 1:num_teams
+      if j != i
+        val += (h2h[i,j] + h2h[j,i]) / (p[i] + p[j])
+      end
+    end
+    p_new[i] = W[i] * 1/val
+  end
+  sum_p = sum(p_new)
+  p_new /= sum_p
+  return p_new
+end # BT_MLE_step
 
 function tanking_unit_tests()
 	test_ranking = 1:num_teams
