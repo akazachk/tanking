@@ -89,7 +89,7 @@ function set_mode(mode=MODE)
   elseif mode == BT_ESTIMATED
     global ranking_type="_BT_est"
     # Need to estimate true_strength
-    tmp_true_strength = BT_MLE()
+    tmp_true_strength = BT_avg() #BT_MLE()
 	end
 	global csvext = string(ranking_type,".csv")
 	global ext = string(ranking_type,".",ext_folder)
@@ -911,35 +911,44 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     math_elim_mode = 0)
   Random.seed!(628) # for reproducibility
 
-  mode_list = [STRICT BT_ESTIMATED]
-  loss_list = zeros(Float64, length(mode_list), num_steps+1)
-  for mode_ind = 1:length(mode_list)
-    println("Mode should be set to mode $mode_ind: ", mode_list[mode_ind])
-    set_mode(mode_list[mode_ind])
+  ## Simulation parameters
+  mode_list = [BT_ESTIMATED]
+  mode_list_name = ["BT"]
+  gamma_list = [0.50 0.55 0.60 0.65 0.70 0.75 0.80 0.85 0.90 0.95 1.00]
+  num_modes = length(mode_list) + length(gamma_list)
+
+  ## Stats we keep
+  avg_stat    = 1
+  stddev_stat = 2
+  min_stat    = 3
+  max_stat    = 4
+  num_stats   = 4
+  prefix      = ["avg_", "stddev_", "min_", "max_"]
+
+  ## For output
+  loss_list = zeros(Float64, num_modes, num_steps+1)
+  win_pct_list = zeros(Float64, num_modes, num_steps+1, num_teams, num_stats)
+
+  ## Data for comparison
+  win_pct_nba = readdlm(string(data_dir, "/winpct.csv"), ',') # [year, team]
+  num_header_rows = 1
+  num_years = size(win_pct_nba, 2)
+
+  for mode_ind = 1:num_modes
+    curr_mode = mode_ind <= length(mode_list) ? mode_list[mode_ind] : STRICT
+    curr_gamma = mode_ind <= length(mode_list) ? gamma : gamma_list[mode_ind - length(mode_list)]
+    println("Mode should be set to mode $mode_ind: ", curr_mode, " and gamma to $curr_gamma")
+    set_mode(curr_mode)
     println("True strength: ", true_strength)
 
-    ## Stats we keep
-    avg_stat    = 1
-    stddev_stat = 2
-    min_stat    = 3
-    max_stat    = 4
-    num_stats   = 4
-    prefix      = ["avg_", "stddev_", "min_", "max_"]
-
     ## Retrieve win_pct matrix [step_ind, team_ind, stat]
-    win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode_list[mode_ind], math_elim_mode, true)
+    win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, true_strength, curr_mode, math_elim_mode, true)
+    win_pct_list[mode_ind, :, :, :] = win_pct
 
-    for stat = 1:num_stats
-      writedlm(string(results_dir, "/", prefix[stat], "win_pct", csvext), win_pct[:,:,stat], ',')
-    end
+    #for stat = 1:num_stats
+    #  writedlm(string(results_dir, "/", prefix[stat], "win_pct", csvext), win_pct[:,:,stat], ',')
+    #end
 
-    win_pct_nba = readdlm(string(data_dir, "/winpct.csv"), ',')
-    num_header_rows = 1
-    num_years = size(win_pct_nba, 2)
-
-    ## Plot simulated vs real average win pct, with error bars
-    # TODO
-    
     ## Calculate mean squared error
     for step_ind = 1:num_steps+1
       loss = 0
@@ -952,14 +961,68 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         end # loop over years
       end # loop over teams
       loss_list[mode_ind, step_ind] = loss
-      println("Step ", step_ind - 1, ": Loss from mode ", mode_list[mode_ind], ": ", loss_list[mode_ind, step_ind])
+      println("Step ", step_ind - 1, ": Loss from mode ", curr_mode, ": ", loss_list[mode_ind, step_ind])
     end # loop over steps
   end # iterate over modes in mode_list
 
+  ## Plot simulated vs real average win pct, with error bars
+  print("Plotting win_pct\n")
+  minx = 1
+  incx = 5
+  maxx = num_teams
+  miny = 0
+  incy = 10
+  maxy = 100
+  titlestring = L"\mbox{Win percentage by rank}"
+  xlabelstring = L"\mbox{Rank of team}"
+  ylabelstring = L"\mbox{Winning percentage at end of season}"
+  legendtitlestring = L"\mbox{Method}"
+  fname_stub = "win_pct"
+  if use_pyplot
+    for tank_ind in [1,num_steps+1]
+      tank_name = string("_",tank_ind-1,"tank")
+      fname = string(results_dir,"/",ext_folder,"/",fname_stub,tank_name,ext)
+      fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,tank_name,lowext)
+      fig = figure(frameon=false)
+      title(titlestring)
+      xlabel(xlabelstring)
+      ylabel(ylabelstring)
+      #xticks(Array(minx:incx:maxx))
+      tmp = Array(minx-1:incx:maxx)
+      tmp[1] += 1
+      xticks(tmp)
+      yticks(Array(miny:incy:maxy))
+      for r = 1:num_modes+1
+        if r <= num_modes
+          if r <= length(mode_list)
+            style="dashed"
+          else
+            style="solid"
+          end
+          curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[r-length(mode_list)])
+          plot(1:num_teams, win_pct_list[r,tank_ind,:,avg_stat], label=curr_label, linestyle=style)
+        else
+          curr_label = "NBA average"
+          win_pct_nba_avg = sum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2)[:,1] / num_years
+          plot(1:num_teams, win_pct_nba_avg, label=curr_label, color="black", marker="x")
+        end
+      end
+
+      #legend(loc="upper left", title=legendtitlestring) 
+      #legend(bbox_to_anchor=[0.5,.95, 0.5, 0.45], title=legendtitlestring, ncol=4, fontsize="xx-small", markerscale=0.4)
+      legend(loc="upper right", title=legendtitlestring, ncol=4, fontsize="xx-small", markerscale=0.4)
+      PyPlot.savefig(fname)
+      PyPlot.savefig(fname_low)
+      close()
+    end # loop over tank indices we want to plot
+  end # check if pyplot is used
+  
   println("## Summary of model validation experiments ##")
-  for mode_ind = 1:length(mode_list)
+  for mode_ind = 1:num_modes
+    curr_mode = mode_ind <= length(mode_list) ? mode_list[mode_ind] : STRICT
+    curr_gamma = mode_ind <= length(mode_list) ? gamma : gamma_list[mode_ind - length(mode_list)]
     for step_ind = 1:num_steps+1 
-      println("Step ", step_ind - 1, ": Loss from mode ", mode_list[mode_ind], ": ", loss_list[mode_ind, step_ind])
+      println("Step ", step_ind - 1, ": Loss from mode ", curr_mode, " (gamma: ", curr_gamma, "): ", loss_list[mode_ind, step_ind])
     end
   end
 end # model_validation
@@ -1026,8 +1089,8 @@ function BT_MLE(;data_dir="../data")
       end
     end
   end
-  println(W) 
-  println(h2h_final)
+  #println(W) 
+  #println(h2h_final)
 
   p = ones(Float64, num_teams)
   eps = 1e-5
@@ -1045,6 +1108,7 @@ function BT_MLE(;data_dir="../data")
   end
 
   p = sort(p, rev=true)
+  #p = sort([sum(h2h_final[:,i])/(num_teams-1) for i in 1:num_teams], rev=true)
   return p
 end # BT_MLE
 
@@ -1064,6 +1128,16 @@ function BT_MLE_step(h2h, W, p)
   p_new /= sum_p
   return p_new
 end # BT_MLE_step
+
+function BT_avg(;data_dir="../data")
+  # Get win_pct_nba
+  win_pct_nba = readdlm(string(data_dir, "/winpct.csv"), ',')
+  num_header_rows = 1
+  num_years_nba = size(win_pct_nba, 2)
+  p = sum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2) / num_years_nba
+  p = p[:,1]
+  return p
+end # BT_avg
 
 function tanking_unit_tests()
 	test_ranking = 1:num_teams

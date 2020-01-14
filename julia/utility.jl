@@ -134,6 +134,7 @@ end # teamIsBetter
 
 function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 	# Figure out which team is better and update gamma correspondingly
+  # When BT is used, teamIsBetter returns the probability that team i beats team j
 	better_team = teamIsBetter(i, j, true_strength, mode)
 	if mode == STRICT || mode == TIES
 		# if better_team == 1, keep gamma as it is
@@ -144,7 +145,7 @@ function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 			gamma = 1 - gamma
 		end
 	elseif mode == BT_UNIFORM || mode == BT_EXPONENTIAL || mode == BT_ESTIMATED
-		gamma = better_team
+		gamma = better_team # this is the probabilty that team i beats team j in the BT model
 	end
 		
 	# team i (< j) wins with probability gamma (if i is indeed better than j)
@@ -298,6 +299,9 @@ function teamIsEffectivelyEliminated(num_wins, num_games_remaining, num_team_gam
 	return false
 end # teamIsEffectivelyEliminated
 
+"""
+kendtau_sorted
+"""
 function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=STRICT, min_rank=1)
 	len = size(sorted_ranking,1)
 	kt = 0
