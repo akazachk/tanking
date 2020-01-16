@@ -4,7 +4,7 @@
 # Aleksandr M. Kazachkov
 # Shai Vardi
 ###
-# June 2019
+# February 2020
 ###
 # Implemented are the bilevel, Gold, Lenten, and NBA lottery-based rankings (both pre- and post-2019 changes)
 # 1. Bilevel: set a breakpoint; rank nonplayoff teams based on their relative order at the breakpoint
@@ -19,6 +19,7 @@ using DelimitedFiles
 using LaTeXStrings
 using Printf
 import Distributions.Beta
+include("BT.jl")
 include("simulate.jl")
 include("parse.jl")
 include("utility.jl") # imports MODE definitions
@@ -79,8 +80,13 @@ function set_mode(mode=MODE)
 		# --> more weight on middle teams, smaller probability of very weak or very strong teams
 		global ranking_type="_BT_uniform"
 		#tmp_true_strength = rand(30)
-    distr = Beta(3,5)
-    tmp_true_strength = rand(distr, 30)
+    distr = Beta(2,5)
+    num_repeats = 1000
+    tmp_true_strength = sort(rand(distr, 30), rev=true)
+    for i = 2:num_repeats
+      tmp_true_strength += sort(rand(distr, 30), rev=true)
+    end
+    tmp_true_strength /= num_repeats
 	elseif mode == BT_EXPONENTIAL
 		global ranking_type="_BT_exponential"
 		#tmp_true_strength = rand(30)
@@ -89,7 +95,8 @@ function set_mode(mode=MODE)
   elseif mode == BT_ESTIMATED
     global ranking_type="_BT_est"
     # Need to estimate true_strength
-    tmp_true_strength = BT_avg() #BT_MLE()
+    #BT_avg() BT_MLE()
+    tmp_true_strength = BT_MLE()
 	end
 	global csvext = string(ranking_type,".csv")
 	global ext = string(ranking_type,".",ext_folder)
@@ -188,7 +195,7 @@ Parameters
 """
 function main_simulate(;do_simulation = true, num_replications = 100000, 
     do_plotting = true, mode = MODE, results_dir = "../results", 
-    num_rounds = 3, num_steps = num_teams, gamma = 0.75, 
+    num_rounds = 3, num_steps = num_teams, gamma = 0.7125, 
     math_elim_mode = -2)
   Random.seed!(628) # for reproducibility
 	set_mode(mode)
@@ -907,14 +914,16 @@ end # rankings_are_noisy
 
 function model_validation(;do_simulation = true, num_replications = 100000, 
     data_dir = "../data", results_dir = "../results",
-    num_rounds = 3, num_steps = num_teams, gamma = 0.75, 
+    num_rounds = 3, num_steps = 1, gamma = 0.7125, 
     math_elim_mode = 0)
   Random.seed!(628) # for reproducibility
 
   ## Simulation parameters
-  mode_list = [BT_ESTIMATED]
-  mode_list_name = ["BT"]
-  gamma_list = [0.50 0.55 0.60 0.65 0.70 0.75 0.80 0.85 0.90 0.95 1.00]
+  mode_list = [BT_ESTIMATED BT_UNIFORM]
+  mode_list_name = ["BT.est", "BT.unif"]
+  @assert(length(mode_list) == length(mode_list_name))
+  #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
+  gamma_list = [0.7125]
   num_modes = length(mode_list) + length(gamma_list)
 
   ## Stats we keep
@@ -943,6 +952,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
 
     ## Retrieve win_pct matrix [step_ind, team_ind, stat]
     win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, true_strength, curr_mode, math_elim_mode, true)
+    println("Win pct: ", win_pct[:,:,avg_stat])
     win_pct_list[mode_ind, :, :, :] = win_pct
 
     #for stat = 1:num_stats
@@ -1004,6 +1014,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         else
           curr_label = "NBA average"
           win_pct_nba_avg = sum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2)[:,1] / num_years
+          println("win_pct_nba: ", win_pct_nba_avg)
           plot(1:num_teams, win_pct_nba_avg, label=curr_label, color="black", marker="x")
         end
       end
@@ -1026,118 +1037,6 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     end
   end
 end # model_validation
-
-"""
-Look at number of wins team with rank i won against team of rank j in every year
-to calculate MLE for Bradley-Terry model
-"""
-function BT_MLE(;data_dir="../data")
-  years = ["games1314.csv", "games1415.csv", "games1516.csv", "games1617.csv", "games1718.csv", "games1819.csv"]
-  num_years = length(years)
-
-  num_stats = 6 # name, wins, losses, games_left, elim, win_pct
-  win_pct_ind = 6
-
-  h2h = zeros(Float64, num_years, num_teams, num_teams)
-  stats = zeros(Float64, num_years, num_teams, num_stats)
-
-  ## Retrieve stats for each year
-  # h2hYYYY will have number of times team i beat team j
-  # so total games between teams i and j are given there too
-  # We also collect stats1314 to identify the ranking of each team at the end of each season
-  total_games_played = zeros(Int, num_teams, num_teams)
-  h2h_final = zeros(Float64, num_teams, num_teams)
-  for yr = 1:num_years
-    _, _, stats[yr, :, :], _, h2h[yr, :, :] = parseNBASeason(years[yr], breakpoint_list, data_dir)
-
-    # Get ranking from this season
-    rank_of_team = sortperm(stats[yr, :, win_pct_ind])
-    team_in_pos = Array{Int}(undef, num_teams) # inverse ranking (returns team that is in position i)
-    for i = 1:num_teams
-      team_in_pos[rank_of_team[i]] = i
-    end
-
-    # Update h2h totals
-    for i = 1:num_teams
-      team_i = team_in_pos[i]
-      for j = i+1:num_teams
-        team_j = team_in_pos[j]
-        total_games_played[i,j] += h2h[yr, team_i, team_j] + h2h[yr, team_j, team_i]
-        h2h_final[i,j] += h2h[yr, team_i, team_j]
-        h2h_final[j,i] += h2h[yr, team_j, team_i]
-      end
-    end
-  end # loop over years
-
-  # Normalize h2h_final
-  # Also, calculate number of comparisons won by i
-  W = zeros(Int, num_teams)
-  for i = 1:num_teams
-    for j = i+1:num_teams
-      if total_games_played[i,j] > 0
-        h2h_final[i,j] /= total_games_played[i,j]
-        h2h_final[j,i] /= total_games_played[i,j]
-      else
-        h2h_final[i,j] = 0
-        h2h_final[j,i] = 0
-      end
-
-      if h2h_final[i,j] > h2h_final[j,i]
-        W[i] += 1
-      else
-        W[j] += 1
-      end
-    end
-  end
-  #println(W) 
-  #println(h2h_final)
-
-  p = ones(Float64, num_teams)
-  eps = 1e-5
-  for step = 1:100
-    p_new = BT_MLE_step(h2h_final, W, p)
-
-    # Calculate differences
-    sum_diff = 0.0
-    for i = 1:num_teams
-      sum_diff += abs(p[i] - p_new[i])
-    end
-    if sum_diff < eps
-      break
-    end
-  end
-
-  p = sort(p, rev=true)
-  #p = sort([sum(h2h_final[:,i])/(num_teams-1) for i in 1:num_teams], rev=true)
-  return p
-end # BT_MLE
-
-function BT_MLE_step(h2h, W, p)
-  num_teams = length(p)
-  p_new = p
-  for i = 1:num_teams
-    val = 0
-    for j = 1:num_teams
-      if j != i
-        val += (h2h[i,j] + h2h[j,i]) / (p[i] + p[j])
-      end
-    end
-    p_new[i] = W[i] * 1/val
-  end
-  sum_p = sum(p_new)
-  p_new /= sum_p
-  return p_new
-end # BT_MLE_step
-
-function BT_avg(;data_dir="../data")
-  # Get win_pct_nba
-  win_pct_nba = readdlm(string(data_dir, "/winpct.csv"), ',')
-  num_header_rows = 1
-  num_years_nba = size(win_pct_nba, 2)
-  p = sum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2) / num_years_nba
-  p = p[:,1]
-  return p
-end # BT_avg
 
 function tanking_unit_tests()
 	test_ranking = 1:num_teams
