@@ -47,7 +47,7 @@ num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
 ## Set ranking type
 # 1: strict: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
 # 2: ties: [1,5] \succ [6,10] \succ \cdots \succ [26,30]
-# 3: BT_uniform: Bradley-Terry with P(i>j) = p_i / (p_i + p_j); must also set distribution, where default is each team gets a strength score from U[0,1]
+# 3: BT_distribution: Bradley-Terry with P(i>j) = p_i / (p_i + p_j); must also set distribution, where default is each team gets a strength score from U[0,1]
 # 4: BT_exponential: Bradley-Terry with P(i>j) = exp(p_i) / (exp(p_i) + exp(p_j)); must also set distribution, where default is each team gets a strength score from U[0,1]; can consider others such as, e.g., using Beta(alpha=3, beta=5)
 MODE = STRICT # imported from utility.jl
 
@@ -72,13 +72,13 @@ function set_mode(mode=MODE)
 		# [1,5] \succ [6,10] \succ \cdots \succ [26,30]
 		global ranking_type="_ties"
 		tmp_true_strength = [Int(ceil(i/5)) for i in num_teams:-1:1] # allows for ties # old: [i:i+4 for i in 1:5:num_teams-4]
-	elseif mode == BT_UNIFORM
+	elseif mode == BT_DISTR
 		# Options to consider:
 		# uniform distribution (same as beta(1,1))
 		# --> essentially perfectly imbalanced
 		# nonuniform distribution, beta(2,2), or maybe we should do some kind of bimodal distribution
 		# --> more weight on middle teams, smaller probability of very weak or very strong teams
-		global ranking_type="_BT_uniform"
+		global ranking_type="_BT_distr"
 		#tmp_true_strength = rand(30)
     distr = Beta(2,5)
     num_repeats = 1000
@@ -88,9 +88,9 @@ function set_mode(mode=MODE)
     end
     tmp_true_strength /= num_repeats
 	elseif mode == BT_EXPONENTIAL
-		global ranking_type="_BT_exponential"
+		global ranking_type="_BT_exp"
 		#tmp_true_strength = rand(30)
-    distr = Beta(3,5)
+    distr = Beta(2,5)
     tmp_true_strength = rand(distr, 30)
   elseif mode == BT_ESTIMATED
     global ranking_type="_BT_est"
@@ -919,11 +919,13 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   Random.seed!(628) # for reproducibility
 
   ## Simulation parameters
-  mode_list = [BT_ESTIMATED BT_UNIFORM]
-  mode_list_name = ["BT.est", "BT.unif"]
+  mode_list = [BT_ESTIMATED BT_DISTR]
+  mode_list_name = ["BT.est", "BT.beta"]
+  #mode_list = []; mode_list_name= []
   @assert(length(mode_list) == length(mode_list_name))
   #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
-  gamma_list = [0.7125]
+  #gamma_list = [0.7, 0.71, 0.7125, 0.715, 0.7175, 0.72, 0.725, 0.75]
+  gamma_list = [0.7, 0.7125, 0.725]
   num_modes = length(mode_list) + length(gamma_list)
 
   ## Stats we keep
@@ -948,11 +950,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     curr_gamma = mode_ind <= length(mode_list) ? gamma : gamma_list[mode_ind - length(mode_list)]
     println("Mode should be set to mode $mode_ind: ", curr_mode, " and gamma to $curr_gamma")
     set_mode(curr_mode)
-    println("True strength: ", true_strength)
+    println("true_strength = ", true_strength)
 
     ## Retrieve win_pct matrix [step_ind, team_ind, stat]
     win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, true_strength, curr_mode, math_elim_mode, true)
-    println("Win pct: ", win_pct[:,:,avg_stat])
+    println("win_pct = ", win_pct[:,:,avg_stat])
     win_pct_list[mode_ind, :, :, :] = win_pct
 
     #for stat = 1:num_stats
@@ -974,6 +976,12 @@ function model_validation(;do_simulation = true, num_replications = 100000,
       println("Step ", step_ind - 1, ": Loss from mode ", curr_mode, ": ", loss_list[mode_ind, step_ind])
     end # loop over steps
   end # iterate over modes in mode_list
+          
+  ## Get avg nba data
+  win_pct_nba_avg = sum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2)[:,1] / num_years
+  errs = zeros(Float64, 2, num_teams)
+  errs[2,:] = maximum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2) - win_pct_nba_avg
+  errs[1,:] = win_pct_nba_avg - minimum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2)
 
   ## Plot simulated vs real average win pct, with error bars
   print("Plotting win_pct\n")
@@ -1013,9 +1021,8 @@ function model_validation(;do_simulation = true, num_replications = 100000,
           plot(1:num_teams, win_pct_list[r,tank_ind,:,avg_stat], label=curr_label, linestyle=style)
         else
           curr_label = "NBA average"
-          win_pct_nba_avg = sum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2)[:,1] / num_years
-          println("win_pct_nba: ", win_pct_nba_avg)
           plot(1:num_teams, win_pct_nba_avg, label=curr_label, color="black", marker="x")
+          errorbar(1:num_teams, win_pct_nba_avg, errs, color="black")
         end
       end
 

@@ -11,7 +11,7 @@ include("mathelim.jl")
 # 2: ties: [1,5] \succ [6,10] \succ \cdots \succ [26,30]
 # 3: BT_uniform: Bradley-Terry with P(i>j) = p_i / (p_i + p_j); must also set distribution, where default is each team gets a strength score from U[0,1]
 # 4: BT_exponential: Bradley-Terry with P(i>j) = exp(p_i) / (exp(p_i) + exp(p_j)); must also set distribution, where default is each team gets a strength score from U[0,1]; can consider others such as, e.g., using Beta(alpha=2, beta=5)
-@enum MODE_TYPES NONE=0 STRICT TIES BT_UNIFORM BT_EXPONENTIAL BT_ESTIMATED
+@enum MODE_TYPES NONE=0 STRICT TIES BT_DISTR BT_EXPONENTIAL BT_ESTIMATED
 
 function greaterThanVal(x, y, eps = 1e-7)
   return x > y + eps
@@ -123,7 +123,7 @@ function teamIsBetter(i, j, true_strength = 30:-1:1, mode=STRICT)
 		else
 			return 0
 		end
-	elseif mode == BT_UNIFORM
+	elseif mode == BT_DISTR
 		return (team_i_str) / ((team_i_str) + (team_j_str))
 	elseif mode == BT_EXPONENTIAL
 		return exp(team_i_str) / (exp(team_i_str) + exp(team_j_str))
@@ -144,7 +144,7 @@ function teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 		elseif better_team == -1
 			gamma = 1 - gamma
 		end
-	elseif mode == BT_UNIFORM || mode == BT_EXPONENTIAL || mode == BT_ESTIMATED
+	elseif mode == BT_DISTR || mode == BT_EXPONENTIAL || mode == BT_ESTIMATED
 		gamma = better_team # this is the probabilty that team i beats team j in the BT model
 	end
 		
@@ -311,7 +311,7 @@ function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=STRICT, min_
 			out_of_order = false
       if mode == STRICT || mode == TIES
 				out_of_order = (better_team == -1)
-      elseif mode == BT_UNIFORM || mode == BT_EXPONENTIAL || mode == BT_ESTIMATED
+      elseif mode == BT_DISTR || mode == BT_EXPONENTIAL || mode == BT_ESTIMATED
 				out_of_order = (better_team < 0.5 - 1e-7)
 			end
 			#print("i: ", sorted_ranking[i], "\tj: ", sorted_ranking[j], "\tteamIsBetter: ",better_team,"\n")
