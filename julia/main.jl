@@ -195,7 +195,7 @@ Parameters
 """
 function main_simulate(;do_simulation = true, num_replications = 100000, 
     do_plotting = true, mode = MODE, results_dir = "../results", 
-    num_rounds = 3, num_steps = num_teams, gamma = 0.7125, 
+    num_rounds = 3, num_steps = num_teams, gamma = 0.71375, 
     math_elim_mode = -2)
   Random.seed!(628) # for reproducibility
 	set_mode(mode)
@@ -913,19 +913,19 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 end # rankings_are_noisy
 
 function model_validation(;do_simulation = true, num_replications = 100000, 
-    data_dir = "../data", results_dir = "../results",
-    num_rounds = 3, num_steps = 1, gamma = 0.7125, 
+    data_dir = "../data", results_dir = "../results", do_plotting = true,
+    num_rounds = 3, num_steps = 2, gamma = 0.71375, 
     math_elim_mode = 0)
   Random.seed!(628) # for reproducibility
 
   ## Simulation parameters
-  mode_list = [BT_ESTIMATED BT_DISTR]
-  mode_list_name = ["BT.est", "BT.beta"]
-  #mode_list = []; mode_list_name= []
+  #mode_list = [BT_ESTIMATED BT_DISTR]
+  #mode_list_name = ["BT.est", "BT.beta"]
+  mode_list = [BT_ESTIMATED]; mode_list_name= ["BT"]
   @assert(length(mode_list) == length(mode_list_name))
   #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
   #gamma_list = [0.7, 0.71, 0.7125, 0.715, 0.7175, 0.72, 0.725, 0.75]
-  gamma_list = [0.7, 0.7125, 0.725]
+  gamma_list = [0.7, 0.7125, 0.71375, 0.715, 0.725]
   num_modes = length(mode_list) + length(gamma_list)
 
   ## Stats we keep
@@ -948,7 +948,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   for mode_ind = 1:num_modes
     curr_mode = mode_ind <= length(mode_list) ? mode_list[mode_ind] : STRICT
     curr_gamma = mode_ind <= length(mode_list) ? gamma : gamma_list[mode_ind - length(mode_list)]
-    println("Mode should be set to mode $mode_ind: ", curr_mode, " and gamma to $curr_gamma")
+    if curr_mode == STRICT
+      println("Mode should be set to mode $mode_ind: ", curr_mode, " and gamma to $curr_gamma")
+    else
+      println("Mode should be set to mode $mode_ind: ", curr_mode)
+    end
     set_mode(curr_mode)
     println("true_strength = ", true_strength)
 
@@ -984,63 +988,69 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   errs[1,:] = win_pct_nba_avg - minimum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2)
 
   ## Plot simulated vs real average win pct, with error bars
-  print("Plotting win_pct\n")
-  minx = 1
-  incx = 5
-  maxx = num_teams
-  miny = 0
-  incy = 10
-  maxy = 100
-  titlestring = L"\mbox{Win percentage by rank}"
-  xlabelstring = L"\mbox{Rank of team}"
-  ylabelstring = L"\mbox{Winning percentage at end of season}"
-  legendtitlestring = L"\mbox{Method}"
-  fname_stub = "win_pct"
-  if use_pyplot
-    for tank_ind in [1,num_steps+1]
-      tank_name = string("_",tank_ind-1,"tank")
-      fname = string(results_dir,"/",ext_folder,"/",fname_stub,tank_name,ext)
-      fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,tank_name,lowext)
-      fig = figure(frameon=false)
-      title(titlestring)
-      xlabel(xlabelstring)
-      ylabel(ylabelstring)
-      #xticks(Array(minx:incx:maxx))
-      tmp = Array(minx-1:incx:maxx)
-      tmp[1] += 1
-      xticks(tmp)
-      yticks(Array(miny:incy:maxy))
-      for r = 1:num_modes+1
-        if r <= num_modes
-          if r <= length(mode_list)
-            style="dashed"
+  if do_plotting
+    print("Plotting win_pct\n")
+    minx = 1
+    incx = 5
+    maxx = num_teams
+    miny = 0
+    incy = 10
+    maxy = 100
+    titlestring = L"\mbox{Win percentage by rank}"
+    xlabelstring = L"\mbox{Rank of team}"
+    ylabelstring = L"\mbox{Winning percentage at end of season}"
+    legendtitlestring = L"\mbox{Method}"
+    fname_stub = "win_pct"
+    if use_pyplot
+      for tank_ind in 1:num_steps+1 #[1,num_steps+1]
+        tank_name = string("_",tank_ind-1,"tank")
+        fname = string(results_dir,"/",ext_folder,"/",fname_stub,tank_name,ext)
+        fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,tank_name,lowext)
+        fig = figure(frameon=false)
+        title(titlestring)
+        xlabel(xlabelstring)
+        ylabel(ylabelstring)
+        #xticks(Array(minx:incx:maxx))
+        tmp = Array(minx-1:incx:maxx)
+        tmp[1] += 1
+        xticks(tmp)
+        yticks(Array(miny:incy:maxy))
+        for r = 1:num_modes+1
+          if r <= num_modes
+            if r <= length(mode_list)
+              style="dashed"
+            else
+              style="solid"
+            end
+            curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[r-length(mode_list)])
+            plot(1:num_teams, win_pct_list[r,tank_ind,:,avg_stat], label=curr_label, linestyle=style)
           else
-            style="solid"
+            curr_label = "NBA average"
+            plot(1:num_teams, win_pct_nba_avg, label=curr_label, color="black", marker="x")
+            errorbar(1:num_teams, win_pct_nba_avg, errs, color="black")
           end
-          curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[r-length(mode_list)])
-          plot(1:num_teams, win_pct_list[r,tank_ind,:,avg_stat], label=curr_label, linestyle=style)
-        else
-          curr_label = "NBA average"
-          plot(1:num_teams, win_pct_nba_avg, label=curr_label, color="black", marker="x")
-          errorbar(1:num_teams, win_pct_nba_avg, errs, color="black")
         end
-      end
 
-      #legend(loc="upper left", title=legendtitlestring) 
-      #legend(bbox_to_anchor=[0.5,.95, 0.5, 0.45], title=legendtitlestring, ncol=4, fontsize="xx-small", markerscale=0.4)
-      legend(loc="upper right", title=legendtitlestring, ncol=4, fontsize="xx-small", markerscale=0.4)
-      PyPlot.savefig(fname)
-      PyPlot.savefig(fname_low)
-      close()
-    end # loop over tank indices we want to plot
-  end # check if pyplot is used
-  
+        #legend(loc="upper left", title=legendtitlestring) 
+        #legend(bbox_to_anchor=[0.5,.95, 0.5, 0.45], title=legendtitlestring, ncol=4, fontsize="xx-small", markerscale=0.4)
+        legend(loc="upper right", title=legendtitlestring, ncol=4, fontsize="xx-small", markerscale=0.4)
+        PyPlot.savefig(fname)
+        PyPlot.savefig(fname_low)
+        close()
+      end # loop over tank indices we want to plot
+    end # check if pyplot is used
+  end # check if do_plotting
+    
   println("## Summary of model validation experiments ##")
   for mode_ind = 1:num_modes
     curr_mode = mode_ind <= length(mode_list) ? mode_list[mode_ind] : STRICT
     curr_gamma = mode_ind <= length(mode_list) ? gamma : gamma_list[mode_ind - length(mode_list)]
     for step_ind = 1:num_steps+1 
-      println("Step ", step_ind - 1, ": Loss from mode ", curr_mode, " (gamma: ", curr_gamma, "): ", loss_list[mode_ind, step_ind])
+      if curr_mode == STRICT
+        println("Step ", step_ind - 1, ": Loss from mode ", curr_mode, " (gamma: ", curr_gamma, "): ", loss_list[mode_ind, step_ind])
+      else
+        println("Step ", step_ind - 1, ": Loss from mode ", curr_mode, ": ", loss_list[mode_ind, step_ind])
+      end
     end
   end
 end # model_validation
