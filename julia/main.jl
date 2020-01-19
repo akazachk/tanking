@@ -957,13 +957,28 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     println("true_strength = ", true_strength)
 
     ## Retrieve win_pct matrix [step_ind, team_ind, stat]
-    win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, true_strength, curr_mode, math_elim_mode, true)
-    println("win_pct = ", win_pct[:,:,avg_stat])
-    win_pct_list[mode_ind, :, :, :] = win_pct
-
-    #for stat = 1:num_stats
-    #  writedlm(string(results_dir, "/", prefix[stat], "win_pct", csvext), win_pct[:,:,stat], ',')
-    #end
+    ## Save data
+    if do_simulation
+      win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, true_strength, curr_mode, math_elim_mode, true)
+      println("win_pct = ", win_pct[:,:,avg_stat])
+      win_pct_list[mode_ind, :, :, :] = win_pct
+      for stat in [avg_stat]
+        curr_name = "win_pct"
+        if curr_mode == STRICT
+          curr_name = string(curr_name, "_", curr_gamma)
+        end
+        writedlm(string(results_dir, "/", prefix[stat], curr_name, csvext), win_pct[:,:,stat], ',')
+      end
+    else
+      for stat in [avg_stat]
+        curr_name = "win_pct"
+        if curr_mode == STRICT
+          curr_name = string(curr_name, "_", curr_gamma)
+        end
+        win_pct_avg = readdlm(string(results_dir, "/", prefix[stat], curr_name, csvext), ',')
+        win_pct_list[mode_ind, :, :, avg_stat] = win_pct_avg
+      end
+    end
 
     ## Calculate mean squared error
     for step_ind = 1:num_steps+1

@@ -496,9 +496,9 @@ Returns whether team k is a contender after game t
 """
 function teamIsContender(k, t, schedule, stats, outcome, h2h, math_elim_game_total, num_playoff_teams, wins_ind = 2, games_left_ind = 3)
   is_contender = math_elim_game_total[k] < 0 || math_elim_game_total[k] > t # team k is not eliminated yet (by game t)
-  if is_contender
-    _, _, _, rank_of_team = heuristicWorstRank(k, t, schedule, stats, outcome, h2h, wins_ind, games_left_ind)
-    is_contender = (rank_of_team[k] > num_playoff_teams)
-  end
+  #if is_contender
+  #  _, _, _, rank_of_team = heuristicWorstRank(k, t, schedule, stats, outcome, h2h, wins_ind, games_left_ind)
+  #  is_contender = (rank_of_team[k] > num_playoff_teams)
+  #end
   return is_contender
 end # teamIsContender

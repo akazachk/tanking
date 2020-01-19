@@ -236,8 +236,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       h2h                 = zeros(Int, num_teams, num_teams)
       h2h_left            = num_rounds * ones(Int, num_teams, num_teams)
 
-      is_unelim           = zeros(Bool, num_teams)
-      math_elim_game_total = -ones(Int, num_teams)
+      is_unelim           = zeros(Bool, num_teams) # when effective elimination is wrong
+      math_elim_game_total = -ones(Int, num_teams) # game (within whole schedule) that team i is eliminated
       num_missing_case    = 0
 
       ## Set up initial ranking
@@ -285,13 +285,17 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         if math_elim_mode != 0
           for r = 1:length(breakpoint_game_for_draft)
             delta = breakpoint_game_for_draft[r]
+            # Check condition (1)
             if game_ind <= delta
               continue
             end
 
-            # Check team i
-            if (math_elim_game_total[i] > delta) && (draft_rank_of_team[i,r] < draft_rank_of_team[j,r]) && teamIsContender(j, game_ind, schedule, stats, outcome, h2h, math_elim_game_total, num_playoff_teams, wins_ind, games_left_ind)
-              # Check cond (6) that some remaining contender was ranked better than team i at the breakpoint game delta
+            # Check conditions (2)-(5) for team i
+            cond23 = (math_elim_game_total[i] > delta) # if math_elim_game_total[i] < 0, i.e., the team is not elim, this is false
+            cond4 = (draft_rank_of_team[i,r] < draft_rank_of_team[j,r])
+            cond5 = teamIsContender(j, game_ind, schedule, stats, outcome, h2h, math_elim_game_total, num_playoff_teams, wins_ind, games_left_ind)
+            if cond23 && cond4 && cond5
+              # Check condition (6) that some remaining contender was ranked better than team i at the breakpoint game delta
               exists_contender = false
               for k = 1:num_teams
                 if (draft_rank_of_team[i,r] > draft_rank_of_team[k,r]) && teamIsContender(k, game_ind, schedule, stats, outcome, h2h, math_elim_game_total, num_playoff_teams, wins_ind, games_left_ind) 
@@ -303,9 +307,12 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
               num_missing_case += exists_contender
             end # check if conditions (2)-(5) are met for team i
 
-            # Check team j
-            if (math_elim_game_total[j] > delta) && (draft_rank_of_team[j,r] < draft_rank_of_team[i,r]) && teamIsContender(i, game_ind, schedule, stats, outcome, h2h, math_elim_game_total, num_playoff_teams, wins_ind, games_left_ind)
-              # Check cond (6) that some remaining contender was ranked better than team j at the breakpoint game delta
+            # Check condtions (2)-(5) for team j
+            cond23 = (math_elim_game_total[j] > delta) # if math_elim_game_total[i] < 0, i.e., the team is not elim, this is false
+            cond4 = (draft_rank_of_team[j,r] < draft_rank_of_team[i,r])
+            cond5 = teamIsContender(i, game_ind, schedule, stats, outcome, h2h, math_elim_game_total, num_playoff_teams, wins_ind, games_left_ind)
+            if cond23 && cond4 && cond5
+              # Check condition (6) that some remaining contender was ranked better than team j at the breakpoint game delta
               exists_contender = false
               for k = 1:num_teams
                 if (draft_rank_of_team[j,r] > draft_rank_of_team[k,r]) && teamIsContender(k, game_ind, schedule, stats, outcome, h2h, math_elim_game_total, num_playoff_teams, wins_ind, games_left_ind) 
