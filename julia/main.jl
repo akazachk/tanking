@@ -315,7 +315,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 		maxx = 1
 		miny = Int(floor(findmin(kend[:,:,1])[1]))
 		incy = 1
-		maxy = Int(ceil(findmax(kend[:,:,1])[1]))
+		maxy = 31 #Int(ceil(findmax(kend[:,:,1])[1]))
 		titlestring = L"\mbox{Effect of $\delta$ on bilevel ranking of non-playoff teams}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Distance from true ranking of non-playoff teams}"
@@ -342,8 +342,8 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				plot(0:(1/num_steps):1, kend[:,r,avg_stat], label=curr_label, color=col[r])
 			end
 
-      # Also plot kend_nba (current and new) and kend_lenten (flat line)
-      curr_label = "NBA (current)"
+      # Also plot kend_nba (old and new) and kend_lenten (flat line)
+      curr_label = "NBA (old)"
       plot(0:(1/num_steps):1, kend_nba[:,1,avg_stat], label=curr_label, color="gray")
       curr_label = "NBA (new)"
       plot(0:(1/num_steps):1, kend_nba[:,2,avg_stat], label=curr_label, color="gray", marker=".")
@@ -563,12 +563,29 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
   Random.seed!(628) # for reproducibility
 	set_mode(mode)
 
-	num_teams_eliminated_1314, num_games_tanked_1314, stats1314, critical_game1314, _ = parseNBASeason("games1314.csv", breakpoint_list, data_dir)
-	num_teams_eliminated_1415, num_games_tanked_1415, stats1415, critical_game1415, _ = parseNBASeason("games1415.csv", breakpoint_list, data_dir)
-	num_teams_eliminated_1516, num_games_tanked_1516, stats1516, critical_game1516, _ = parseNBASeason("games1516.csv", breakpoint_list, data_dir)
-	num_teams_eliminated_1617, num_games_tanked_1617, stats1617, critical_game1617, _ = parseNBASeason("games1617.csv", breakpoint_list, data_dir)
-	num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718, _ = parseNBASeason("games1718.csv", breakpoint_list, data_dir)
-	num_teams_eliminated_1819, num_games_tanked_1819, stats1819, critical_game1819, _ = parseNBASeason("games1819.csv", breakpoint_list, data_dir)
+  #years = ["games1314.csv", "games1415.csv", "games1516.csv", "games1617.csv", "games1718.csv", "games1819.csv"]
+  years = ["games0405.csv", "games0506.csv", "games0607.csv", "games0708.csv", "games0809.csv", "games0910.csv", "games1011.csv", "games1213.csv", "games1314.csv", "games1415.csv", "games1516.csv", "games1617.csv", "games1718.csv", "games1819.csv"]
+  num_years = length(years)
+
+  num_teams = 30
+  num_games_per_team = 82
+  num_games_total = Int(num_games_per_team * num_teams / 2)
+  size_of_stats = 6
+  num_teams_eliminated = zeros(Float64, num_years, num_games_total)
+  num_games_tanked = zeros(Int, num_years, length(breakpoint_list))
+  #stats = zeros(Float64, num_years, num_teams, size_of_stats)
+  #critical_game = zeros(Int, num_years, num_teams, 3)
+
+  for yr = 1:num_years
+    num_teams_eliminated[yr,:], num_games_tanked[yr,:], _, _, _ = parseNBASeason(years[yr], breakpoint_list, data_dir)
+  end # loop over years
+
+	#num_teams_eliminated_1314, num_games_tanked_1314, stats1314, critical_game1314, _ = parseNBASeason("games1314.csv", breakpoint_list, data_dir)
+	#num_teams_eliminated_1415, num_games_tanked_1415, stats1415, critical_game1415, _ = parseNBASeason("games1415.csv", breakpoint_list, data_dir)
+	#num_teams_eliminated_1516, num_games_tanked_1516, stats1516, critical_game1516, _ = parseNBASeason("games1516.csv", breakpoint_list, data_dir)
+	#num_teams_eliminated_1617, num_games_tanked_1617, stats1617, critical_game1617, _ = parseNBASeason("games1617.csv", breakpoint_list, data_dir)
+	#num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718, _ = parseNBASeason("games1718.csv", breakpoint_list, data_dir)
+	#num_teams_eliminated_1819, num_games_tanked_1819, stats1819, critical_game1819, _ = parseNBASeason("games1819.csv", breakpoint_list, data_dir)
 
 
 	# Retrieve data for avg_eliminated
@@ -605,21 +622,25 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 	if (do_plotting)
 		ind = [3,5,6] # needs to be ascending
 		@assert ( length(breakpoint_list) in ind )
-		num_years=5
-		labels = [L"2013-2014", L"2014-2015", L"2015-2016", L"2016-2017", L"2017-2018"]
-		col_labels = ["red", "orange", "green", "blue", "violet"]
+		#labels = [L"2013-2014", L"2014-2015", L"2015-2016", L"2016-2017", L"2017-2018"]
+		#col_labels = ["red", "orange", "green", "blue", "violet"]
+    #labels = [L"2004-05", L"2005-06", L"2006-07", L"2007-08", L"2008-09", L"2009-10", L"2010-11", L"2012-13", L"2013-14", L"2014-15", L"2015-16", L"2016-17", L"2017-18", L"2018-19"]
+    col_labels = []
+    labels = [L"04-05", L"05-06", L"06-07", L"07-08", L"08-09", L"09-10", L"10-11", L"12-13", L"13-14", L"14-15", L"15-16", L"16-17", L"17-18", L"18-19"]
+    @assert ( length(labels) == num_years )
+    @assert ( (length(col_labels) == 0) || (length(col_labels) == num_years) )
 
 		## Plot # games tanked
 		print("Plotting num_games_tanked: number of games (possibly) tanked by the breakpoint mark\n")
-		#num_games_tanked = zeros(Int, num_years, length(breakpoint_list))
-		#num_games_tanked[1,:] = num_games_tanked_1314
-		#num_games_tanked[2,:] = num_games_tanked_1415
-		#num_games_tanked[3,:] = num_games_tanked_1516
-		#num_games_tanked[4,:] = num_games_tanked_1617
-		#num_games_tanked[5,:] = num_games_tanked_1718
-		num_games_tanked = hcat(num_games_tanked_1314, num_games_tanked_1415, num_games_tanked_1516, num_games_tanked_1617, num_games_tanked_1718, num_games_tanked1819)
-		num_games_tanked = num_games_tanked'
-		#print(num_games_tanked,"\n")
+		##num_games_tanked = zeros(Int, num_years, length(breakpoint_list))
+		##num_games_tanked[1,:] = num_games_tanked_1314
+		##num_games_tanked[2,:] = num_games_tanked_1415
+		##num_games_tanked[3,:] = num_games_tanked_1516
+		##num_games_tanked[4,:] = num_games_tanked_1617
+		##num_games_tanked[5,:] = num_games_tanked_1718
+		#num_games_tanked = hcat(num_games_tanked_1314, num_games_tanked_1415, num_games_tanked_1516, num_games_tanked_1617, num_games_tanked_1718, num_games_tanked1819)
+		#num_games_tanked = num_games_tanked'
+		##print(num_games_tanked,"\n")
 
 		num_games_tanked_stacked = zeros(Int, num_years, length(ind))
 		for tmp_i in 1:length(ind)
@@ -651,7 +672,8 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 			title(titlestring)
 			xlabel(xlabelstring)
 			ylabel(ylabelstring)
-			xticks(1:num_years,["\$13-14\$","\$14-15\$","\$15-16\$","\$16-17\$","\$17-18\$"]) 
+			#xticks(1:num_years,["\$13-14\$","\$14-15\$","\$15-16\$","\$16-17\$","\$17-18\$"]) 
+			xticks(1:num_years,labels)
 			yticks(miny:incy:maxy)
 			width = 0.75
 			cumsum = zeros(Int, num_years, 1)
@@ -696,12 +718,11 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 
 		## Plot number of teams eliminated
 		print("Plotting num_teams_eliminated: number of eliminated teams by every game of the season\n")
-		num_games = 15 * 82;
-		num_teams_eliminated = hcat(num_teams_eliminated_1314, num_teams_eliminated_1415, num_teams_eliminated_1516, num_teams_eliminated_1617, num_teams_eliminated_1718, num_teams_eliminated_1819)
-		num_teams_eliminated = num_teams_eliminated'
+		#num_teams_eliminated = hcat(num_teams_eliminated_1314, num_teams_eliminated_1415, num_teams_eliminated_1516, num_teams_eliminated_1617, num_teams_eliminated_1718, num_teams_eliminated_1819)
+		#num_teams_eliminated = num_teams_eliminated'
 
-		minx = 1 / num_games
-		maxx = num_games / num_games
+		minx = 1 / num_games_total
+		maxx = 1.0
 		incx = (maxx - minx) / 5
 		miny = Int(ceil(findmin(num_teams_eliminated)[1]))
 		maxy = Int(floor(findmax(num_teams_eliminated)[1]))
@@ -709,7 +730,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		titlestring = L"\mbox{Number of teams eliminated over time}"
 		xlabelstring = L"\mbox{Percent of season elapsed}"
 		ylabelstring = L"\mbox{Number of teams eliminated}"
-		legendtitlestring = L"\mbox{Season}"
+		legendtitlestring = "" #L"\mbox{Season}"
 		fname_stub = "nba_num_teams_eliminated"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
@@ -722,11 +743,19 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 			xticks(Array(minx:incx:maxx), [@sprintf("%.0f", (100*i/maxx)) for i in minx:incx:maxx])
 			#xticks(Array(minx:incx:maxx))
 			yticks(Array(miny:incy:maxy))
-			for s = 1:size(num_teams_eliminated)[1]
-				curr_num_games = length(num_teams_eliminated[s,:])
-				curr_label = labels[s]
-				plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), num_teams_eliminated[s,:], label=curr_label, color=col_labels[s]);
-			end
+			#for s = 1:num_years
+			#	curr_num_games = length(num_teams_eliminated[s,:])
+			#	curr_label = labels[s]
+      #  if length(col_labels) >= s
+      #    plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), num_teams_eliminated[s,:], label=curr_label, color=col_labels[s]);
+      #  else
+      #    plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), num_teams_eliminated[s,:], label=curr_label);
+      #  end
+			#end
+      curr_num_games = num_games_total
+      curr_num_elim = sum(num_teams_eliminated, dims=1) / num_years
+      curr_num_elim = curr_num_elim'
+      plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), curr_num_elim, label="NBA average");
 			curr_num_games = length(avg_eliminated)
 			plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), avg_eliminated, label="simulated", color="black", linestyle="dashed")
 			legend(loc="upper left", title=legendtitlestring)
@@ -739,14 +768,18 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 											xlab=xlabelstring,
 											ylab=ylabelstring,
 											legendtitle=legendtitlestring,
-											xticks=(Array(minx:incx:maxx),[@sprintf("\$%.0f\$", (100*i/num_games)) for i in minx:incx:maxx]),
+											xticks=(Array(minx:incx:maxx),[@sprintf("\$%.0f\$", (100*i/num_games_total)) for i in minx:incx:maxx]),
 											yticks=(Array(miny:incy:maxy),["\$$i\$" for i in miny:incy:maxy]),
 											legend=:topleft,
 											grid=false);
 			for s = 1:size(num_teams_eliminated)[1]
 				curr_num_games = length(num_teams_eliminated[s,:])
 				curr_label = labels[s]
-				plot!(1:curr_num_games, num_teams_eliminated[s,:], label=curr_label, linecolor=col_labels[s]);
+        if length(col_labels) >= s
+          plot!(1:curr_num_games, num_teams_eliminated[s,:], label=curr_label, linecolor=col_labels[s]);
+        else
+          plot!(1:curr_num_games, num_teams_eliminated[s,:], label=curr_label);
+        end
 			end
 			Plots.savefig(fname)
 			Plots.savefig(fname_low)
@@ -795,7 +828,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 #										grid=false,
 #										show=false)
 #		savefig(fig, string(results_dir,"/nba_num_teams_eliminated",ext));
-	end
+	end # check if we should do_plotting
 
 	return
 end # main_parse

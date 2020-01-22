@@ -81,7 +81,7 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 	games_left_ind = 4
   elim_ind = 5 # games left when eliminated
 	win_pct_ind = 6
-	stats = Matrix{Any}(undef, num_teams, 6) # [team name, wins, losses, games left, win pct]
+	stats = Matrix{Any}(undef, num_teams, size_of_stats) # [team name, wins, losses, games left, win pct]
 	for i = 1:num_teams
 		stats[i,name_ind] = i # name
 		stats[i,wins_ind] = 0 # wins
