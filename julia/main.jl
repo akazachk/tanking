@@ -919,13 +919,12 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   Random.seed!(628) # for reproducibility
 
   ## Simulation parameters
-  #mode_list = [BT_ESTIMATED BT_DISTR]
-  #mode_list_name = ["BT.est", "BT.beta"]
-  mode_list = [BT_ESTIMATED]; mode_list_name= ["BT"]
+  #mode_list = [BT_ESTIMATED BT_DISTR]; mode_list_name = ["BT.est", "BT.beta"]
+  #mode_list = [BT_ESTIMATED]; mode_list_name= ["BT"]
+  mode_list = []; mode_list_name = []
   @assert(length(mode_list) == length(mode_list_name))
   #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
-  #gamma_list = [0.7, 0.71, 0.7125, 0.715, 0.7175, 0.72, 0.725, 0.75]
-  gamma_list = [0.7, 0.7125, 0.71375, 0.715, 0.725]
+  gamma_list = [0.71425, 0.7115]
   num_modes = length(mode_list) + length(gamma_list)
 
   ## Stats we keep
