@@ -704,7 +704,8 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 											xlab=xlabelstring,
 											ylab=ylabelstring,
 											legendtitle=legendtitlestring,
-											xticks=(Array(1:num_years),["\$13-14\$","\$14-15\$","\$15-16\$","\$16-17\$","\$17-18\$"]),
+											#xticks=(Array(1:num_years),["\$13-14\$","\$14-15\$","\$15-16\$","\$16-17\$","\$17-18\$"]),
+											xticks=(Array(1:num_years),labels)
 											yticks=(Array(miny:incy:maxy),[@sprintf("\$%d\$", i) for i in miny:incy:maxy]),
 											group=ctg,
 											lw=0,
