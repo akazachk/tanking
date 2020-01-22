@@ -555,6 +555,72 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 			Plots.savefig(fname)
 			Plots.savefig(fname_low)
 		end
+
+    ## Plot avg_rank (strat vs moral)
+		print("Plotting avg_rank: average rank of strategic vs moral teams\n")
+		minx = 0
+		incx = 0.1
+		maxx = 1
+		miny = Int(floor(findmin(avg_rank_moral[1:num_steps,1])[1]))
+		maxy = Int(ceil(findmax(avg_rank_strat[:,1])[1]))
+		incy = 1
+		titlestring = L"\mbox{Average rank of eliminated versus moral teams}"
+		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+		ylabelstring = L"\mbox{Average rank}"
+		legendtitlestring = L"\mbox{Team Type}"
+		fname_stub = "avg_rank"
+		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
+		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
+
+		if use_pyplot
+			fig = figure(frameon=false)
+			title(titlestring)
+			xlabel(xlabelstring)
+			ylabel(ylabelstring)
+			xticks(Array(minx:incx:maxx))
+			yticks(Array(miny:incy:maxy))
+      curr_label = "Moral"
+      plot(0:(1/num_steps):1-1/num_steps, avg_rank_moral[1:num_steps,avg_stat], label=curr_label, color="green")
+      curr_label = "Selfish"
+      plot(1/num_steps:(1/num_steps):1, avg_rank_strat[2:num_steps+1,avg_stat], label=curr_label, color="red")
+			legend(loc="upper right", title=legendtitlestring) 
+			PyPlot.savefig(fname)
+			PyPlot.savefig(fname_low)
+			close()
+    end
+
+    ## Plot avg_elim_rank (strat vs moral)
+		print("Plotting avg_elim_rank: average rank of eliminated strategic vs moral teams\n")
+		minx = 0
+		incx = 0.1
+		maxx = 1
+		miny = Int(floor(findmin(avg_elim_rank_moral[2:num_steps,1])[1]))
+		maxy = Int(ceil(findmax(avg_elim_rank_strat[2:num_steps,1])[1]))
+		incy = 1
+		titlestring = L"\mbox{Average rank of eliminated versus moral teams}"
+		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+		ylabelstring = L"\mbox{Average rank}"
+		legendtitlestring = L"\mbox{Team Type}"
+		fname_stub = "avg_elim_rank"
+		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
+		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
+
+		if use_pyplot
+			fig = figure(frameon=false)
+			title(titlestring)
+			xlabel(xlabelstring)
+			ylabel(ylabelstring)
+			xticks(Array(minx:incx:maxx))
+			yticks(Array(miny:incy:maxy))
+      curr_label = "Moral"
+      plot(1/num_steps:(1/num_steps):1-1/num_steps, avg_elim_rank_moral[2:num_steps,avg_stat], label=curr_label, color="green")
+      curr_label = "Selfish"
+      plot(1/num_steps:(1/num_steps):1-1/num_steps, avg_elim_rank_strat[2:num_steps,avg_stat], label=curr_label, color="red")
+			legend(loc="upper right", title=legendtitlestring) 
+			PyPlot.savefig(fname)
+			PyPlot.savefig(fname_low)
+			close()
+    end
 	end # if do_plotting
 	return
 end; # main_simulate
