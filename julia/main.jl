@@ -958,7 +958,7 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 		incx = 0.1
 		maxx = 1
 		miny = Int(ceil(findmin(avg_kend)[1]));
-		incy = 50 #Int(floor((maxy - miny) / 5))
+		incy = 10 #Int(floor((maxy - miny) / 5))
 		maxy = Int(floor(findmax(avg_kend)[1]));
 		#maxy = Int(ceil(maxy/incy)*incy)
 		titlestring = L"\mbox{Effect of number of rounds on ranking accuracy}"
