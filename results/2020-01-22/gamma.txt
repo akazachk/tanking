@@ -1,0 +1,1 @@
+Results in this folder used gamma = 0.71375
