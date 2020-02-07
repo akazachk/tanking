@@ -912,12 +912,13 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 	prob = 0.5:0.5/num_steps:1;
 
   ### DEBUG
+  num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
   num_rounds_set = [3]
   num_steps = 0
-  prob = [.5]
+  prob = [.75]
   #prob = [.5, .71375, .75]
-  num_teams = 3
-  num_playoff_teams = 0
+  num_teams = 7
+  num_playoff_teams = 4
   set_mode(mode)
   ### DEBUG
 
@@ -1196,7 +1197,7 @@ function closed_form_kendtau(;
   num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
 
   ### DEBUG
-  num_playoff_teams = 0
+  #num_playoff_teams = 0
   ### DEBUG
 
   set_mode(mode)

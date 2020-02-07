@@ -233,6 +233,11 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
   if best_rank[k] < 0
     return true, mips_used
   end
+  ## Also check the num_playoff_teams == 0 case
+  if num_playoff_teams == 0
+    best_rank[k] = -1
+    return true, mips_used
+  end
 
   heur_outcome, heur_h2h, heur_num_wins, heur_rank = 
       heuristicBestRank(k, t, schedule, stats, outcome, h2h,

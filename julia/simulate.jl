@@ -376,8 +376,8 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         end
         
         # Find cutoff win percentage and set elimination status for teams eliminated after this game
-        last_team = team_in_pos[num_playoff_teams]
-        cutoff_avg = stats[last_team,win_pct_ind]
+        last_team = num_playoff_teams > 0 ? team_in_pos[num_playoff_teams] : -1
+        cutoff_avg = num_playoff_teams > 0 ? stats[last_team,win_pct_ind] : 1.1
 
         # Loop through teams, checking each one's elimination status
         for k in 1:num_teams
