@@ -394,7 +394,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 		print("Plotting avg_games_tanked: average number of games tanked\n")
 		miny = Int(floor(findmin(games_tanked[:,:,1])[1]))
 		incy = 50 #Int(ceil((maxy - miny) / (5 * 10)) * 10)
-		maxy = Int(ceil(findmax(games_tanked[:,:,1])[1] / incy) * incy)  #Int(floor(findmax(avg_games_tanked)[1]))
+		maxy = Int(ceil(findmax(games_tanked[:,:,1])[1] / incy) * incy) + 1  #Int(floor(findmax(avg_games_tanked)[1]))
 		titlestring = L"\mbox{Total games tanked}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Number of tanked games}"
@@ -628,6 +628,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 	return
 end; # main_simulate
 
+"""
+main_parse: Parse data from 2004-2019, except 2011-12 (lockout year)
+"""
 function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_dir="../results")
   Random.seed!(628) # for reproducibility
 	set_mode(mode)
@@ -649,44 +652,10 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
     num_teams_eliminated[yr,:], num_games_tanked[yr,:], _, _, _ = parseNBASeason(years[yr], breakpoint_list, data_dir)
   end # loop over years
 
-	#num_teams_eliminated_1314, num_games_tanked_1314, stats1314, critical_game1314, _ = parseNBASeason("games1314.csv", breakpoint_list, data_dir)
-	#num_teams_eliminated_1415, num_games_tanked_1415, stats1415, critical_game1415, _ = parseNBASeason("games1415.csv", breakpoint_list, data_dir)
-	#num_teams_eliminated_1516, num_games_tanked_1516, stats1516, critical_game1516, _ = parseNBASeason("games1516.csv", breakpoint_list, data_dir)
-	#num_teams_eliminated_1617, num_games_tanked_1617, stats1617, critical_game1617, _ = parseNBASeason("games1617.csv", breakpoint_list, data_dir)
-	#num_teams_eliminated_1718, num_games_tanked_1718, stats1718, critical_game1718, _ = parseNBASeason("games1718.csv", breakpoint_list, data_dir)
-	#num_teams_eliminated_1819, num_games_tanked_1819, stats1819, critical_game1819, _ = parseNBASeason("games1819.csv", breakpoint_list, data_dir)
-
-
 	# Retrieve data for avg_eliminated
 	avg_eliminated = readdlm(string(results_dir, "/avg_eff_eliminated", csvext), ',')
 	num_steps = size(avg_eliminated)[1] - 1
 	avg_eliminated = sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1)
-
-	if false
-		print("Year 2013-2014\n")
-		print("num teams eliminated: ",num_teams_eliminated_1314,"\n")
-		print("num possible games tanked: ",num_games_tanked_1314,"\n")
-
-		print("\nYear 2014-2015\n")
-		print("num teams eliminated: ",num_teams_eliminated_1415,"\n")
-		print("num possible games tanked: ",num_games_tanked_1415,"\n")
-
-		print("\nYear 2015-2016\n")
-		print("num teams eliminated: ",num_teams_eliminated_1516,"\n")
-		print("num possible games tanked: ",num_games_tanked_1516,"\n")
-
-		print("\nYear 2016-2017\n")
-		print("num teams eliminated: ",num_teams_eliminated_1617,"\n")
-		print("num possible games tanked: ",num_games_tanked_1617,"\n")
-
-		print("\nYear 2017-2018\n")
-		print("num teams eliminated: ",num_teams_eliminated_1718,"\n")
-		print("num possible games tanked: ",num_games_tanked_1718,"\n")
-
-		print("\nYear 2018-2019\n")
-		print("num teams eliminated: ",num_teams_eliminated_1819,"\n")
-		print("num possible games tanked: ",num_games_tanked_1819,"\n")
-	end
 
 	if (do_plotting)
 		ind = [3,5,6] # needs to be ascending
@@ -701,16 +670,6 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 
 		## Plot # games tanked
 		print("Plotting num_games_tanked: number of games (possibly) tanked by the breakpoint mark\n")
-		##num_games_tanked = zeros(Int, num_years, length(breakpoint_list))
-		##num_games_tanked[1,:] = num_games_tanked_1314
-		##num_games_tanked[2,:] = num_games_tanked_1415
-		##num_games_tanked[3,:] = num_games_tanked_1516
-		##num_games_tanked[4,:] = num_games_tanked_1617
-		##num_games_tanked[5,:] = num_games_tanked_1718
-		#num_games_tanked = hcat(num_games_tanked_1314, num_games_tanked_1415, num_games_tanked_1516, num_games_tanked_1617, num_games_tanked_1718, num_games_tanked1819)
-		#num_games_tanked = num_games_tanked'
-		##print(num_games_tanked,"\n")
-
 		num_games_tanked_stacked = zeros(Int, num_years, length(ind))
 		for tmp_i in 1:length(ind)
 			i = ind[tmp_i]
@@ -721,11 +680,10 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 				num_games_tanked_stacked[:,tmp_i] = num_games_tanked[:,i] - num_games_tanked[:,prev_i]
 			end
 		end
-		#print("num games tanked stacked: ",num_games_tanked_stacked,"\n")
 
 		miny = 0 #Int(floor(findmin(num_games_tanked)[1]))
-		maxy = Int(ceil(findmax(num_games_tanked)[1]))
 		incy = 50 #(maxy - miny) / 5
+		maxy = incy * Int(ceil(findmax(num_games_tanked)[1] / incy))
 		titlestring = L"\mbox{Number of games that could be tanked}"
 		xlabelstring = L"\mbox{Season}"
 		ylabelstring = L"\mbox{Number of possibly tanked games}"
@@ -788,9 +746,6 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 
 		## Plot number of teams eliminated
 		print("Plotting num_teams_eliminated: number of eliminated teams by every game of the season\n")
-		#num_teams_eliminated = hcat(num_teams_eliminated_1314, num_teams_eliminated_1415, num_teams_eliminated_1516, num_teams_eliminated_1617, num_teams_eliminated_1718, num_teams_eliminated_1819)
-		#num_teams_eliminated = num_teams_eliminated'
-
 		minx = 1 / num_games_total
 		maxx = 1.0
 		incx = (maxx - minx) / 5
@@ -824,10 +779,18 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 			#end
       curr_num_games = num_games_total
       curr_num_elim = sum(num_teams_eliminated, dims=1) / num_years
+      errs = zeros(Float64, 2, num_games_total)
+      min_num_elim = minimum(num_teams_eliminated, dims=1)
+      max_num_elim = maximum(num_teams_eliminated, dims=1)
+      errs[1,:] = curr_num_elim - min_num_elim
+      errs[2,:] = max_num_elim - curr_num_elim
       curr_num_elim = curr_num_elim'
-      plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), curr_num_elim, label="NBA average");
+      plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), curr_num_elim, label="NBA average", color="black")
+      plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), min_num_elim', color="black", linestyle="dashed", label="NBA min/max")
+      plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), max_num_elim', color="black", linestyle="dashed")
+      #errorbar(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), curr_num_elim, errs, color="black", linestyle="dashed", ecolor="black", errorevery=122)
 			curr_num_games = length(avg_eliminated)
-			plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), avg_eliminated, label="simulated", color="black", linestyle="dashed")
+			plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), avg_eliminated, label="simulated", color="blue", linestyle="solid")
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
