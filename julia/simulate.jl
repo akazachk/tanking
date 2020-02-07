@@ -118,6 +118,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
     avg_diff_rank_strat_out = zeros(Float64, num_steps+1, num_stats) # avg of diff between true and calc ranks of strategic teams
     avg_diff_rank_moral_out = zeros(Float64, num_steps+1, num_stats) # avg of diff between true and calc ranks of moral teams
     num_missing_case_out = zeros(Float64, num_steps+1, num_stats) # number teams eff elim then not not elim
+    SHOULD_KEEP_H2H_OUT = false
+    if SHOULD_KEEP_H2H_OUT
+      h2h_out              = zeros(Float64, num_steps+1, num_teams, num_teams, num_stats) # average head-to-head statistics
+    end
 
     # Set min default (avg / stddev / max set to 0 is okay)
     kend_out[:,:,min_stat]            = BIG_NUMBER * ones(num_steps+1, length(breakpoint_list))
@@ -136,6 +140,9 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
     avg_elim_rank_moral_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
     avg_diff_rank_strat_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
     avg_diff_rank_moral_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
+    if SHOULD_KEEP_H2H_OUT
+      h2h_out[:,:,:,min_stat]           = BIG_NUMBER * ones(num_steps+1, num_teams, num_teams)
+    end
   end # ONLY_RETURN_WIN_PCT
 
   ## Set up for game order 
@@ -175,6 +182,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   if num_steps == num_teams
     decide_tanking_with_prob = false
   end
+  #for step_ind in 1:1 ### DEBUG
   for step_ind in 1:length(array_of_tanking_probabilities)
     tank_perc = array_of_tanking_probabilities[step_ind]
     num_repl_for_avg = 0
@@ -487,9 +495,18 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         continue
       end
 
-      ## Update num_mips and num_missing_case stats
+      ## Update num_mips, num_missing_case, and h2h stats
       @views updateStats!(num_mips_out[step_ind,:], num_mips, num_replications)
       @views updateStats!(num_missing_case_out[step_ind, :], num_missing_case, num_replications)
+      if SHOULD_KEEP_H2H_OUT
+        for i = 1:num_teams
+          for j = i+1:num_teams
+            @views updateStats!(h2h_out[step_ind, i, j, :], h2h[i,j], num_replications)
+            @views updateStats!(h2h_out[step_ind, j, i, :], h2h[j,i], num_replications)
+            @assert( h2h[i,j] + h2h[j,i] == num_rounds )
+          end
+        end
+      end
       
       ## Make sure teams that were eliminated actually did not make the playoffs
       for i = 1:num_teams
@@ -517,6 +534,9 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
         curr_kend = kendtau_sorted(sorted_ranking[:,1], true_strength, mode)
         @views updateStats!(kend_out[step_ind, r, :], curr_kend, num_replications)
+        ## DEBUG
+        #println("wins = ", stats[:, wins_ind], "\tkend = $curr_kend\tavg_kend = ", kend_out[step_ind, r, avg_stat])
+        ## DEBUG
 
         # Now repeat with h2h
         #tmp_stats = Matrix{Int}(undef, num_teams - num_playoff_teams, 2)
@@ -651,11 +671,24 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
     avg_diff_rank_strat_out[step_ind, stddev_stat] -= avg_diff_rank_strat_out[step_ind, avg_stat]^2
     avg_diff_rank_moral_out[step_ind, stddev_stat] -= avg_diff_rank_moral_out[step_ind, avg_stat]^2
     num_missing_case_out[step_ind, stddev_stat] -= num_missing_case_out[step_ind, avg_stat]^2
+    if SHOULD_KEEP_H2H_OUT
+      for i = 1:num_teams
+        for j = i+1:num_teams
+          h2h_out[step_ind,i,j,stddev_stat] -= h2h_out[step_ind,i,j,avg_stat]^2
+          h2h_out[step_ind,j,i,stddev_stat] -= h2h_out[step_ind,j,i,avg_stat]^2
+        end
+      end
+    end
 
     if (tank_perc == 0.0)
       kend_gold_out[stddev_stat] -= kend_gold_out[avg_stat]^2
     end
   end # looping over tanking percentages
+  ### DEBUG
+  #if SHOULD_KEEP_H2H_OUT
+  #  println("h2h_out = ", h2h_out[1, :, :, avg_stat])
+  #end
+  ### DEBUG
 
   if ONLY_RETURN_WIN_PCT
     return win_pct_out

@@ -902,35 +902,42 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 	return
 end # main_parse
 
-function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plotting=true, mode=MODE, results_dir="../results")
+"""
+rankings_are_noisy: simulate a season to show that a finite set of samples is insufficient to get a good ranking estimate
+
+NOTE: these results will match theory from closed_form_kendtau, but NOT from simulate code,
+because simulate code uses a *tie-breaking* rule that when two teams have the same win percentage,
+the head-to-head record is used to tie-break
+"""
+function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plotting=true, mode=MODE, results_dir="../results",
+    num_teams = 30,
+    num_playoff_teams = 16,
+    num_rounds_set = [1 2 3 4 5 10 100 1000],
+    # prob involves subdividing [0.5,1]
+    prob = 0.5:0.5/50:1)
   Random.seed!(628) # for reproducibility
+
+  ### DEBUG
+  #num_rounds_set = [3]
+  #prob = [.75]
+  ##prob = [.5, .71375, .75]
+  #num_teams = 3
+  #num_playoff_teams = 0
+  #set_mode(mode)
+  ### DEBUG
+
 	set_mode(mode)
-
-	## Variables that need to be set
-	num_rounds_set = [1 2 3 4 5 10 100 1000];
-	num_steps = 50; # number of subdivisions of [0.5,1]
-	prob = 0.5:0.5/num_steps:1;
-
-  ### DEBUG
-  num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
-  num_rounds_set = [3]
-  num_steps = 0
-  prob = [.75]
-  #prob = [.5, .71375, .75]
-  num_teams = 7
-  num_playoff_teams = 4
-  set_mode(mode)
-  ### DEBUG
 
 	## Set constants
 	num_games_per_round = Int(num_teams * (num_teams - 1) / 2);
+  num_prob = length(prob)
 
 	## For output
-	avg_kend = zeros(Float64, num_steps+1, length(num_rounds_set));
+	avg_kend = zeros(Float64, num_prob, length(num_rounds_set));
 
 	if do_simulation
-		for step_ind = 1:num_steps+1
-			print("Step ", step_ind, " of ", num_steps+1, "\n")
+		for step_ind = 1:num_prob
+			print("Step ", step_ind, " of ", num_prob, "\n")
 			gamma = prob[step_ind];
 			for num_rounds_ind in 1:length(num_rounds_set)
 				num_rounds = num_rounds_set[num_rounds_ind];
@@ -944,19 +951,21 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 					for round_ind = 1:num_rounds
 						for i = 1:num_teams
 							for j = i+1:num_teams
-								team_i_wins = teamWillWinNoTanking(i,j,gamma,true_strength,mode)
+								team_i_wins = teamWillWinNoTanking(i, j, gamma, true_strength, mode)
 
 								# Do updates
 								for k in [i,j]
 									team_k_wins = (k == i) ? team_i_wins : !team_i_wins
-									stats[k,2] = stats[k,2] + team_k_wins
+									stats[k,2] += team_k_wins
 								end
 							end
 						end
 					end # loop over rounds
 
 					## Calculate Kendell tau distance for this round
-					avg_kend[step_ind, num_rounds_ind] += kendtau(stats, 2, true_strength, mode, num_playoff_teams+1) / num_replications
+          curr_kend = kendtau(stats, 2, true_strength, mode, num_playoff_teams+1)
+					avg_kend[step_ind, num_rounds_ind] += curr_kend / num_replications
+          #println("wins = ", stats[:,2], "\tkend = $curr_kend\tavg_kend = $avg_kend")
 				end # loop over replications
 			end # loop over num_rounds_set
 		end # loop over steps
@@ -1190,16 +1199,11 @@ closed_form_kendtau
 """
 function closed_form_kendtau(;
     num_teams = 30,
+    num_playoff_teams = 16,
     gamma = 0.71375,
     num_rounds = 3,
     mode = MODE)
   Random.seed!(628) # for reproducibility
-  num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
-
-  ### DEBUG
-  #num_playoff_teams = 0
-  ### DEBUG
-
   set_mode(mode)
   eps_diff = 1/num_teams
   
