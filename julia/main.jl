@@ -912,12 +912,13 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 	prob = 0.5:0.5/num_steps:1;
 
   ### DEBUG
-  #num_rounds_set = [3]
-  #num_steps = 2
+  num_rounds_set = [3]
+  num_steps = 0
+  prob = [.5]
   #prob = [.5, .71375, .75]
-  #num_teams = 3
-  #num_playoff_teams = 0
-  #set_mode(mode)
+  num_teams = 3
+  num_playoff_teams = 0
+  set_mode(mode)
   ### DEBUG
 
 	## Set constants
@@ -1185,7 +1186,6 @@ end # model_validation
 
 """
 closed_form_kendtau
-INCOMPLETE
 """
 function closed_form_kendtau(;
     num_teams = 30,
@@ -1196,7 +1196,7 @@ function closed_form_kendtau(;
   num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
 
   ### DEBUG
-  #num_playoff_teams = 0
+  num_playoff_teams = 0
   ### DEBUG
 
   set_mode(mode)
@@ -1301,6 +1301,25 @@ function closed_form_kendtau(;
   end # loop over perm
   println("avg_kend = $avg_kend")
 end # closed_form_kendtau
+
+"""
+count_num_win_partitions
+Count the number of win totals `n` teams can have when each team can have at most `M` wins
+and the sum of all wins must equal `total`
+"""
+function count_num_win_partitions(total, n, M)
+  if (M * n < total) || (n <= 0) || (M < 0) || (total < 0)
+    return 0
+  elseif n == 1
+    return (M >= total) ? 1 : 0
+  else
+    tmp_sum = 0
+    for i = 0:M
+      tmp_sum += count_num_win_partitions(total - i, n-1, M)
+    end
+    return tmp_sum
+  end
+end # count_num_win_partitions
 
 function tanking_unit_tests()
 	test_ranking = 1:num_teams
