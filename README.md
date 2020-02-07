@@ -15,7 +15,7 @@ To run a simulation, parse NBA data, and reproduce data regarding noisiness of t
 The code can be run with the following commands:
 				
 		include("main.jl")
-		main_simulate(do_simulation=true, num_replications=100000, do_plotting=false, mode=1, math_elim_mode=-2) 
+		main_simulate(do_simulation=true, num_replications=100000, do_plotting=false, mode=1, math_elim_mode=-2, gamma=0.71375) 
 		main_parse(do_plotting=false, mode=1) 
 		rankings_are_noisy(do_simulation=true, num_replications=100000, do_plotting=false, mode=1) 
 				
