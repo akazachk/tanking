@@ -355,7 +355,8 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
       #axhline(kend_lenten[avg_stat], label=curr_label, color="gray", marker="x")
 
 			#legend(bbox_to_anchor=[.65,.95],loc="upper left", title=legendtitlestring) 
-			legend(bbox_to_anchor=[0,.95],loc="upper left", title=legendtitlestring) 
+			#legend(bbox_to_anchor=[0,.95],loc="upper left", title=legendtitlestring) 
+			legend(bbox_to_anchor=[1.0, 0.5],loc="center left", title=legendtitlestring) 
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
 			close()
@@ -566,7 +567,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 		miny = Int(floor(findmin(avg_rank_moral[1:num_steps,1])[1]))
 		maxy = Int(ceil(findmax(avg_rank_strat[:,1])[1]))
 		incy = 1
-		titlestring = L"\mbox{Average rank of eliminated versus moral teams}"
+		titlestring = L"\mbox{Average rank of selfish versus moral teams}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Average rank}"
 		legendtitlestring = L"\mbox{Team Type}"
@@ -599,7 +600,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 		miny = Int(floor(findmin(avg_elim_rank_moral[2:num_steps,1])[1]))
 		maxy = Int(ceil(findmax(avg_elim_rank_strat[2:num_steps,1])[1]))
 		incy = 1
-		titlestring = L"\mbox{Average rank of eliminated versus moral teams}"
+		titlestring = L"\mbox{Average rank of selfish versus moral non-playoff teams}"
 		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
 		ylabelstring = L"\mbox{Average rank}"
 		legendtitlestring = L"\mbox{Team Type}"
