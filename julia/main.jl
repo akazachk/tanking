@@ -24,6 +24,8 @@ include("simulate.jl")
 include("parse.jl")
 include("utility.jl") # imports MODE definitions
 
+using Combinatorics # for permutations
+
 ## NBA draft odds (for non-playoff teams, in reverse order)
 # If teams are tied, then those teams receive odds that are the average of the odds for the positions they occupy
 # Keep these in order that teams are ranked (not for the draft, but by wins)
@@ -901,12 +903,22 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 end # main_parse
 
 function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plotting=true, mode=MODE, results_dir="../results")
+  Random.seed!(628) # for reproducibility
 	set_mode(mode)
 
 	## Variables that need to be set
 	num_rounds_set = [1 2 3 4 5 10 100 1000];
 	num_steps = 50; # number of subdivisions of [0.5,1]
 	prob = 0.5:0.5/num_steps:1;
+
+  ### DEBUG
+  #num_rounds_set = [3]
+  #num_steps = 2
+  #prob = [.5, .71375, .75]
+  #num_teams = 3
+  #num_playoff_teams = 0
+  #set_mode(mode)
+  ### DEBUG
 
 	## Set constants
 	num_games_per_round = Int(num_teams * (num_teams - 1) / 2);
@@ -921,10 +933,10 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 			for num_rounds_ind in 1:length(num_rounds_set)
 				num_rounds = num_rounds_set[num_rounds_ind];
 				for rep = 1:num_replications
-					stats = zeros(Int, num_teams, 2);
+					stats = zeros(Int, num_teams, 2)
 					for i = 1:num_teams
-						stats[i,1] = i;
-						stats[i,2] = 0;
+            stats[i,1] = i
+						stats[i,2] = 0
 					end
 
 					for round_ind = 1:num_rounds
@@ -942,10 +954,11 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 					end # loop over rounds
 
 					## Calculate Kendell tau distance for this round
-					avg_kend[step_ind, num_rounds_ind] = avg_kend[step_ind, num_rounds_ind] + kendtau(stats, 2, true_strength, mode, num_teams - num_playoff_teams) / num_replications
+					avg_kend[step_ind, num_rounds_ind] += kendtau(stats, 2, true_strength, mode, num_playoff_teams+1) / num_replications
 				end # loop over replications
 			end # loop over num_rounds_set
 		end # loop over steps
+    println("avg_kend = $avg_kend")
 		writedlm(string(results_dir, "/noisy_ranking", csvext), avg_kend, ',')
 	else
 		avg_kend = readdlm(string(results_dir, "/noisy_ranking", csvext), ',')
@@ -1169,6 +1182,125 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     end
   end
 end # model_validation
+
+"""
+closed_form_kendtau
+INCOMPLETE
+"""
+function closed_form_kendtau(;
+    num_teams = 30,
+    gamma = 0.71375,
+    num_rounds = 3,
+    mode = MODE)
+  Random.seed!(628) # for reproducibility
+  num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
+
+  ### DEBUG
+  #num_playoff_teams = 0
+  ### DEBUG
+
+  set_mode(mode)
+  eps_diff = 1/num_teams
+  
+  num_pairs = Int(num_teams * (num_teams-1) / 2)
+  num_perm = (num_rounds + 1)^num_pairs
+  @assert(num_perm < 1e10 && num_perm > 0) # make sure we do not have too many possibilities
+  # Win totals can increment by (0,num_rounds),(1,num_rounds-1),...,(num_rounds,0) for each pair of teams that plays
+  pair_wins = zeros(Int, num_pairs)
+  pair_ind = 1
+  avg_kend = 0
+  for perm = 1:num_perm
+    prob = 1
+    stats = Matrix{Any}(undef, num_teams, 2)
+    for i = 1:num_teams
+      stats[i,1] = i
+      stats[i,2] = 0.0
+    end
+
+    tmp_ind = 1
+    for i = 1:num_teams
+      for j = i+1:num_teams
+        wins_i = pair_wins[tmp_ind]
+        wins_j = num_rounds - wins_i
+        stats[i,2] += wins_i
+        stats[j,2] += wins_j
+        prob *= gamma^wins_i * (1-gamma)^wins_j * binomial(num_rounds, wins_i)
+        tmp_ind += 1
+      end
+    end
+    
+    # Now we calculated Kendall tau distance when the end-of-season win totals are as given
+    # The only thing we have to be careful about is ties among teams
+    # We should consider all possible permutations of the tied teams 
+    # To do this, we put together all equivalence classes, where these are based on number of wins each team has
+    # (range is from 0 to num_rounds * (num_teams-1))
+    max_num_wins = 1 + num_rounds * (num_teams-1)
+    equiv_classes = Array{Array{Int64,1}}(undef, max_num_wins)
+    for num_wins = 1:max_num_wins
+      equiv_classes[num_wins] = []
+    end
+    num_equiv_perm = 1
+    for i = 1:num_teams
+      curr_wins = Int(stats[i,2])
+      equiv_classes[curr_wins+1] = [equiv_classes[curr_wins+1]; i]
+      num_equiv_perm *= length(equiv_classes[curr_wins+1])
+    end
+    equiv_class_perm = Array{Any}(undef, max_num_wins)
+    for num_wins = 1:max_num_wins
+      curr_perms = collect(permutations(equiv_classes[num_wins]))
+      equiv_class_perm[num_wins] = curr_perms
+    end
+    equiv_perm_ind = ones(Int64, max_num_wins)
+    for tmp_perm = 1:num_equiv_perm
+      for tmp_ind = 1:max_num_wins
+        num_teams_in_class = length(equiv_classes[tmp_ind])
+        curr_perm = equiv_perm_ind[tmp_ind]
+        for tmp_team = 1:num_teams_in_class
+          curr_team = equiv_class_perm[tmp_ind][curr_perm][tmp_team]
+          stats[curr_team, 2] = floor(stats[curr_team,2]) + eps_diff * (tmp_team - 1) / num_teams_in_class
+        end
+      end
+      curr_kend = kendtau(stats, 2, true_strength, mode, num_playoff_teams+1)
+      avg_kend += prob * curr_kend / num_equiv_perm
+
+      ### DEBUG
+      #println("wins = ", stats[:,2])
+      #println("prob = $prob") 
+      #println("kend = ", curr_kend)
+
+      # Go to the next permutation
+      for tmp_ind = 1:max_num_wins
+        if equiv_perm_ind[tmp_ind] < length(equiv_class_perm[tmp_ind])
+          equiv_perm_ind[tmp_ind] += 1
+          break
+        else
+          equiv_perm_ind[tmp_ind] = 1
+        end
+      end
+    end
+    #println("perm $perm, avg_kend = ", avg_kend)
+
+    # Increment pair_wins
+    continue_inc = true
+    while continue_inc
+      if pair_wins[pair_ind] < num_rounds
+        pair_wins[pair_ind] += 1
+        pair_ind = 1
+        continue_inc = false
+      else
+        pair_wins[pair_ind] = 0
+        pair_ind += 1
+        if pair_ind > num_pairs
+          continue_inc = false
+        end
+      end
+    end # while continue_inc
+    if pair_ind > num_pairs
+      break
+    end
+  end # loop over perm
+  println("avg_kend = $avg_kend")
+end # closed_form_kendtau
 
 function tanking_unit_tests()
 	test_ranking = 1:num_teams

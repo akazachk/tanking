@@ -303,10 +303,10 @@ end # teamIsEffectivelyEliminated
 kendtau_sorted
 """
 function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=STRICT, min_rank=1)
-	len = size(sorted_ranking,1)
+	num_teams = size(sorted_ranking,1)
 	kt = 0
-	for i = min_rank:len
-		for j = i+1:len
+	for i = min_rank:num_teams
+		for j = i+1:num_teams
 			better_team = teamIsBetter(Int(sorted_ranking[i]), Int(sorted_ranking[j]), true_strength, mode)
 			out_of_order = false
       if mode == STRICT || mode == TIES
@@ -323,25 +323,25 @@ function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=STRICT, min_
 	return kt
 end # kendtau_sorted
 
+"""
+kendtau
+Computes Kendell tau (Kemeny) distance
+
+Column 1 should be index of the team
+First sort by win percentage (stats[:,win_pct_ind])
+This yields the noisy ranking
+We want to calculate the distance to the true ranking (1,...,n)
+Kendell tau distance is number of unordered pairs {i,j} for which noisy ranking disagrees with true ranking
+K(\tau_1, \tau_2) 
+  = |{ (i,j) : i < j, 
+      (\tau_1(i) < \tau_1(j) && \tau_2(i) > \tau_2(j))
+        ||
+      (\tau_1(i) > \tau_2(j) && \tau_2(i) < \tau_2(j)) }|
+"""
 function kendtau(stats, win_pct_ind = 5, true_strength = 30:-1:1, mode=STRICT, min_rank=1)
-	###
-	# kendtau
-	# Computes Kendell tau (Kemeny) distance
-	#
-	# Column 1 should be index of the team
-	# First sort by win percentage (stats[:,win_pct_ind])
-	# This yields the noisy ranking
-	# We want to calculate the distance to the true ranking (1,...,n)
-	# Kendell tau distance is number of unordered pairs {i,j} for which noisy ranking disagrees with true ranking
-	# K(\tau_1, \tau_2) 
-	#		= |{ (i,j) : i < j, 
-	#				(\tau_1(i) < \tau_1(j) && \tau_2(i) > \tau_2(j))
-	#					||
-	#				(\tau_1(i) > \tau_2(j) && \tau_2(i) < \tau_2(j)) }|
-	###
-	len = size(stats,1)
+	num_teams = size(stats,1)
 	num_stats = size(stats,2)
-	tmp = randn(len) # randomize order among teams that have same number of wins
+	tmp = randn(num_teams) # randomize order among teams that have same number of wins
 	sorted_ranking = sortslices([stats tmp], dims=1, by = x -> (x[win_pct_ind],x[num_stats+1]), rev=true)
 	return kendtau_sorted(sorted_ranking[:,1], true_strength, mode, min_rank)
 end # kendtau
