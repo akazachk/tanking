@@ -1310,8 +1310,8 @@ and the sum of all wins must equal `total`
 function count_num_win_partitions(total, n, M)
   if (M * n < total) || (n <= 0) || (M < 0) || (total < 0)
     return 0
-  elseif n == 1
-    return (M >= total) ? 1 : 0
+  elseif M * n == total
+    return 1
   else
     tmp_sum = 0
     for i = 0:M
