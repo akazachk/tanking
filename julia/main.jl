@@ -40,8 +40,11 @@ nba_odds_list = [nba_odds_new, nba_odds_old, nba_odds_flat]
 #breakpoint_list = [4//8; 5//8; 6//8; 7//8; 1]
 breakpoint_list = [1//2; 2//3; 3//4; 5//6; 7//8; 1]
 num_rankings = length(breakpoint_list)
-shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
-col = ["red", "orange", "green", "blue", "violet", "black", "gray"]
+#shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
+col   = ["red",   "orange", "green",   "blue",   "violet", "black", "gray"]
+style = ["solid", "dashed", "dashdot", "dotted", "dashed", "solid", "solid"]
+shape = ["+",  "s",   "",    "",   "",   "",  ""]
+shapesize = [5, 2, 5, 5, 5, 5, 5]
 #color_for_cutoff_point = ["c" "b" "m" "r" "k"]
 num_teams = 30 # number of teams
 num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
@@ -341,16 +344,16 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot(0:(1/num_steps):1, kend[:,r,avg_stat], label=curr_label, color=col[r])
+				plot(0:(1/num_steps):1, kend[:,r,avg_stat], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
 			end
 
       # Also plot kend_nba (old and new) and kend_lenten (flat line)
       curr_label = "NBA (old)"
       plot(0:(1/num_steps):1, kend_nba[:,1,avg_stat], label=curr_label, color="gray")
       curr_label = "NBA (new)"
-      plot(0:(1/num_steps):1, kend_nba[:,2,avg_stat], label=curr_label, color="gray", marker=".")
+      plot(0:(1/num_steps):1, kend_nba[:,2,avg_stat], label=curr_label, color="gray", marker=".", markersize=5)
       curr_label = "Lenten"
-      plot(0:(1/num_steps):1, kend_lenten[:,avg_stat], label=curr_label, color="gray", marker="x")
+      plot(0:(1/num_steps):1, kend_lenten[:,avg_stat], label=curr_label, color="gray", marker="x", markersize=5)
       #plot(0:(1/num_steps):1, [kend_lenten[avg_stat] for i in 0:(1/num_steps):1], label=curr_label, color="gray", marker="x")
       #axhline(kend_lenten[avg_stat], label=curr_label, color="gray", marker="x")
 
@@ -417,7 +420,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot(0:(1/num_steps):1, games_tanked[:,r,1], label=curr_label, color=col[r])
+				plot(0:(1/num_steps):1, games_tanked[:,r,1], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
 			end
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
@@ -481,7 +484,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot(0:(1/num_steps):1, already_tank[:,r,1], label=curr_label, color=col[r])
+				plot(0:(1/num_steps):1, already_tank[:,r,1], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
 			end
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
@@ -583,9 +586,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 			xticks(Array(minx:incx:maxx))
 			yticks(Array(miny:incy:maxy))
       curr_label = "Moral"
-      plot(0:(1/num_steps):1-1/num_steps, avg_rank_moral[1:num_steps,avg_stat], label=curr_label, color="green")
+      plot(0:(1/num_steps):1-1/num_steps, avg_rank_moral[1:num_steps,avg_stat], label=curr_label, color="green", linestyle="solid")
       curr_label = "Selfish"
-      plot(1/num_steps:(1/num_steps):1, avg_rank_strat[2:num_steps+1,avg_stat], label=curr_label, color="red")
+      plot(1/num_steps:(1/num_steps):1, avg_rank_strat[2:num_steps+1,avg_stat], label=curr_label, color="red", linestyle="dashed")
 			legend(loc="upper right", title=legendtitlestring) 
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
@@ -616,9 +619,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 			xticks(Array(minx:incx:maxx))
 			yticks(Array(miny:incy:maxy))
       curr_label = "Moral"
-      plot(1/num_steps:(1/num_steps):1-1/num_steps, avg_elim_rank_moral[2:num_steps,avg_stat], label=curr_label, color="green")
+      plot(1/num_steps:(1/num_steps):1-1/num_steps, avg_elim_rank_moral[2:num_steps,avg_stat], label=curr_label, color="green", linestyle="solid")
       curr_label = "Selfish"
-      plot(1/num_steps:(1/num_steps):1-1/num_steps, avg_elim_rank_strat[2:num_steps,avg_stat], label=curr_label, color="red")
+      plot(1/num_steps:(1/num_steps):1-1/num_steps, avg_elim_rank_strat[2:num_steps,avg_stat], label=curr_label, color="red", linestyle="dashed")
 			legend(loc="upper right", title=legendtitlestring) 
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
@@ -790,7 +793,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
       plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), max_num_elim', color="black", linestyle="dashed")
       #errorbar(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), curr_num_elim, errs, color="black", linestyle="dashed", ecolor="black", errorevery=122)
 			curr_num_games = length(avg_eliminated)
-			plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), avg_eliminated, label="simulated", color="blue", linestyle="solid")
+			plot(Array(1/curr_num_games:1/curr_num_games:curr_num_games/curr_num_games), avg_eliminated, label="simulated", color="blue", linestyle="dashdot") #marker="none", markevery=123)
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
