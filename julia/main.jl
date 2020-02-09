@@ -43,7 +43,7 @@ num_rankings = length(breakpoint_list)
 #shape = [:vline, :utriangle, :rect, :x, :triangle, :circle]
 col   = ["red",   "orange", "green",   "blue",   "violet", "black", "gray"]
 style = ["solid", "dashed", "dashdot", "dotted", "dashed", "solid", "solid"]
-shape = ["+",  "s",   "",    "",   "",   "",  ""]
+shape = ["+",  "s",   ".",    "",   "",   "",  ""]
 shapesize = [5, 2, 5, 5, 5, 5, 5]
 #color_for_cutoff_point = ["c" "b" "m" "r" "k"]
 num_teams = 30 # number of teams
@@ -201,7 +201,7 @@ Parameters
 """
 function main_simulate(;do_simulation = true, num_replications = 100000, 
     do_plotting = true, mode = MODE, results_dir = "../results", 
-    num_rounds = 3, num_steps = num_teams, gamma = 0.71375, 
+    num_rounds = 3, num_steps = num_teams, gamma = 0.71425, 
     math_elim_mode = -2)
   Random.seed!(628) # for reproducibility
 	set_mode(mode)
@@ -1091,7 +1091,7 @@ end # rankings_are_noisy
 
 function model_validation(;do_simulation = true, num_replications = 100000, 
     data_dir = "../data", results_dir = "../results", do_plotting = true,
-    num_rounds = 3, num_steps = 2, gamma = 0.71375, 
+    num_rounds = 3, num_steps = 2, gamma = 0.71425, 
     math_elim_mode = 0)
   Random.seed!(628) # for reproducibility
 
@@ -1246,6 +1246,41 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         close(fig)
       end # loop over tank indices we want to plot
     end # check if pyplot is used
+
+    ## Plot 
+    println("Plotting loss")
+    miny = Int(floor(minimum(loss_list)))
+    incy = 1
+    maxy = Int(ceil(maximum(loss_list)))
+		titlestring = L"\mbox{Model error for Bradley-Terry MLE and various choices of $\gamma$}"
+    xlabelstring = L"\mbox{Model (Bradley-Terry or value of $\gamma$)}"
+		ylabelstring = L"\mbox{Mean squared error from NBA data}"
+		#legendtitlestring = L"\mbox{Number of selfish teams}"
+    legendtitlestring = ""
+		fname_stub = "model_loss"
+		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
+		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
+
+    if use_pyplot
+			fig = figure(frameon=false)
+			title(titlestring)
+      xlabel(xlabelstring)
+			ylabel(ylabelstring)
+			#xticks(Array(minx:incx:maxx))
+      gamma_list_name = [string(gamma_list[i]) for i = 1:length(gamma_list)]
+      xticks(1:num_modes, vcat(mode_list_name, gamma_list_name),rotation=-30)
+			yticks(Array(miny:incy:maxy))
+      for r = 1:num_steps+1
+        curr_num = Int(num_teams * (r-1) / num_steps)
+        curr_label = string("$curr_num selfish teams")
+        #plot(1:num_modes, loss_list[:,r], label=curr_label, color=col[r], linestyle=style[r], marker="", markersize=5)
+        plot(1:num_modes, loss_list[:,r], label=curr_label, color=col[r], linestyle="none", marker=shape[r], markersize=shapesize[r])
+      end
+      legend(loc="upper center", title=legendtitlestring) 
+			PyPlot.savefig(fname)
+			PyPlot.savefig(fname_low)
+			close(fig)
+    end # check if pyplot is used
   end # check if do_plotting
     
   println("## Summary of model validation experiments ##")
@@ -1268,7 +1303,7 @@ closed_form_kendtau
 function closed_form_kendtau(;
     num_teams = 30,
     num_playoff_teams = 16,
-    gamma = 0.71375,
+    gamma = 0.71425,
     num_rounds = 3,
     mode = MODE)
   Random.seed!(628) # for reproducibility
