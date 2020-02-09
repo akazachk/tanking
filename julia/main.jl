@@ -1102,7 +1102,8 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   @assert(length(mode_list) == length(mode_list_name))
   #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
   #gamma_list = [0.7, 0.71, 0.715, 0.72, 0.75]
-  gamma_list = [0.7, 0.75]
+  #gamma_list = [0.7, 0.75]
+  gamma_list = [0.7 0.71 0.711 0.7115 0.712 0.7125 0.713 0.7135 0.71375 0.714 0.71425 0.7145 0.715 0.72 0.725 0.75]
   num_modes = length(mode_list) + length(gamma_list)
 
   ## Stats we keep
@@ -1173,6 +1174,10 @@ function model_validation(;do_simulation = true, num_replications = 100000,
       println("Step ", step_ind - 1, ": Loss from mode ", curr_mode, ": ", loss_list[mode_ind, step_ind])
     end # loop over steps
   end # iterate over modes in mode_list
+
+  ## Save loss stats
+  curr_name = "model_validation"
+  writedlm(string(results_dir, "/", curr_name, csvext), loss_list, ',')
           
   ## Get avg nba data
   win_pct_nba_avg = sum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2)[:,1] / num_years
