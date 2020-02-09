@@ -1213,30 +1213,40 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         tmp[1] += 1
         xticks(tmp)
         yticks(Array(miny:incy:maxy))
-        for r = 1:num_modes+1
-          if r <= num_modes
-            if r <= length(mode_list)
-              curr_style="dashdot"
-              curr_marker=""
-              curr_size=0
-            elseif r - length(mode_list) <= length(style)
-              tmp_ind = r - length(mode_list)
-              curr_style=style[tmp_ind]
-              curr_marker=shape[tmp_ind]
-              curr_size=shapesize[tmp_ind]
-            else
-              curr_style="solid"
-              curr_marker=""
-              curr_size=0
-            end
-            curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[r-length(mode_list)])
-            plot(1:num_teams, win_pct_list[r,tank_ind,:,avg_stat], label=curr_label, linestyle=curr_style, marker=curr_marker, markersize=curr_size)
-          else
-            curr_label = "NBA average"
-            plot(1:num_teams, win_pct_nba_avg, label=curr_label, color="black", marker="", markersize=5)
-            errorbar(1:num_teams, win_pct_nba_avg, errs, color="black")
+        gammas_to_plot = [0.71425]
+        gammas_to_plot_ind = zeros(Int, length(gammas_to_plot))
+        for r = 1:length(gammas_to_plot)
+          tmp = findfirst(isequal(gammas_to_plot[r]), gamma_list)
+          if !isa(tmp, Nothing)
+            gammas_to_plot_ind[r] = tmp[2]
           end
         end
+        num_modes_to_plot = length(mode_list) + length(gammas_to_plot)
+        for r = 1:num_modes_to_plot
+          if r <= length(mode_list)
+            curr_style="dashdot"
+            curr_marker=""
+            curr_size=0
+          elseif r - length(mode_list) <= length(style)
+            tmp_ind = r - length(mode_list)
+            curr_style=style[tmp_ind]
+            curr_marker=shape[tmp_ind]
+            curr_size=shapesize[tmp_ind]
+          else
+            curr_style="solid"
+            curr_marker=""
+            curr_size=0
+          end
+          curr_ind = (r <= length(mode_list)) ? r : gammas_to_plot_ind[r-length(mode_list)]
+          if curr_ind <= 0
+            continue
+          end
+          curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[curr_ind])
+          plot(1:num_teams, win_pct_list[curr_ind,tank_ind,:,avg_stat], label=curr_label, linestyle=curr_style, marker=curr_marker, markersize=curr_size)
+        end
+        curr_label = "NBA average"
+        plot(1:num_teams, win_pct_nba_avg, label=curr_label, color="black", marker="", markersize=5)
+        errorbar(1:num_teams, win_pct_nba_avg, errs, color="black")
 
         legend(loc="upper right", title=legendtitlestring) 
         #legend(bbox_to_anchor=[0.5,.95, 0.5, 0.45], title=legendtitlestring, ncol=4, fontsize="xx-small", markerscale=0.4)
@@ -1247,7 +1257,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
       end # loop over tank indices we want to plot
     end # check if pyplot is used
 
-    ## Plot 
+    ## Plot loss
     println("Plotting loss")
     miny = Int(floor(minimum(loss_list)))
     incy = 1
