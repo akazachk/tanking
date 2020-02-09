@@ -145,6 +145,7 @@ else
 	if DO_PLOTTING
 		using PyCall
 		pygui(:qt5) # others do not work on mac
+    pygui(false)
 		#PyCall.PyDict(matplotlib["rcParams"])["font.serif"] = ["Cambria"]
 		using PyPlot
 		rc("text", usetex=true)
@@ -315,14 +316,24 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 	if (do_plotting)
 		## Plot avg_kend (Kendell tau distance) for the bilevel ranking
 		print("Plotting avg_kend: average swap distance\n")
-		minx = 0
-		incx = 0.1
-		maxx = 1
+    if num_steps == num_teams
+      minx = 0
+      incx = 5
+      maxx = num_teams
+    else
+      minx = 0
+      incx = 0.1
+      maxx = 1
+    end
 		miny = Int(floor(findmin(kend[:,:,1])[1]))
 		incy = 1
 		maxy = 31 #Int(ceil(findmax(kend[:,:,1])[1]))
 		titlestring = L"\mbox{Effect of $\delta$ on bilevel ranking of non-playoff teams}"
-		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+    if num_steps == num_teams
+      xlabelstring = L"\mbox{Number of selfish teams}"
+    else
+      xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+    end
 		ylabelstring = L"\mbox{Distance from true ranking of non-playoff teams}"
 		legendtitlestring = L"\mbox{Breakpoint ($\delta$)}"
 		fname_stub = "avg_kend"
@@ -344,16 +355,32 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot(0:(1/num_steps):1, kend[:,r,avg_stat], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
+        if num_steps == num_teams
+          plot(0:1:num_teams, kend[:,r,avg_stat], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
+        else
+				  plot(0:(1/num_steps):1, kend[:,r,avg_stat], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
+        end
 			end
 
       # Also plot kend_nba (old and new) and kend_lenten (flat line)
       curr_label = "NBA (old)"
-      plot(0:(1/num_steps):1, kend_nba[:,1,avg_stat], label=curr_label, color="gray")
+      if num_steps == num_teams
+        plot(0:1:num_teams, kend_nba[:,1,avg_stat], label=curr_label, color="gray")
+      else
+        plot(0:(1/num_steps):1, kend_nba[:,1,avg_stat], label=curr_label, color="gray")
+      end
       curr_label = "NBA (new)"
-      plot(0:(1/num_steps):1, kend_nba[:,2,avg_stat], label=curr_label, color="gray", marker=".", markersize=5)
+      if num_steps == num_teams
+        plot(0:1:num_teams, kend_nba[:,2,avg_stat], label=curr_label, color="gray", marker=".", markersize=5)
+      else
+        plot(0:(1/num_steps):1, kend_nba[:,2,avg_stat], label=curr_label, color="gray", marker=".", markersize=5)
+      end
       curr_label = "Lenten"
-      plot(0:(1/num_steps):1, kend_lenten[:,avg_stat], label=curr_label, color="gray", marker="x", markersize=5)
+      if num_steps == num_teams
+        plot(0:1:num_teams, kend_lenten[:,avg_stat], label=curr_label, color="gray", marker="x", markersize=5)
+      else
+        plot(0:(1/num_steps):1, kend_lenten[:,avg_stat], label=curr_label, color="gray", marker="x", markersize=5)
+      end
       #plot(0:(1/num_steps):1, [kend_lenten[avg_stat] for i in 0:(1/num_steps):1], label=curr_label, color="gray", marker="x")
       #axhline(kend_lenten[avg_stat], label=curr_label, color="gray", marker="x")
 
@@ -362,7 +389,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 			legend(bbox_to_anchor=[1.0, 0.5],loc="center left", title=legendtitlestring) 
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
-			close()
+			close(fig)
 		else
 			fig = Plots.plot(show=false,
 											title=titlestring,
@@ -395,11 +422,16 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 
 		## Plot avg_games_tanked (# games tanked by draft ranking breakpoint)
 		print("Plotting avg_games_tanked: average number of games tanked\n")
-		miny = Int(floor(findmin(games_tanked[:,:,1])[1]))
+		miny = 0 #Int(floor(findmin(games_tanked[:,:,1])[1]))
 		incy = 50 #Int(ceil((maxy - miny) / (5 * 10)) * 10)
-		maxy = Int(ceil(findmax(games_tanked[:,:,1])[1] / incy) * incy) + 1  #Int(floor(findmax(avg_games_tanked)[1]))
+		maxy = Int(ceil(findmax(games_tanked[:,:,1])[1] / incy) * incy)  #Int(floor(findmax(avg_games_tanked)[1]))
+    println(maxy)
 		titlestring = L"\mbox{Total games tanked}"
-		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+    if num_steps == num_teams
+      xlabelstring = L"\mbox{Number of selfish teams}"
+    else
+      xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+    end
 		ylabelstring = L"\mbox{Number of tanked games}"
 		fname_stub = "avg_games_tanked"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
@@ -412,6 +444,8 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 			ylabel(ylabelstring)
 			xticks(Array(minx:incx:maxx))
 			yticks(Array(miny:incy:maxy))
+      ylim(ymin = -5)
+      ylim(ymax = maxy)
 			#yticks=(Array(miny:incy:maxy),["\$$i\$" for i in miny:incy:maxy]),
 			for r = 1:num_rankings
 				curr_label = ""
@@ -420,12 +454,16 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot(0:(1/num_steps):1, games_tanked[:,r,1], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
+        if num_steps == num_teams
+          plot(0:1:num_teams, games_tanked[:,r,1], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
+        else
+          plot(0:(1/num_steps):1, games_tanked[:,r,1], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
+        end
 			end
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
-			close()
+			close(fig)
 		else
 			fig = Plots.plot(show=false,
 											title=titlestring,
@@ -456,14 +494,24 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 
 		## Plot avg_already_tank
 		print("Plotting avg_already_tank: average number of tanking teams\n")
-		minx = 0
-		incx = 0.1
-		maxx = 1
-		miny = Int(floor(findmin(already_tank[:,:,1])[1]))
+    if num_steps == num_teams
+      minx = 0
+      incx = 5
+      maxx = num_teams
+    else
+      minx = 0
+      incx = 0.1
+      maxx = 1
+    end
+    miny = Int(floor(findmin(already_tank[:,:,1])[1]))
 		incy = 1
 		maxy = Int(ceil(findmax(already_tank[:,:,1])[1]))
 		titlestring = L"\mbox{Number of tanking teams}"
-		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+    if num_steps == num_teams
+      xlabelstring = L"\mbox{Number of selfish teams}"
+    else
+      xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+    end
 		ylabelstring = L"\mbox{Average number of tanking teams}"
 		fname_stub = "avg_already_tank"
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
@@ -484,12 +532,16 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 				else
 					curr_label = latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}")
 				end
-				plot(0:(1/num_steps):1, already_tank[:,r,1], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
+        if num_steps == num_teams
+          plot(0:1:num_teams, already_tank[:,r,1], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
+        else
+          plot(0:(1/num_steps):1, already_tank[:,r,1], label=curr_label, color=col[r], linestyle=style[r], marker=shape[r], markersize=shapesize[r])
+        end
 			end
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
-			close()
+			close(fig)
 		else
 			fig = Plots.plot(show=false,
 											title=titlestring,
@@ -547,7 +599,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 			#fill_between(x,y)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
-			close()
+			close(fig)
 		else
 			fig = Plots.plot(show=false,
 											title=titlestring,
@@ -564,14 +616,24 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 
     ## Plot avg_rank (strat vs moral)
 		print("Plotting avg_rank: average rank of strategic vs moral teams\n")
-		minx = 0
-		incx = 0.1
-		maxx = 1
-		miny = Int(floor(findmin(avg_rank_moral[1:num_steps,1])[1]))
+    if num_steps == num_teams
+      minx = 0
+      incx = 5
+      maxx = num_teams
+    else
+      minx = 0
+      incx = 0.1
+      maxx = 1
+    end
+    miny = Int(floor(findmin(avg_rank_moral[1:num_steps,1])[1]))
 		maxy = Int(ceil(findmax(avg_rank_strat[:,1])[1]))
 		incy = 1
 		titlestring = L"\mbox{Average rank of selfish versus moral teams}"
-		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+    if num_steps == num_teams
+      xlabelstring = L"\mbox{Number of selfish teams}"
+    else
+      xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+    end
 		ylabelstring = L"\mbox{Average rank}"
 		legendtitlestring = L"\mbox{Team Type}"
 		fname_stub = "avg_rank"
@@ -585,26 +647,43 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 			ylabel(ylabelstring)
 			xticks(Array(minx:incx:maxx))
 			yticks(Array(miny:incy:maxy))
-      curr_label = "Moral"
-      plot(0:(1/num_steps):1-1/num_steps, avg_rank_moral[1:num_steps,avg_stat], label=curr_label, color="green", linestyle="solid")
-      curr_label = "Selfish"
-      plot(1/num_steps:(1/num_steps):1, avg_rank_strat[2:num_steps+1,avg_stat], label=curr_label, color="red", linestyle="dashed")
+      if num_steps == num_teams
+        curr_label = "Moral"
+        plot(0:1:num_teams-1, avg_rank_moral[1:num_steps,avg_stat], label=curr_label, color="green", linestyle="solid")
+        curr_label = "Selfish"
+        plot(1:1:num_teams, avg_rank_strat[2:num_steps+1,avg_stat], label=curr_label, color="red", linestyle="dashed")
+      else
+        curr_label = "Moral"
+        plot(0:(1/num_steps):1-1/num_steps, avg_rank_moral[1:num_steps,avg_stat], label=curr_label, color="green", linestyle="solid")
+        curr_label = "Selfish"
+        plot(1/num_steps:(1/num_steps):1, avg_rank_strat[2:num_steps+1,avg_stat], label=curr_label, color="red", linestyle="dashed")
+      end
 			legend(loc="upper right", title=legendtitlestring) 
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
-			close()
+			close(fig)
     end
 
     ## Plot avg_elim_rank (strat vs moral)
 		print("Plotting avg_elim_rank: average rank of eliminated strategic vs moral teams\n")
-		minx = 0
-		incx = 0.1
-		maxx = 1
+    if num_steps == num_teams
+      minx = 0
+      incx = 5
+      maxx = num_teams
+    else
+      minx = 0
+      incx = 0.1
+      maxx = 1
+    end
 		miny = Int(floor(findmin(avg_elim_rank_moral[2:num_steps,1])[1]))
 		maxy = Int(ceil(findmax(avg_elim_rank_strat[2:num_steps,1])[1]))
 		incy = 1
 		titlestring = L"\mbox{Average rank of selfish versus moral non-playoff teams}"
-		xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+    if num_steps == num_teams
+      xlabelstring = L"\mbox{Number of selfish teams}"
+    else
+      xlabelstring = L"\mbox{Probability of tanking once eliminated}"
+    end
 		ylabelstring = L"\mbox{Average rank}"
 		legendtitlestring = L"\mbox{Team Type}"
 		fname_stub = "avg_elim_rank"
@@ -618,14 +697,21 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 			ylabel(ylabelstring)
 			xticks(Array(minx:incx:maxx))
 			yticks(Array(miny:incy:maxy))
-      curr_label = "Moral"
-      plot(1/num_steps:(1/num_steps):1-1/num_steps, avg_elim_rank_moral[2:num_steps,avg_stat], label=curr_label, color="green", linestyle="solid")
-      curr_label = "Selfish"
-      plot(1/num_steps:(1/num_steps):1-1/num_steps, avg_elim_rank_strat[2:num_steps,avg_stat], label=curr_label, color="red", linestyle="dashed")
+      if num_steps == num_teams
+        curr_label = "Moral"
+        plot(1:1:num_teams-1, avg_elim_rank_moral[2:num_steps,avg_stat], label=curr_label, color="green", linestyle="solid")
+        curr_label = "Selfish"
+        plot(1:1:num_teams-1, avg_elim_rank_strat[2:num_steps,avg_stat], label=curr_label, color="red", linestyle="dashed")
+      else
+        curr_label = "Moral"
+        plot(1/num_steps:(1/num_steps):1-1/num_steps, avg_elim_rank_moral[2:num_steps,avg_stat], label=curr_label, color="green", linestyle="solid")
+        curr_label = "Selfish"
+        plot(1/num_steps:(1/num_steps):1-1/num_steps, avg_elim_rank_strat[2:num_steps,avg_stat], label=curr_label, color="red", linestyle="dashed")
+      end
 			legend(loc="upper right", title=legendtitlestring) 
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
-			close()
+			close(fig)
     end
 	end # if do_plotting
 	return
@@ -726,7 +812,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 			legend(bbox_to_anchor=[1,.9],loc="upper right", title=legendtitlestring)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
-			close()
+			close(fig)
 		else
 			ctg = repeat(vcat([latexstring(numerator(breakpoint_list[r]),"/",denominator(breakpoint_list[r]), "\\mbox{ of season}") for r in ind if r < length(breakpoint_list)], L"\mbox{end of season}"), inner=num_years)
 			fig = groupedbar(num_games_tanked_stacked,
@@ -797,7 +883,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 			legend(loc="upper left", title=legendtitlestring)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
-			close()
+			close(fig)
 		else
 			fig = Plots.plot(show=false,
 											title=titlestring,
@@ -978,7 +1064,7 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 			#size = fig[:get_size_inches]()
 			#print("Which should result in a ", DPI*size[1], " x ", DPI*size[2], " image")
 
-			close()
+			close(fig)
 		else
 			fig = Plots.plot(show=false,
 											title=titlestring,
@@ -1012,10 +1098,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   ## Simulation parameters
   #mode_list = [BT_ESTIMATED BT_DISTR]; mode_list_name = ["BT.est", "BT.beta"]
   mode_list = [BT_ESTIMATED]; mode_list_name= ["BT"]
-  mode_list = []; mode_list_name = []
+  #mode_list = []; mode_list_name = []
   @assert(length(mode_list) == length(mode_list_name))
   #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
-  gamma_list = [0.72, 0.75]
+  #gamma_list = [0.7, 0.71, 0.715, 0.72, 0.75]
+  gamma_list = [0.7, 0.75]
   num_modes = length(mode_list) + length(gamma_list)
 
   ## Stats we keep
@@ -1124,25 +1211,34 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         for r = 1:num_modes+1
           if r <= num_modes
             if r <= length(mode_list)
-              style="dashed"
+              curr_style="dashdot"
+              curr_marker=""
+              curr_size=0
+            elseif r - length(mode_list) <= length(style)
+              tmp_ind = r - length(mode_list)
+              curr_style=style[tmp_ind]
+              curr_marker=shape[tmp_ind]
+              curr_size=shapesize[tmp_ind]
             else
-              style="solid"
+              curr_style="solid"
+              curr_marker=""
+              curr_size=0
             end
             curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[r-length(mode_list)])
-            plot(1:num_teams, win_pct_list[r,tank_ind,:,avg_stat], label=curr_label, linestyle=style)
+            plot(1:num_teams, win_pct_list[r,tank_ind,:,avg_stat], label=curr_label, linestyle=curr_style, marker=curr_marker, markersize=curr_size)
           else
             curr_label = "NBA average"
-            plot(1:num_teams, win_pct_nba_avg, label=curr_label, color="black", marker="x")
+            plot(1:num_teams, win_pct_nba_avg, label=curr_label, color="black", marker="", markersize=5)
             errorbar(1:num_teams, win_pct_nba_avg, errs, color="black")
           end
         end
 
-        #legend(loc="upper left", title=legendtitlestring) 
+        legend(loc="upper right", title=legendtitlestring) 
         #legend(bbox_to_anchor=[0.5,.95, 0.5, 0.45], title=legendtitlestring, ncol=4, fontsize="xx-small", markerscale=0.4)
-        legend(loc="upper right", title=legendtitlestring, ncol=4, fontsize="xx-small", markerscale=0.4)
+        #legend(loc="upper right", title=legendtitlestring, ncol=4, fontsize="xx-small", markerscale=0.4)
         PyPlot.savefig(fname)
         PyPlot.savefig(fname_low)
-        close()
+        close(fig)
       end # loop over tank indices we want to plot
     end # check if pyplot is used
   end # check if do_plotting
