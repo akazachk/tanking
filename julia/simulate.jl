@@ -182,7 +182,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   if num_steps == num_teams
     decide_tanking_with_prob = false
   end
-  #for step_ind in 1:1 ### DEBUG
+  #for step_ind in 28:30 ### DEBUG
   for step_ind in 1:length(array_of_tanking_probabilities)
     tank_perc = array_of_tanking_probabilities[step_ind]
     num_repl_for_avg = 0
