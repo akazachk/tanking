@@ -47,15 +47,44 @@ function updateMax(x, y, eps = 1e-7)
   end
 end # updateMax
 
-function runDraftLottery(nonplayoff_teams, odds, num_teams)
-  ###
-  # Using the given odds, calculate the draft order
-  # After a team is removed, the odds are reweighted appropriately
-  #
-  # Return the draft order
-  ###
+"""
+runDraftLottery: using the given odds, calculate the draft order
+
+We assume that nonplayoff_teams are ranked in order of best to worst record
+
+The function is recursive, and calls itself to calculate the next team by setting odds of selected team to 0
+(flagged by -1 in the code),
+and then reweighting odds 
+
+
+---
+* odds: length(nonplayoff_teams) array of doubles, typically in increasing order (last place has higher chance)
+
+---
+Return the draft order
+"""
+function runDraftLottery(nonplayoff_teams, odds, num_teams, num_teams_selected_by_lottery)
   if num_teams == 0
     return []
+  end
+  
+  # Check if we should not use the draft lottery,
+  # but rather return the teams in the reverse order
+  if num_teams_selected_by_lottery <= 0
+    draft_order = zeros(Int, num_teams)
+    tmp_ind = 1
+    for curr_team_ind = length(nonplayoff_teams):-1:1
+      if lessThanVal(odds[curr_team_ind], 0)
+        continue
+      else
+        draft_order[tmp_ind] = nonplayoff_teams[curr_team_ind]
+        tmp_ind += 1
+        if tmp_ind > num_teams
+          break
+        end
+      end
+    end
+    return draft_order
   end
    
   normalization = sum(i->(i>=-1e-7 ? i : 0), odds)
@@ -77,7 +106,7 @@ function runDraftLottery(nonplayoff_teams, odds, num_teams)
   end
 
   odds[selected_team_ind] = -1
-  rank_rest = runDraftLottery(nonplayoff_teams, odds, num_teams-1)
+  rank_rest = runDraftLottery(nonplayoff_teams, odds, num_teams-1, num_teams_selected_by_lottery-1)
   draft_order = pushfirst!(rank_rest, selected_team)
   return draft_order
 end # runDraftLottery

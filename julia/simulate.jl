@@ -39,6 +39,7 @@ Parameters
   * gamma
   * breakpoint_list
   * nba_odds_list: list of odds to use by the NBA
+  * nba_num_lottery: number of teams for which the lottery decides draft position
   * true_strength
   * mode: defines how the ranking and winner determination works
     1 or 2: 
@@ -76,7 +77,7 @@ Returns
   * avg_diff_rank_moral
   * num_missing_case
 """
-function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode=-2, ONLY_RETURN_WIN_PCT=false)
+function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode=-2, ONLY_RETURN_WIN_PCT=false)
 
   ## Set constants
   step_size                       = 1 / num_steps
@@ -182,7 +183,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   if num_steps == num_teams
     decide_tanking_with_prob = false
   end
-  #for step_ind in 28:30 ### DEBUG
+  #for step_ind in 28:31 ### DEBUG
   for step_ind in 1:length(array_of_tanking_probabilities)
     tank_perc = array_of_tanking_probabilities[step_ind]
     num_repl_for_avg = 0
@@ -549,7 +550,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       ## Compute the Kendall tau distance when the NBA randomization is used
       for r = 1:length(nba_odds_list)
         odds = copy(nba_odds_list[r])
-        draft_order = runDraftLottery(nonplayoff_teams, odds, length(nonplayoff_teams))
+        draft_order = runDraftLottery(nonplayoff_teams, odds, length(nonplayoff_teams), nba_num_lottery[r])
         ranking_nba = draft_order[length(draft_order):-1:1]
         curr_kend = kendtau_sorted(ranking_nba, true_strength, mode)
         @views updateStats!(kend_nba_out[step_ind, r, :], curr_kend, num_replications)

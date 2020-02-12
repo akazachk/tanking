@@ -35,6 +35,8 @@ nba_odds_flat = [1. / 14. for i in 1:14]
 nba_odds_old = nba_odds_old[14:-1:1]
 nba_odds_new = nba_odds_new[14:-1:1]
 nba_odds_list = [nba_odds_new, nba_odds_old, nba_odds_flat]
+nba_num_lottery = [4, 3, 4]
+@assert( length(nba_num_lottery) == length(nba_odds_list) )
 
 ## When the (draft) ranking will be set as fraction of number games
 #breakpoint_list = [4//8; 5//8; 6//8; 7//8; 1]
@@ -249,7 +251,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
       avg_elim_rank_strat, avg_elim_rank_moral,
       avg_diff_rank_strat, avg_diff_rank_moral,
       num_missing_case = 
-        simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, true_strength, mode, math_elim_mode)
+        simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode)
 
     for stat = 1:num_stats
       writedlm(string(results_dir, "/", prefix[stat], "kend", csvext), kend[:,:,stat], ',')
@@ -1137,7 +1139,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     ## Retrieve win_pct matrix [step_ind, team_ind, stat]
     ## Save data
     if do_simulation
-      win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, true_strength, curr_mode, math_elim_mode, true)
+      win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, true)
       println("win_pct = ", win_pct[:,:,avg_stat])
       win_pct_list[mode_ind, :, :, :] = win_pct
       for stat in [avg_stat]
