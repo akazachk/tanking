@@ -427,7 +427,6 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 		miny = 0 #Int(floor(findmin(games_tanked[:,:,1])[1]))
 		incy = 50 #Int(ceil((maxy - miny) / (5 * 10)) * 10)
 		maxy = Int(ceil(findmax(games_tanked[:,:,1])[1] / incy) * incy)  #Int(floor(findmax(avg_games_tanked)[1]))
-    println(maxy)
 		titlestring = L"\mbox{Total games tanked}"
     if num_steps == num_teams
       xlabelstring = L"\mbox{Number of selfish teams}"
