@@ -147,7 +147,7 @@ else
 	if DO_PLOTTING
 		using PyCall
 		pygui(:qt5) # others do not work on mac
-    pygui(false)
+    pygui(:default)
 		#PyCall.PyDict(matplotlib["rcParams"])["font.serif"] = ["Cambria"]
 		using PyPlot
 		rc("text", usetex=true)
