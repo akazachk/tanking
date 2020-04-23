@@ -56,6 +56,7 @@ Parameters
     4: use math elim, binary MIP, cutoff formulation
     5: use math elim, general integer MIP, cutoff formulation
     <0: use effective elimination, but calculate mathematical elimination
+  * ONLY_RETURN_WIN_PCT: do not calculate all of the return values, only avg_win_pct
 
 Returns
 ---
@@ -77,11 +78,16 @@ Returns
   * avg_diff_rank_moral
   * num_missing_case
 """
-function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode=-2, ONLY_RETURN_WIN_PCT=false)
+function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode=-2, selected_steps=nothing, ONLY_RETURN_WIN_PCT=false)
 
   ## Set constants
   step_size                       = 1 / num_steps
   array_of_tanking_probabilities  = 0:step_size:1
+  if isa(selected_steps, Number)
+    selected_steps = [selected_steps]
+  elseif !isa(selected_steps,Array) && !isa(selected_steps,UnitRange)
+    selected_steps = 1:length(array_of_tanking_probabilities)
+  end
   num_games_per_round             = Int(num_teams * (num_teams - 1) / 2)
   num_games_total                 = num_rounds * num_games_per_round
   num_team_games                  = num_rounds * (num_teams - 1)
@@ -183,8 +189,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   if num_steps == num_teams
     decide_tanking_with_prob = false
   end
-  #for step_ind in 28:31 ### DEBUG
-  for step_ind in 1:length(array_of_tanking_probabilities)
+  for step_ind in selected_steps
     tank_perc = array_of_tanking_probabilities[step_ind]
     num_repl_for_avg = 0
     print("Simulating season with $tank_perc ratio of teams tanking\n")

@@ -66,7 +66,7 @@ lowext_folder = "png"
 ext = string(ranking_type,".",ext_folder)
 lowext = string(ranking_type,"_low",".",lowext_folder)
 
-function set_mode(mode=MODE)
+function set_mode(mode=MODE, extra=nothing)
   ### Set global variables based on which mode is being used
   tmp_true_strength = 0
 	if mode == NONE
@@ -105,6 +105,36 @@ function set_mode(mode=MODE)
     #BT_avg() BT_MLE()
     tmp_true_strength = BT_MLE()
 	end
+
+  ## Append extra string to ranking_type, if provided
+  if isnothing(extra)
+    # Do nothing
+  elseif isa(extra,String)
+    extra = filter(x -> !isspace(x), extra) # remove spaces
+    global ranking_type = string(ranking_type,extra)
+  elseif isa(extra,UnitRange)
+    global ranking_type = string(ranking_type,extra)
+  elseif isa(extra,Array) && length(extra) > 0
+    for i = 1:length(extra)
+      if !isa(extra[i], Number)
+        error("Entries of `extra` array need to be numbers, but value of array at index $i = ", extra[i])
+      end
+    end
+    # Check if we can make it a unit range
+    is_range = length(extra) > 1 ? true : false
+    for i = 2:length(extra)
+      if extra[i] != extra[i-1]+1
+        is_range = false
+        break
+      end
+    end
+    if is_range
+      extra = UnitRange(extra[1],extra[length(extra)])
+    end
+    extra = filter(x -> !isspace(x), string(extra)) # remove spaces
+    global ranking_type = string(ranking_type,extra)
+  end # append extra string
+
 	global csvext = string(ranking_type,".csv")
 	global ext = string(ranking_type,".",ext_folder)
 	global lowext = string(ranking_type,"_low",".",lowext_folder)
@@ -204,9 +234,9 @@ Parameters
 function main_simulate(;do_simulation = true, num_replications = 100000, 
     do_plotting = true, mode = MODE, results_dir = "../results", 
     num_rounds = 3, num_steps = num_teams, gamma = 0.71425, 
-    math_elim_mode = -2)
+    math_elim_mode = -2, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
-	set_mode(mode)
+	set_mode(mode, selected_steps)
 
 	## Variables that need to be set
 	## end variables that need to be set
@@ -251,7 +281,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
       avg_elim_rank_strat, avg_elim_rank_moral,
       avg_diff_rank_strat, avg_diff_rank_moral,
       num_missing_case = 
-        simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode)
+        simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, false)
 
     for stat = 1:num_stats
       writedlm(string(results_dir, "/", prefix[stat], "kend", csvext), kend[:,:,stat], ',')
@@ -1093,7 +1123,7 @@ end # rankings_are_noisy
 function model_validation(;do_simulation = true, num_replications = 100000, 
     data_dir = "../data", results_dir = "../results", do_plotting = true,
     num_rounds = 3, num_steps = 2, gamma = 0.71425, 
-    math_elim_mode = 0)
+    math_elim_mode = 0, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
 
   ## Simulation parameters
@@ -1132,13 +1162,13 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     else
       println("Mode should be set to mode $mode_ind: ", curr_mode)
     end
-    set_mode(curr_mode)
+    set_mode(curr_mode, selected_steps)
     println("true_strength = ", true_strength)
 
     ## Retrieve win_pct matrix [step_ind, team_ind, stat]
     ## Save data
     if do_simulation
-      win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, true)
+      win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, selected_steps, true)
       println("win_pct = ", win_pct[:,:,avg_stat])
       win_pct_list[mode_ind, :, :, :] = win_pct
       for stat in [avg_stat]
