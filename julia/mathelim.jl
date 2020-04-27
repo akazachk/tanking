@@ -17,7 +17,9 @@ using JuMP, MathOptFormat
 using Gurobi
 
 """
-heuristicBestRank: Heuristic for a ``good'' set of outcomes for team k for the remainder of the season
+    heuristicBestRank
+
+Heuristic for a "good" set of outcomes for team k for the remainder of the season
 
 In this heuristic, we assume team k wins its remaining games
 (remainder of the season = games t to num_games_total)
@@ -27,15 +29,32 @@ We first check whether there is already a schedule we can copy
   -> if there is a schedule in which the last playoff team has W or fewer wins
 Any team that can never or will always have W wins (or more) will win their remaining games
 
-Returns
+# Parameters
+---
+  * `k::Int`:
+  * `t::Int`:
+  * `schedule`:
+  * `in_stats`:
+  * `in_outcome`:
+  * `in_h2h`:
+  * `best_outcomes`:
+  * `best_h2h`:
+  * `best_num_wins`:
+  * `best_rank`:
+  * `num_playoff_teams::Int`:
+  * `num_wins_ind::Int = 2`:
+  * `games_left_ind::Int = 3`:
+
+# Returns
+---
   * set of outcomes
   * head-to-head records
   * number of wins each team has
   * rank of each team
 """
-function heuristicBestRank(k, t, schedule, in_stats, in_outcome, in_h2h,
+function heuristicBestRank(k::Int, t::Int, schedule, in_stats, in_outcome, in_h2h,
     best_outcomes, best_h2h, best_num_wins, best_rank, num_playoff_teams,
-    num_wins_ind = 2, games_left_ind = 3)
+    num_wins_ind::Int = 2, games_left_ind::Int = 3)
   num_games_total = size(schedule,1)
   num_teams = size(in_stats,1)
 

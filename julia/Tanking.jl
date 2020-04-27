@@ -13,16 +13,19 @@
 # 4. NBA lottery-based system: see odds below, which are applied to the end-of-season standings
 ###
 
+module Tanking
+
 ## Required dependencies
 import Random
 using DelimitedFiles
 using LaTeXStrings
 using Printf
 import Distributions.Beta
+include("mathelim.jl") # needed for simulate.jl and utility.jl
+include("utility.jl") # imports MODE definitions, needed for parse.jl and simulate.jl
 include("BT.jl")
-include("simulate.jl")
 include("parse.jl")
-include("utility.jl") # imports MODE definitions
+include("simulate.jl")
 
 using Combinatorics # for permutations
 
@@ -66,8 +69,12 @@ lowext_folder = "png"
 ext = string(ranking_type,".",ext_folder)
 lowext = string(ranking_type,"_low",".",lowext_folder)
 
+"""
+    set_mode
+
+Set global variables based on which mode is being used
+"""
 function set_mode(mode=MODE, extra=nothing)
-  ### Set global variables based on which mode is being used
   tmp_true_strength = 0
 	if mode == NONE
 		cssvext = ".csv"
@@ -203,33 +210,35 @@ else
 end
 
 """
-`main_simulate`: Simulate a season and plot output
+    main_simulate
+
+Simulate a season and plot output
 
 Parameters
 ---
-* `do_simulation`: when false, read data from files in results_dir
-* `num_replications`: how many times to simulate each data point
-* `do_plotting`: if false, only gather data, without plotting it
-* `mode`: which kind of true ranking is used;
-     1 or 2: 
-       When two non-tanking teams or two tanking teams play each other, 
-       the better team wins with probability gamma.
-       When a tanking team plays a non-tanking team, the tanking team always loses.
-     3 or 4:
-       Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game.
+  * `do_simulation`: when false, read data from files in results_dir
+  * `num_replications`: how many times to simulate each data point
+  * `do_plotting`: if false, only gather data, without plotting it
+  * `mode`: which kind of true ranking is used;
+       1 or 2: 
+         When two non-tanking teams or two tanking teams play each other, 
+         the better team wins with probability gamma.
+         When a tanking team plays a non-tanking team, the tanking team always loses.
+       3 or 4:
+         Variants of (Zermelo-)Bradley-Terry model used to determine who wins each game.
 
-* `results_dir`: where results should be saved and can be found
-* `num_rounds`: a round consists of each team playing each other team
-* `num_steps`: discretization of [0,1] for tanking probability
-* `gamma`: probability a better-ranked team wins over a worse-ranked team
-* `math_elim_mode`: identify when a team is eliminated, and will stop tanking
-  0: use effective elimination, 
-  1: use mathematical elimination, but calculated by heuristics only, 
-  2: use math elim, binary MIP, team-wise formulation
-  3: use math elim, general integer MIP, team-wise formulation
-  4: use math elim, binary MIP, cutoff formulation
-  5: use math elim, general integer MIP, cutoff formulation
-  <0: use effective elimination for tanking, but calculate mathematical elimination
+  * `results_dir`: where results should be saved and can be found
+  * `num_rounds`: a round consists of each team playing each other team
+  * `num_steps`: discretization of [0,1] for tanking probability
+  * `gamma`: probability a better-ranked team wins over a worse-ranked team
+  * `math_elim_mode`: identify when a team is eliminated, and will stop tanking;
+    0: use effective elimination, 
+    1: use mathematical elimination, but calculated by heuristics only, 
+    2: use math elim, binary MIP, team-wise formulation,
+    3: use math elim, general integer MIP, team-wise formulation,
+    4: use math elim, binary MIP, cutoff formulation,
+    5: use math elim, general integer MIP, cutoff formulation,
+    <0: use effective elimination for tanking, but calculate mathematical elimination.
 """
 function main_simulate(;do_simulation = true, num_replications = 100000, 
     do_plotting = true, mode = MODE, results_dir = "../results", 
@@ -749,7 +758,9 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
 end; # main_simulate
 
 """
-main_parse: Parse data from 2004-2019, except 2011-12 (lockout year)
+    main_parse
+
+Parse data from 2004-2019, except 2011-12 (lockout year)
 """
 function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_dir="../results")
   Random.seed!(628) # for reproducibility
@@ -987,7 +998,9 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 end # main_parse
 
 """
-rankings_are_noisy: simulate a season to show that a finite set of samples is insufficient to get a good ranking estimate
+    rankings_are_noisy
+
+simulate a season to show that a finite set of samples is insufficient to get a good ranking estimate
 
 NOTE: these results will match theory from closed_form_kendtau, but NOT from simulate code,
 because simulate code uses a *tie-breaking* rule that when two teams have the same win percentage,
@@ -1120,6 +1133,9 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 	end # if do_plotting
 end # rankings_are_noisy
 
+"""
+    model_validation
+"""
 function model_validation(;do_simulation = true, num_replications = 100000, 
     data_dir = "../data", results_dir = "../results", do_plotting = true,
     num_rounds = 3, num_steps = 2, gamma = 0.71425, 
@@ -1339,7 +1355,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
 end # model_validation
 
 """
-closed_form_kendtau
+    closed_form_kendtau
 """
 function closed_form_kendtau(;
     num_teams = 30,
@@ -1452,7 +1468,8 @@ function closed_form_kendtau(;
 end # closed_form_kendtau
 
 """
-count_num_win_partitions
+    count_num_win_partitions
+
 Count the number of win totals `n` teams can have when each team can have at most `M` wins
 and the sum of all wins must equal `total`
 """
@@ -1470,6 +1487,9 @@ function count_num_win_partitions(total, n, M)
   end
 end # count_num_win_partitions
 
+"""
+    tanking_unit_tests
+"""
 function tanking_unit_tests()
 	test_ranking = 1:num_teams
 	test_strength = 1:num_teams
@@ -1477,3 +1497,5 @@ function tanking_unit_tests()
 	test_strength = num_teams:-1:1
 	@assert ( kendtau_sorted(test_ranking, test_strength, 1) == 0 )
 end # tanking_unit_tests
+
+end # module Tanking

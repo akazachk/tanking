@@ -46,3 +46,20 @@ The code can be run with the following commands:
 3. True ranking is static
 4. No home/away advantage
 5. Ties broken between two teams with the same win percentage is by head-to-head record, and afterwards uniformly at random
+
+
+### To create a sysimage
+
+1. Create pre-compilation statements
+
+        julia --trace-compile="precompile.jl" --project script.jl
+
+2. Create the sysimage
+
+        julia> using PackageCompiler
+        #julia> PackageCompiler.create_sysimage([:Combinatorics, :DelimitedFiles, :Distributions, :Gurobi, :JuMP, :LaTeXStrings, :MathOptFormat, :Plots, :Printf, :PyCall, :PyPlot, :StatsPlots], project=".", sysimage_path="JuliaTanking.so", precompile_statements_file="precompile.jl");
+        julia> PackageCompiler.create_sysimage([:Combinatorics, :DelimitedFiles, :Distributions, :Gurobi, :JuMP, :LaTeXStrings, :MathOptFormat, :Plots, :Printf, :PyCall, :StatsPlots], project=".", sysimage_path="JuliaTanking.so", precompile_statements_file="precompile.jl")
+
+3. Run the script
+
+        julia --sysimage=JuliaTanking.so --project script.jl
