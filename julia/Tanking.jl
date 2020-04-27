@@ -210,6 +210,43 @@ else
 end
 
 """
+    clean_selected_steps
+
+Ensure selected steps is in the proper format (an `Int`, `Int` array, or a `UnitRange`) 
+"""
+function clean_selected_steps(selected_steps = nothing)
+  if isnothing(selected_steps) || isa(selected_steps, Int) || isa(selected_steps, UnitRange)
+    return selected_steps
+  elseif !isa(selected_steps, Array)
+    error("selected_steps needs to be an Int, Int array, or UnitRange; provided is ", selected_steps)
+  else
+    # We have an array, but we should make sure each entry is an Int
+    all_ok = true
+    for i = 1:length(selected_steps)
+      if !isa(selected_steps[i], Int) && !isa(selected_steps[i], UnitRange)
+        error("selected_steps needs to be an Int, Int array, or UnitRange, but entry $i is ", selected_steps[i])
+      elseif !isa(selected_steps[i], Int)
+        all_ok = false
+      end
+    end
+    if all_ok
+      return selected_steps
+    end
+
+    # Otherwise we need to do some fixing
+    x = Array{Any}(selected_steps)
+    i = 1; len = length(x)
+    while i <= len
+      curr_len = length(x[i])
+      splice!(x, i, x[i])
+      i += curr_len
+      len += curr_len - 1
+    end
+    return x
+  end
+end # clean_selected_steps
+
+"""
     main_simulate
 
 Simulate a season and plot output
@@ -239,12 +276,14 @@ Parameters
     4: use math elim, binary MIP, cutoff formulation,
     5: use math elim, general integer MIP, cutoff formulation,
     <0: use effective elimination for tanking, but calculate mathematical elimination.
+  * `selected_steps`: subset of steps we wish to actually get results for; this should be an `Int`, `Int` array, or a `UnitRange`
 """
 function main_simulate(;do_simulation = true, num_replications = 100000, 
     do_plotting = true, mode = MODE, results_dir = "../results", 
     num_rounds = 3, num_steps = num_teams, gamma = 0.71425, 
     math_elim_mode = -2, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
+  selected_steps = clean_selected_steps(selected_steps)
 	set_mode(mode, selected_steps)
 
 	## Variables that need to be set
@@ -1141,6 +1180,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     num_rounds = 3, num_steps = 2, gamma = 0.71425, 
     math_elim_mode = 0, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
+  selected_steps = clean_selected_steps(selected_steps)
 
   ## Simulation parameters
   #mode_list = [BT_ESTIMATED BT_DISTR]; mode_list_name = ["BT.est", "BT.beta"]
