@@ -43,6 +43,7 @@ end # str2arr
 Run simulation with selected steps
 """
 function main(sel_steps)
+  sel_steps=str2arr(sel_steps)
   @time Tanking.main_simulate(do_simulation=true,num_replications=1,do_plotting=false,num_steps=30,math_elim_mode=-2, gamma=0.71425, results_dir="../results/tmp", selected_steps=sel_steps)
 end # main
 
