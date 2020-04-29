@@ -1,7 +1,7 @@
 #!/usr/bin/env julia
-# Run with julia --project
+# Run with julia --project=<proj_dir>/julia/
 
-include("Tanking.jl")
+include("../julia/Tanking.jl")
 
 """
     str2range
@@ -42,11 +42,14 @@ end # str2arr
 
 Run simulation with selected steps
 """
-function main(sel_steps)
+function main(sel_steps, outdir)
+  if isnothing(outdir) || !isa(outdir,String) || isempty(outdir)
+    DEFAULT_OUTDIR="/home/akazachk/projects/def-alodi/akazachk/tanking/results/tmp"
+  end
   sel_steps=str2arr(sel_steps)
-  @time Tanking.main_simulate(do_simulation=true,num_replications=1,do_plotting=false,num_steps=30,math_elim_mode=-2, gamma=0.71425, results_dir="../results/tmp", selected_steps=sel_steps)
+  @time Tanking.main_simulate(do_simulation=true,num_replications=1,do_plotting=false,num_steps=30,math_elim_mode=-2, gamma=0.71425, results_dir=outdir, selected_steps=sel_steps)
 end # main
 
 if abspath(PROGRAM_FILE) == @__FILE__
-  main(ARGS[1])
+  main(ARGS[1], ARGS[2])
 end
