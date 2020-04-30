@@ -1,7 +1,7 @@
 #!/usr/bin/env julia
-# Run with julia --project=<proj_dir>/julia/
+# Run with julia --project=<proj_dir>/Tanking/
 
-include("../julia/Tanking.jl")
+using Tanking
 
 """
     str2range

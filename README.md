@@ -50,16 +50,15 @@ The code can be run with the following commands:
 
 ### To create a sysimage
 
-1. Create pre-compilation statements
+1. Create pre-compilation statements (running from project directory)
 
-        julia --trace-compile="precompile.jl" --project script.jl
+        julia --trace-compile="precompile.jl" --project="Tanking" scripts/script.jl
 
-2. Create the sysimage
+2. Create the sysimage (from the Tanking directory)
 
         julia> using PackageCompiler
-        #julia> PackageCompiler.create_sysimage([:Combinatorics, :DelimitedFiles, :Distributions, :Gurobi, :JuMP, :LaTeXStrings, :MathOptFormat, :Plots, :Printf, :PyCall, :PyPlot, :StatsPlots], project=".", sysimage_path="JuliaTanking.so", precompile_statements_file="precompile.jl");
-        julia> PackageCompiler.create_sysimage([:Combinatorics, :DelimitedFiles, :Distributions, :Gurobi, :JuMP, :LaTeXStrings, :MathOptFormat, :Plots, :Printf, :PyCall, :StatsPlots], project=".", sysimage_path="JuliaTanking.so", precompile_statements_file="precompile.jl")
+        julia> PackageCompiler.create_sysimage([:Combinatorics, :DelimitedFiles, :Distributions, :Gurobi, :JuMP, :LaTeXStrings, :MathOptFormat, :Plots, :Printf, :PyCall, :Random, :StatsPlots, :Tanking], project=".", sysimage_path="JuliaTanking.so", precompile_statements_file="precompile.jl")
 
 3. Run the script
 
-        julia --sysimage=JuliaTanking.so --project script.jl
+        julia --sysimage=Tanking/JuliaTanking.so --project="Tanking" scripts/script.jl
