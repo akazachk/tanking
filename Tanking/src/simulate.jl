@@ -628,6 +628,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         @views updateStats!(avg_diff_rank_strat_out[step_ind,:], diff_rank_strat, 1)
         @views updateStats!(avg_diff_rank_moral_out[step_ind,:], diff_rank_moral, 1)
       end
+      gc() # possibly needed to free Gurobi model
     end # do replications
 
     if ONLY_RETURN_WIN_PCT

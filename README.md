@@ -52,7 +52,7 @@ The code can be run with the following commands:
 
 1. Create pre-compilation statements (running from project directory)
 
-        julia --trace-compile="precompile.jl" --project="Tanking" scripts/script.jl
+        julia --trace-compile="precompile.jl" --project="Tanking" scripts/test_script.jl
 
 2. Create the sysimage (from the Tanking directory)
 
@@ -61,4 +61,4 @@ The code can be run with the following commands:
 
 3. Run the script
 
-        julia --sysimage=Tanking/JuliaTanking.so --project="Tanking" scripts/script.jl
+        julia --sysimage=Tanking/JuliaTanking.so --project="Tanking" scripts/run_script.jl

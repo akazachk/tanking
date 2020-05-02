@@ -42,14 +42,19 @@ end # str2arr
 
 Run simulation with selected steps
 """
-function main(sel_steps, outdir)
+function main(sel_steps, outdir=nothing)
   if isnothing(outdir) || !isa(outdir,String) || isempty(outdir)
-    DEFAULT_OUTDIR="/home/akazachk/projects/def-alodi/akazachk/tanking/results/tmp"
+    outdir="/home/akazachk/projects/def-alodi/akazachk/tanking/results/tmp"
   end
   sel_steps=str2arr(sel_steps)
-  @time Tanking.main_simulate(do_simulation=true,num_replications=1,do_plotting=false,num_steps=30,math_elim_mode=-2, gamma=0.71425, results_dir=outdir, selected_steps=sel_steps)
+  @time Tanking.main_simulate(do_simulation=true,num_replications=100000,do_plotting=false,num_steps=30,math_elim_mode=-2, gamma=0.71425, results_dir=outdir, selected_steps=sel_steps)
 end # main
 
+
 if abspath(PROGRAM_FILE) == @__FILE__
-  main(ARGS[1], ARGS[2])
+  if length(ARGS) <= 1
+    main(ARGS[1])
+  else
+    main(ARGS[1], ARGS[2])
+  end
 end
