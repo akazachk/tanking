@@ -15,7 +15,6 @@ using JuMP, MathOptFormat
 #using Cbc
 #using GLPK
 using Gurobi
-const GUROBI_ENV = Gurobi.Env()
 
 """
     heuristicBestRank
@@ -331,13 +330,13 @@ end # updateHeuristicBestRank
 
 `math_elim_mode`: <= 0: do not use math elim; 1: do not use MIP for math elim; 2-3: team-wise formulation; 4-5: cutoff formulation
 """
-function setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode)
+function setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode, env = nothing)
   if math_elim_mode < 1
     return 0
   elseif math_elim_mode in [2,3]
-    return setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode)
+    return setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode, env)
   elseif math_elim_mode in [4,5]
-    return setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode)
+    return setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, math_elim_mode, env)
   end
 end # setupMIP
 
@@ -401,9 +400,9 @@ function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_te
   #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0)) # about five times slower than Gurobi (or worse)
   #model = Model(with_optimizer(GLPK.Optimizer))
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams+1e-3, BestBdStop=num_playoff_teams+1e-3, TimeLimit=10, OutputFlag=0))
-  if (isnothing(env))
+  if (isnothing(env) || !Gurobi.is_valid(env))
     model = Model(
-      optimizer_with_attributes(() -> Gurobi.Optimizer(GUROBI_ENV),
+      optimizer_with_attributes(() -> Gurobi.Optimizer(),
         "BestObjStop" => num_playoff_teams+1e-3,
         "BestBdStop" => num_playoff_teams+1e-3,
         "TimeLimit" => 10,
@@ -546,9 +545,9 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
   #model = Model(with_optimizer(GLPK.Optimizer))
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=10, OutputFlag=0))
   #model = Model(with_optimizer(Gurobi.Optimizer, TimeLimit=10, OutputFlag=0))
-  if (isnothing(env))
+  if (isnothing(env) || !Gurobi.is_valid(env))
     model = Model(
-      optimizer_with_attributes(() -> Gurobi.Optimizer(GUROBI_ENV),
+      optimizer_with_attributes(() -> Gurobi.Optimizer(),
         "TimeLimit" => 10,
         "OutputFlag" => 0))
   else

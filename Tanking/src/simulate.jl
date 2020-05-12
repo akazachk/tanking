@@ -9,6 +9,9 @@
 
 import Random.randperm
 
+#import Gurobi
+#const GRB_ENV = Gurobi.Env()
+
 DEBUG = false
 
 """
@@ -56,6 +59,8 @@ Parameters
     4: use math elim, binary MIP, cutoff formulation
     5: use math elim, general integer MIP, cutoff formulation
     <0: use effective elimination, but calculate mathematical elimination
+  * selected_steps: which steps to do
+  * env: Gurobi environment
   * ONLY_RETURN_WIN_PCT: do not calculate all of the return values, only avg_win_pct
 
 Returns
@@ -78,7 +83,7 @@ Returns
   * avg_diff_rank_moral
   * num_missing_case
 """
-function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode=-2, selected_steps=nothing, ONLY_RETURN_WIN_PCT=false)
+function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode=-2, selected_steps=nothing, env=nothing, ONLY_RETURN_WIN_PCT=false)
 
   ## Set constants
   step_size                       = 1 / num_steps
@@ -275,11 +280,11 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       best_num_wins = zeros(Int, num_teams, num_teams)
       best_rank     = zeros(Int, num_teams)
       num_mips = 0
-      model = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, abs(math_elim_mode))
+      model = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, abs(math_elim_mode), env)
       # START DEBUG
       if DEBUG
-        model2 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 2)
-        model3 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 3)
+        model2 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 2, env)
+        model3 = setupMIP(schedule, h2h_left, num_teams, num_playoff_teams, num_team_games, num_games_total, 3, env)
       end
       # END DEBUG
 
@@ -628,7 +633,6 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         @views updateStats!(avg_diff_rank_strat_out[step_ind,:], diff_rank_strat, 1)
         @views updateStats!(avg_diff_rank_moral_out[step_ind,:], diff_rank_moral, 1)
       end
-      gc() # possibly needed to free Gurobi model
     end # do replications
 
     if ONLY_RETURN_WIN_PCT

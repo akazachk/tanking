@@ -285,6 +285,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
   Random.seed!(628) # for reproducibility
   selected_steps = clean_selected_steps(selected_steps)
 	set_mode(mode, selected_steps)
+  GRB_ENV = Gurobi.Env()
 
 	## Variables that need to be set
 	## end variables that need to be set
@@ -329,7 +330,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
       avg_elim_rank_strat, avg_elim_rank_moral,
       avg_diff_rank_strat, avg_diff_rank_moral,
       num_missing_case = 
-        simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, false)
+        simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, GRB_ENV, false)
 
     for stat = 1:num_stats
       writedlm(string(results_dir, "/", prefix[stat], "kend", csvext), kend[:,:,stat], ',')
@@ -1224,7 +1225,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     ## Retrieve win_pct matrix [step_ind, team_ind, stat]
     ## Save data
     if do_simulation
-      win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, selected_steps, true)
+      win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, selected_steps, GRB_ENV, true)
       println("win_pct = ", win_pct[:,:,avg_stat])
       win_pct_list[mode_ind, :, :, :] = win_pct
       for stat in [avg_stat]
