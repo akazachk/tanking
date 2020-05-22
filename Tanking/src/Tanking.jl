@@ -253,7 +253,7 @@ Simulate a season and plot output
 
 Parameters
 ---
-  * `do_simulation`: when false, read data from files in results_dir
+  * `do_simulation`: when 0, read data from files in results_dir, when -1, assumes data is in disaggregated form
   * `num_replications`: how many times to simulate each data point
   * `do_plotting`: if false, only gather data, without plotting it
   * `mode`: which kind of true ranking is used;
@@ -278,7 +278,7 @@ Parameters
     <0: use effective elimination for tanking, but calculate mathematical elimination.
   * `selected_steps`: subset of steps we wish to actually get results for; this should be an `Int`, `Int` array, or a `UnitRange`
 """
-function main_simulate(;do_simulation = true, num_replications = 100000, 
+function main_simulate(;do_simulation = 1, num_replications = 100000, 
     do_plotting = true, mode = MODE, results_dir = "../results", 
     num_rounds = 3, num_steps = num_teams, gamma = 0.71425, 
     math_elim_mode = -2, selected_steps = nothing)
@@ -322,7 +322,7 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
   prefix      = ["avg_", "stddev_", "min_", "max_"]
 
 	## Do simulation or retrieve data
-	if do_simulation
+	if do_simulation == 1
 		## Do simulation
     kend, kend_nba, kend_gold, kend_lenten, games_tanked, already_tank, 
       math_eliminated, eff_eliminated, num_mips, num_unelim, 
@@ -331,26 +331,6 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
       avg_diff_rank_strat, avg_diff_rank_moral,
       num_missing_case = 
         simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, GRB_ENV, false)
-
-    for stat = 1:num_stats
-      writedlm(string(results_dir, "/", prefix[stat], "kend", csvext), kend[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "kend_lenten", csvext), kend_lenten[:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "kend_nba", csvext), kend_nba[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "games_tanked", csvext), games_tanked[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "already_tank", csvext), already_tank[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "math_eliminated", csvext), math_eliminated[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), eff_eliminated[:,:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "num_mips", csvext), num_mips[:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "num_unelim", csvext), num_unelim[:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "avg_rank_strat", csvext), avg_rank_strat[:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "avg_rank_moral", csvext), avg_rank_moral[:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_strat", csvext), avg_elim_rank_strat[:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_moral", csvext), avg_elim_rank_moral[:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_strat", csvext), avg_diff_rank_strat[:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_moral", csvext), avg_diff_rank_moral[:,stat], ',')
-      writedlm(string(results_dir, "/", prefix[stat], "num_missing_case", csvext), num_missing_case[:,stat], ',')
-    end
-    writedlm(string(results_dir, "/", "kend_gold", csvext), kend_gold, ',')
 	else
     ## Resize things
     num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
@@ -372,26 +352,122 @@ function main_simulate(;do_simulation = true, num_replications = 100000,
     avg_diff_rank_strat = zeros(Float64, num_steps+1, num_stats)
     avg_diff_rank_moral = zeros(Float64, num_steps+1, num_stats)
     num_missing_case    = zeros(Float64, num_steps+1, num_stats)
+
+    if do_simulation == 0
+      for stat = 1:num_stats
+        kend[:,:,stat]            = readdlm(string(results_dir, "/", prefix[stat], "kend", csvext), ',')
+        kend_lenten[:,stat]       = readdlm(string(results_dir, "/", prefix[stat], "kend_lenten", csvext), ',')
+        kend_nba[:,:,stat]        = readdlm(string(results_dir, "/", prefix[stat], "kend_nba", csvext), ',')
+        games_tanked[:,:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "games_tanked", csvext), ',')
+        already_tank[:,:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "already_tank", csvext), ',')
+        math_eliminated[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "math_eliminated", csvext), ',')
+        eff_eliminated[:,:,stat]  = readdlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), ',')
+        num_mips[:,stat]          = readdlm(string(results_dir, "/", prefix[stat], "num_mips", csvext), ',')
+        num_unelim[:,stat]        = readdlm(string(results_dir, "/", prefix[stat], "num_unelim", csvext), ',')
+        avg_rank_strat[:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "avg_rank_strat", csvext), ',') 
+        avg_rank_moral[:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "avg_rank_moral", csvext), ',') 
+        avg_elim_rank_strat[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_strat", csvext), ',') 
+        avg_elim_rank_moral[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_moral", csvext), ',') 
+        avg_diff_rank_strat[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_strat", csvext), ',') 
+        avg_diff_rank_moral[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_moral", csvext), ',') 
+        num_missing_case[:,stat]  = readdlm(string(results_dir, "/", prefix[stat], "num_missing_case", csvext), ',')
+      end # loop over stats
+      kend_gold = readdlm(string(results_dir, "/", "kend_gold", csvext), ',')
+    elseif do_simulation == -1
+      contents = readdir(results_dir)
+      for file in contents
+        # Skip non-csv files
+        if !(file[end-3:end] == ".csv")
+          #print("File $file does not end with .csv. Continuing.\n")
+          continue
+        end
+
+        # Identify file that is being read (if fail, skip)
+        step = 0
+        try
+          step = parse(Int, split(file, r"\[|\]")[2])
+        catch
+          #print("File $file cannot be parsed to identify step. Continuing.\n")
+          continue
+        end
+        @assert(isa(step,Int))
+
+        # Find which stat is being handled
+        # Skip file if none found
+        stat = 0
+        for tmpstat in 1:num_stats
+          if startswith(file, prefix[tmpstat])
+            stat = tmpstat
+          end
+        end
+        if stat == 0
+          #if occursin("kend_gold", file)
+          #  kend_gold = readdlm(string(results_dir,'/',file), ',')
+          #end
+          #print("File $file does not refer to a stat (avg/stddev/min/max). Continuing.\n")
+          continue
+        end
+
+        if occursin("already_tank", file)
+          already_tank[step,:,stat] = readdlm(string(results_dir,'/',file), ',')[step,:]
+        elseif occursin("avg_diff_rank_moral", file)
+          avg_diff_rank_moral[step,stat] = readdlm(string(results_dir,'/',file), ',')[step]
+        elseif occursin("avg_diff_rank_strat", file)
+          avg_diff_rank_strat[step,stat] = readdlm(string(results_dir,'/',file), ',')[step]
+        elseif occursin("avg_elim_rank_moral", file)
+          avg_elim_rank_moral[step,stat] = readdlm(string(results_dir,'/',file), ',')[step]
+        elseif occursin("avg_elim_rank_strat", file)
+          avg_elim_rank_strat[step,stat] = readdlm(string(results_dir,'/',file), ',')[step]
+        elseif occursin("avg_rank_moral", file)
+          avg_rank_moral[step,stat] = readdlm(string(results_dir,'/',file), ',')[step]
+        elseif occursin("avg_rank_strat", file)
+          avg_rank_strat[step,stat] = readdlm(string(results_dir,'/',file), ',')[step]
+        elseif occursin("eff_eliminated", file)
+          eff_eliminated[step,:,stat] = readdlm(string(results_dir,'/',file), ',')[step,:]
+        elseif occursin("games_tanked", file)
+          games_tanked[step,:,stat] = readdlm(string(results_dir,'/',file), ',')[step,:]
+        elseif occursin("kend_lenten", file)
+          kend_lenten[step,stat] = readdlm(string(results_dir,'/',file), ',')[step]
+        elseif occursin("kend_nba", file)
+          kend_nba[step,:,stat] = readdlm(string(results_dir,'/',file), ',')[step,:]
+        elseif occursin("kend", file)
+          #print("File $file, step $step, stat $stat, $x\n", x[step,:], "\n")
+          kend[step,:,stat] = readdlm(string(results_dir,'/',file), ',')[step,:]
+        elseif occursin("math_eliminated", file)
+          math_eliminated[step,:,stat] = readdlm(string(results_dir,'/',file), ',')[step,:]
+        elseif occursin("num_mips", file)
+          num_mips[step,stat] = readdlm(string(results_dir,'/',file), ',')[step]
+        elseif occursin("num_missing_case", file)
+          num_missing_case[step,stat] = readdlm(string(results_dir,'/',file), ',')[step]
+        elseif occursin("num_unelim", file)
+          num_unelim[step,stat] = readdlm(string(results_dir,'/',file), ',')[step]
+        else
+          continue
+        end # check which file this is
+      end # loop over files in directory
+    end # check do_simulation == 0 or -1
+  end # if/else do_simulation == 0
+  if do_simulation == 1 || do_simulation == -1
     for stat = 1:num_stats
-      kend[:,:,stat]            = readdlm(string(results_dir, "/", prefix[stat], "kend", csvext), ',')
-      kend_lenten[:,stat]       = readdlm(string(results_dir, "/", prefix[stat], "kend_lenten", csvext), ',')
-      kend_nba[:,:,stat]        = readdlm(string(results_dir, "/", prefix[stat], "kend_nba", csvext), ',')
-      games_tanked[:,:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "games_tanked", csvext), ',')
-      already_tank[:,:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "already_tank", csvext), ',')
-      math_eliminated[:,:,stat] = readdlm(string(results_dir, "/", prefix[stat], "math_eliminated", csvext), ',')
-      eff_eliminated[:,:,stat]  = readdlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), ',')
-      num_mips[:,stat]          = readdlm(string(results_dir, "/", prefix[stat], "num_mips", csvext), ',')
-      num_unelim[:,stat]        = readdlm(string(results_dir, "/", prefix[stat], "num_unelim", csvext), ',')
-      avg_rank_strat[:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "avg_rank_strat", csvext), ',') 
-      avg_rank_moral[:,stat]    = readdlm(string(results_dir, "/", prefix[stat], "avg_rank_moral", csvext), ',') 
-      avg_elim_rank_strat[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_strat", csvext), ',') 
-      avg_elim_rank_moral[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_moral", csvext), ',') 
-      avg_diff_rank_strat[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_strat", csvext), ',') 
-      avg_diff_rank_moral[:,stat] = readdlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_moral", csvext), ',') 
-      num_missing_case[:,stat]  = readdlm(string(results_dir, "/", prefix[stat], "num_missing_case", csvext), ',')
+      writedlm(string(results_dir, "/", prefix[stat], "kend", csvext), kend[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "kend_lenten", csvext), kend_lenten[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "kend_nba", csvext), kend_nba[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "games_tanked", csvext), games_tanked[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "already_tank", csvext), already_tank[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "math_eliminated", csvext), math_eliminated[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "eff_eliminated", csvext), eff_eliminated[:,:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "num_mips", csvext), num_mips[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "num_unelim", csvext), num_unelim[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_rank_strat", csvext), avg_rank_strat[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_rank_moral", csvext), avg_rank_moral[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_strat", csvext), avg_elim_rank_strat[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_elim_rank_moral", csvext), avg_elim_rank_moral[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_strat", csvext), avg_diff_rank_strat[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "avg_diff_rank_moral", csvext), avg_diff_rank_moral[:,stat], ',')
+      writedlm(string(results_dir, "/", prefix[stat], "num_missing_case", csvext), num_missing_case[:,stat], ',')
     end
-    kend_gold = readdlm(string(results_dir, "/", "kend_gold", csvext), ',')
-	end
+    writedlm(string(results_dir, "/", "kend_gold", csvext), kend_gold, ',')
+  end
   num_eliminated = (math_elim_mode > 0) ? math_eliminated : eff_eliminated
 
 	if (do_plotting)
