@@ -154,60 +154,67 @@ environment = read(`uname`, String)
 if chomp(environment) != "Darwin"
 	DO_PLOTTING=false
 end
-TITLE_FONTSIZE=10
-AXIS_TITLE_FONTSIZE=10
-TICK_LABEL_FONTSIZE=8
-LEGEND_FONTSIZE=8
-LEGEND_TITLE_FONTSIZE=8
-DPI=200
-use_pyplot = true
-upscale = 1 # upscaling in resolution
-if !use_pyplot
-	#ext = ".svg"
-	using Plots
-	using StatsPlots
-	#gr(dpi=DPI); # Pkg.add("GR")
-	pyplot(dpi=DPI)
-	#pgfplots(dpi=DPI)
-
-	# Set defaults
-	default(tick_direction=:out)
-	default(titlefont=TITLE_FONTSIZE)
-	default(tickfont=TICK_LABEL_FONTSIZE)
-	default(legendfont=LEGEND_FONTSIZE)
-	default(grid=false)
-	#default(size=(600*upscale,400*upscale)) # plot canvas size
-	#fntsm = Plots.font("sans-serif", 8.0 * upscale)
-	#fntlg = Plots.font("sans-serif", 12.0 * upscale)
-	#default(titlefont=fntlg, guidefont=fntlg, tickfont=fntsm, legendfont=fntsm)
+USE_PYPLOT=true
+if !USE_PYPLOT
+  using Plots
+  using StatsPlots
 else
-	if DO_PLOTTING
-		using PyCall
-		pygui(:qt5) # others do not work on mac
-    pygui(:default)
-		#PyCall.PyDict(matplotlib["rcParams"])["font.serif"] = ["Cambria"]
-		using PyPlot
-		rc("text", usetex=true)
-		rc("font", family="serif")
-		rc("axes.spines", right=false, top=false)
-		rc("axes", titlesize=TITLE_FONTSIZE * upscale)
-		rc("axes", labelsize=AXIS_TITLE_FONTSIZE * upscale)
-		rc("xtick", labelsize=TICK_LABEL_FONTSIZE * upscale)
-		rc("ytick", labelsize=TICK_LABEL_FONTSIZE * upscale)
-		rc("legend", fontsize=LEGEND_FONTSIZE * upscale)
-		rc("legend", title_fontsize=LEGEND_TITLE_FONTSIZE * upscale)
-		rc("legend", labelspacing=0.25)
-		rc("lines", linewidth=1 * upscale)
-		rc("lines", solid_capstyle="round")
-		#rc("figure", figsize=[6.4,4.8] * upscale)
-		rc("figure", figsize=[6*upscale,4*upscale]) # note that axes may change depending on label size
-		#rc("figure", figsize=[6*1.5,4*1.5])
-		rc("savefig", transparent=false)
-		rc("savefig", bbox="tight")
-		rc("savefig", pad_inches=0.0015 * upscale) # to allow for g,y,f to be not cut off
-		rc("savefig", dpi=DPI)
-	end
+  using PyCall
+  using PyPlot
 end
+
+function setup_plotting()
+  TITLE_FONTSIZE=10
+  AXIS_TITLE_FONTSIZE=10
+  TICK_LABEL_FONTSIZE=8
+  LEGEND_FONTSIZE=8
+  LEGEND_TITLE_FONTSIZE=8
+  DPI=200
+  upscale = 1 # upscaling in resolution
+  if !DO_PLOTTING
+    return
+  end
+  if !USE_PYPLOT
+    #ext = ".svg"
+    #gr(dpi=DPI); # Pkg.add("GR")
+    pyplot(dpi=DPI)
+    #pgfplots(dpi=DPI)
+
+    # Set defaults
+    default(tick_direction=:out)
+    default(titlefont=TITLE_FONTSIZE)
+    default(tickfont=TICK_LABEL_FONTSIZE)
+    default(legendfont=LEGEND_FONTSIZE)
+    default(grid=false)
+    #default(size=(600*upscale,400*upscale)) # plot canvas size
+    #fntsm = Plots.font("sans-serif", 8.0 * upscale)
+    #fntlg = Plots.font("sans-serif", 12.0 * upscale)
+    #default(titlefont=fntlg, guidefont=fntlg, tickfont=fntsm, legendfont=fntsm)
+  else
+    #pygui(:qt5) # others do not work on mac
+    pygui(:default)
+    #PyCall.PyDict(matplotlib["rcParams"])["font.serif"] = ["Cambria"]
+    rc("text", usetex=true)
+    rc("font", family="serif")
+    rc("axes.spines", right=false, top=false)
+    rc("axes", titlesize=TITLE_FONTSIZE * upscale)
+    rc("axes", labelsize=AXIS_TITLE_FONTSIZE * upscale)
+    rc("xtick", labelsize=TICK_LABEL_FONTSIZE * upscale)
+    rc("ytick", labelsize=TICK_LABEL_FONTSIZE * upscale)
+    rc("legend", fontsize=LEGEND_FONTSIZE * upscale)
+    rc("legend", title_fontsize=LEGEND_TITLE_FONTSIZE * upscale)
+    rc("legend", labelspacing=0.25)
+    rc("lines", linewidth=1 * upscale)
+    rc("lines", solid_capstyle="round")
+    #rc("figure", figsize=[6.4,4.8] * upscale)
+    rc("figure", figsize=[6*upscale,4*upscale]) # note that axes may change depending on label size
+    #rc("figure", figsize=[6*1.5,4*1.5])
+    rc("savefig", transparent=false)
+    rc("savefig", bbox="tight")
+    rc("savefig", pad_inches=0.0015 * upscale) # to allow for g,y,f to be not cut off
+    rc("savefig", dpi=DPI)
+  end
+end # setup_plotting
 
 """
     clean_selected_steps
@@ -471,8 +478,13 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
   num_eliminated = (math_elim_mode > 0) ? math_eliminated : eff_eliminated
 
 	if (do_plotting)
+    setup_plotting()
+
+    ## Make directories
+    mkpath(results_dir*"/"*ext_folder, mode=0o700)
+    mkpath(results_dir*"/"*lowext_folder, mode=0o700)
+
 		## Plot avg_kend (Kendell tau distance) for the bilevel ranking
-		print("Plotting avg_kend: average swap distance\n")
     if num_steps == num_teams
       minx = 0
       incx = 5
@@ -497,7 +509,8 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-		if use_pyplot
+		print("Plotting avg_kend: average swap distance, saving to $fname\n")
+		if USE_PYPLOT
 			fig = figure(frameon=false)
 			title(titlestring)
 			xlabel(xlabelstring)
@@ -578,7 +591,6 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
 		end
 
 		## Plot avg_games_tanked (# games tanked by draft ranking breakpoint)
-		print("Plotting avg_games_tanked: average number of games tanked\n")
 		miny = 0 #Int(floor(findmin(games_tanked[:,:,1])[1]))
 		incy = 50 #Int(ceil((maxy - miny) / (5 * 10)) * 10)
 		maxy = Int(ceil(findmax(games_tanked[:,:,1])[1] / incy) * incy)  #Int(floor(findmax(avg_games_tanked)[1]))
@@ -593,7 +605,8 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-		if use_pyplot
+		print("Plotting avg_games_tanked: average number of games tanked, saving to $fname\n")
+		if USE_PYPLOT
 			fig = figure(frameon=false)
 			title(titlestring)
 			xlabel(xlabelstring)
@@ -649,7 +662,6 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
 		end
 
 		## Plot avg_already_tank
-		print("Plotting avg_already_tank: average number of tanking teams\n")
     if num_steps == num_teams
       minx = 0
       incx = 5
@@ -673,7 +685,8 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-		if use_pyplot
+		print("Plotting avg_already_tank: average number of tanking teams, saving to $fname\n")
+		if USE_PYPLOT
 			fig = figure(frameon=false)
 			title(titlestring)
 			xlabel(xlabelstring)
@@ -726,7 +739,6 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
 		end
 
 		## Plot avg_eliminated
-		print("Plotting avg_eliminated: average number of eliminated teams by every game of the season\n")
 		minx = 1
 		maxx = num_games
 		incx = (maxx - minx) / 5
@@ -740,7 +752,8 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-		if use_pyplot
+		print("Plotting avg_eliminated: average number of eliminated teams by every game of the season, saving to $fname\n")
+		if USE_PYPLOT
 			fig = figure(frameon=false)
 			title(titlestring)
 			xlabel(xlabelstring)
@@ -771,7 +784,6 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
 		end
 
     ## Plot avg_rank (strat vs moral)
-		print("Plotting avg_rank: average rank of strategic vs moral teams\n")
     if num_steps == num_teams
       minx = 0
       incx = 5
@@ -796,7 +808,8 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-		if use_pyplot
+		print("Plotting avg_rank: average rank of strategic vs moral teams, saving to $fname\n")
+		if USE_PYPLOT
 			fig = figure(frameon=false)
 			title(titlestring)
 			xlabel(xlabelstring)
@@ -821,7 +834,6 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
     end
 
     ## Plot avg_elim_rank (strat vs moral)
-		print("Plotting avg_elim_rank: average rank of eliminated strategic vs moral teams\n")
     if num_steps == num_teams
       minx = 0
       incx = 5
@@ -846,7 +858,8 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-		if use_pyplot
+		print("Plotting avg_elim_rank: average rank of eliminated strategic vs moral teams, saving to $fname\n")
+		if USE_PYPLOT
 			fig = figure(frameon=false)
 			title(titlestring)
 			xlabel(xlabelstring)
@@ -905,6 +918,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 	avg_eliminated = sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1)
 
 	if (do_plotting)
+    setup_plotting()
 		ind = [3,5,6] # needs to be ascending
 		@assert ( length(breakpoint_list) in ind )
 		#labels = [L"2013-2014", L"2014-2015", L"2015-2016", L"2016-2017", L"2017-2018"]
@@ -916,7 +930,6 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
     @assert ( (length(col_labels) == 0) || (length(col_labels) == num_years) )
 
 		## Plot # games tanked
-		print("Plotting num_games_tanked: number of games (possibly) tanked by the breakpoint mark\n")
 		num_games_tanked_stacked = zeros(Int, num_years, length(ind))
 		for tmp_i in 1:length(ind)
 			i = ind[tmp_i]
@@ -941,7 +954,8 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-		if use_pyplot
+		print("Plotting num_games_tanked: number of games (possibly) tanked by the breakpoint mark, saving to $fname\n")
+		if USE_PYPLOT
 			fig = figure(frameon=false)
 			title(titlestring)
 			xlabel(xlabelstring)
@@ -992,7 +1006,6 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		end
 
 		## Plot number of teams eliminated
-		print("Plotting num_teams_eliminated: number of eliminated teams by every game of the season\n")
 		minx = 1 / num_games_total
 		maxx = 1.0
 		incx = (maxx - minx) / 5
@@ -1007,7 +1020,8 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_di
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-		if use_pyplot
+		print("Plotting num_teams_eliminated: number of eliminated teams by every game of the season, saving to $fname\n")
+		if USE_PYPLOT
 			fig = figure(frameon=false)
 			title(titlestring)
 			xlabel(xlabelstring)
@@ -1189,8 +1203,9 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 	end # if do_simulation
 
 	if do_plotting
+    setup_plotting()
+
 		## Plot noisy ranking
-		print("Plotting noisy_ranking: shows low fidelity of ranking unless teams play each other many times\n")
 		minx = 0.5
 		incx = 0.1
 		maxx = 1
@@ -1206,7 +1221,8 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-		if use_pyplot
+		print("Plotting noisy_ranking: shows low fidelity of ranking unless teams play each other many times, saving to $fname\n")
+		if USE_PYPLOT
 			fig = figure(frameon=false)
 			title(titlestring)
 			xlabel(xlabelstring)
@@ -1222,7 +1238,7 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 			PyPlot.savefig(fname_low)
 
 			#size = fig[:get_size_inches]()
-			#print("Which should result in a ", DPI*size[1], " x ", DPI*size[2], " image")
+			#print("Which should result in a ", 200*size[1], " x ", 200*size[2], " image")
 
 			close(fig)
 		else
@@ -1363,7 +1379,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     ylabelstring = L"\mbox{Winning percentage at end of season}"
     legendtitlestring = L"\mbox{Method}"
     fname_stub = "win_pct"
-    if use_pyplot
+    if USE_PYPLOT
       for tank_ind in 1:num_steps+1 #[1,num_steps+1]
         tank_name = string("_",tank_ind-1,"tank")
         fname = string(results_dir,"/",ext_folder,"/",fname_stub,tank_name,ext)
@@ -1435,7 +1451,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
 		fname = string(results_dir,"/",ext_folder,"/",fname_stub,ext)
 		fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,lowext)
 
-    if use_pyplot
+    if USE_PYPLOT
 			fig = figure(frameon=false)
 			title(titlestring)
       xlabel(xlabelstring)
