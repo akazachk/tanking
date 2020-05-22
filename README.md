@@ -9,13 +9,15 @@ Julia 1.x. If `PyPlot` is available, the figures in the paper can be plotted usi
 
 On a Mac, for plotting, one needs to install XQuartz.
 
+Gurobi is needed. To install, you need to use `Pkg.build("Gurobi")` in a shell in which the `GUROBI_HOME` variable is defined or `Gurobi` can be found on the `PATH`. E.g., on Mac, `GUROBI_HOME` is set to `/Library/<gurobiversion>/mac64`.
+
 ### Running the code
 To run a simulation, parse NBA data, and reproduce data regarding noisiness of the reverse order ranking, first change directories to the `julia` subdirectory, then start `julia`, type `]` to enter `pkg` mode, and type `activate ./` to activate the tanking environment. Type `instantiate` to get the required packages. Afterwards, pressing `backspace` will return you to the normal prompt. You can also run `julia --project` to avoid the `activate` step above.
 
 The code can be run with the following commands:
 				
 		include("Tanking.jl")
-		Tanking.main_simulate(do_simulation=true, num_replications=100000, do_plotting=false, mode=1, math_elim_mode=-2, gamma=0.71375) 
+		Tanking.main_simulate(do_simulation=1, num_replications=100000, do_plotting=false, mode=1, math_elim_mode=-2, gamma=0.71425) 
 		Tanking.main_parse(do_plotting=false, mode=1) 
 		Tanking.rankings_are_noisy(do_simulation=true, num_replications=100000, do_plotting=false, mode=1) 
 				
@@ -52,7 +54,8 @@ The code can be run with the following commands:
 
 1. Create pre-compilation statements (running from project directory)
 
-        julia --trace-compile="precompile.jl" --project="Tanking" scripts/test_script.jl
+        mkdir -p results/tmp
+        julia --trace-compile="precompile.jl" --project="Tanking" scripts/test_script.jl 1
 
 2. Create the sysimage (from the Tanking directory)
 

@@ -44,15 +44,20 @@ Run simulation with selected steps
 """
 function main(sel_steps, outdir=nothing)
   if isnothing(outdir) || !isa(outdir,String) || isempty(outdir)
-    outdir="/home/akazachk/projects/def-alodi/akazachk/tanking/results/tmp"
+    outdir=ENV["REPOS_DIR"]
+    outdir=outdir*"/tanking/results/tmp"
   end
-  sel_steps=str2arr(sel_steps)
+  if !isnothing(sel_steps)
+    sel_steps=str2arr(sel_steps)
+  end
   @time Tanking.main_simulate(do_simulation=true,num_replications=1,do_plotting=false,num_steps=30,math_elim_mode=-2, gamma=0.71425, results_dir=outdir, selected_steps=sel_steps)
 end # main
 
 
 if abspath(PROGRAM_FILE) == @__FILE__
-  if length(ARGS) <= 1
+  if length(ARGS) < 1
+    main(nothing)
+  elseif length(ARGS) == 1
     main(ARGS[1])
   else
     main(ARGS[1], ARGS[2])
