@@ -48,7 +48,9 @@ function updateMax(x, y, eps = 1e-7)
 end # updateMax
 
 """
-runDraftLottery: using the given odds, calculate the draft order
+    runDraftLottery
+
+Using the given odds, calculate the draft order
 
 We assume that nonplayoff_teams are ranked in order of best to worst record
 
@@ -111,15 +113,19 @@ function runDraftLottery(nonplayoff_teams, odds, num_teams, num_teams_selected_b
   return draft_order
 end # runDraftLottery
 
+"""
+    teamAdvances
+
+---
+* i: team index
+* ranks: vector of team ranks
+* num_playoff_teams_per_conf: number of playoff teams from each conference
+* conf: which conference each team belongs to (if empty, then assumed one conference)
+
+---
+Return true if team advances
+"""
 function teamAdvances(i, ranks, num_playoff_teams_per_conf, conf=[])
-  ###
-  # teamAdvances
-  #   i: team index
-  #   ranks: vector of team ranks
-  #   num_playoff_teams_per_conf: number of playoff teams from each conference
-  #   conf: which conference each team belongs to (if empty, then assumed one conference)
-  #
-  # Return true if team advances
   if length(conf) == 0
     return ranks[i] <= num_playoff_teams_per_conf
   else
@@ -134,14 +140,22 @@ function teamIsTanking(i, stats, elim_ind=4, will_tank_ind=7)
 	return stats[i,will_tank_ind] == 1 && stats[i,elim_ind] >= 0
 end # teamIsTanking
 
+"""
+    teamIsBetter
+
+---
+* i
+* j
+* true_strength
+* mode
+ mode = 1: teams are strictly ordered 1 \\succ 2 \\succ \\cdots \\succ 30
+ mode = 2: there may be ties in the teams, e.g., [1,5] \\succ [6,10] \\succ \\cdots \\succ [26,30]
+ mode = 3: use Bradley-Terry model, computing the probabilty team i beats team j via exponential score functions
+
+---
+Returns 1 if team i is stronger than team j, -1 if team i is weaker than team j, and 0 if they are equal strength or incomparable
+"""
 function teamIsBetter(i, j, true_strength = 30:-1:1, mode=STRICT)
-	###
-	# teamIsBetter
-	#
-	# mode = 1: teams are strictly ordered 1 \succ 2 \succ \cdots \succ 30
-	# mode = 2: there may be ties in the teams, e.g., [1,5] \succ [6,10] \succ \cdots \succ [26,30]
-	# mode = 3: use Bradley-Terry model, computing the probabilty team i beats team j via exponential score functions
-	###
 	team_i_str = true_strength[i]
 	team_j_str = true_strength[j]
 	if mode == STRICT || mode == TIES
@@ -228,7 +242,8 @@ function teamWillWin(i, j, stats, gamma, true_strength=30:-1:1, mode=STRICT, eli
 end # teamWillWin
 
 """
-teamIsMathematicallyEliminated
+    teamIsMathematicallyEliminated
+
 Check whether team k is mathematically eliminated
 
 Sets the best known rank each non-eliminated team can achieve
@@ -317,14 +332,14 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
   return best_rank[k] == -1, mips_used
 end # teamIsMathematicallyEliminated
 
+"""
+    teamIsEffectivelyEliminated
+
+If current playoff cutoff avg remains, 
+and team k wins all its remaining games, 
+will the team make it into the playoffs?
+"""
 function teamIsEffectivelyEliminated(num_wins, num_games_remaining, num_team_games, cutoff_avg, max_games_remaining)
-	###
-	# teamIsEffectivelyEliminated
-	#
-	# If current playoff cutoff avg remains, 
-	# and team k wins all its remaining games, 
-	# will the team make it into the playoffs?
-	###
 	if num_games_remaining < max_games_remaining # make sure enough games have been played
 		if lessThanVal((num_wins + num_games_remaining) / num_team_games, cutoff_avg)
 			return true
@@ -334,9 +349,12 @@ function teamIsEffectivelyEliminated(num_wins, num_games_remaining, num_team_gam
 end # teamIsEffectivelyEliminated
 
 """
-kendtau_sorted
+    kendtau_sorted
+
+---
+Return the (Zermelo-)Kendall-Tau distance between `sorted_ranking` and `true_strength`
 """
-function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=STRICT, min_rank=1)
+function kendtau_sorted(sorted_ranking, true_strength=30:-1:1; mode=STRICT, min_rank=1)
 	num_teams = size(sorted_ranking,1)
 	kt = 0
 	for i = min_rank:num_teams
@@ -358,7 +376,8 @@ function kendtau_sorted(sorted_ranking, true_strength=30:-1:1, mode=STRICT, min_
 end # kendtau_sorted
 
 """
-kendtau
+    kendtau
+
 Computes Kendell tau (Kemeny) distance
 
 Column 1 should be index of the team
@@ -391,7 +410,7 @@ function sortTeams(stats, best_to_worst = true, win_pct_ind = 5, games_left_ind 
 end # sortTeams
 
 """
-rankTeamsFromWinTotals
+    rankTeamsFromWinTotals
 
 Parameters
 ---
@@ -443,7 +462,8 @@ function rankTeamsFromWinTotals(num_wins, be_optimistic = true)
 end # rankTeamsFromWinTotals
 
 """
-updateRank
+    updateRank
+
 Update strict ranking and inverse map
 
 After updating win percentage for team i and j, find their new postions
@@ -510,7 +530,8 @@ function updateRank(rank_of_team, team_in_pos, stats, team_i, team_i_wins, num_t
 end # updateRank
 
 """
-teamIsContender
+    teamIsContender
+
 Check whether team k is a contender (is neither eliminated from the playoffs, nor guaranteed to make the playoffs) after game t
 
 *Currently only checks that team is not eliminated from the playoffs before time t*

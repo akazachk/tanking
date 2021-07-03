@@ -1626,9 +1626,9 @@ end # count_num_win_partitions
 function tanking_unit_tests()
 	test_ranking = 1:num_teams
 	test_strength = 1:num_teams
-	@assert ( kendtau_sorted(test_ranking, test_strength, 1) == Int(num_teams * (num_teams-1) / 2) )
+	@assert ( kendtau_sorted(test_ranking, test_strength, mode=STRICT) == Int(num_teams * (num_teams-1) / 2) )
 	test_strength = num_teams:-1:1
-	@assert ( kendtau_sorted(test_ranking, test_strength, 1) == 0 )
+	@assert ( kendtau_sorted(test_ranking, test_strength, mode=STRICT) == 0 )
 end # tanking_unit_tests
 
 end # module Tanking

@@ -11,7 +11,8 @@
 # The heuristic can be used to provide a strong incumbent solution
 ###
 
-using JuMP, MathOptFormat
+using JuMP
+using MathOptInterface
 #using Cbc
 #using GLPK
 using Gurobi
@@ -824,7 +825,7 @@ function checkMIP(model, cutoff, math_elim_mode)
   elseif status in [MOI.OBJECTIVE_LIMIT, MOI.TIME_LIMIT]
     if status == MOI.TIME_LIMIT
       ## Save the hard LP
-      lp_file = MathOptFormat.LP.Model()
+      lp_file = MathOptInterface.LP.Model()
       MOI.copy_to(lp_file, backend(model))
       MOI.write_to_file(lp_file, "hard.lp")
     end

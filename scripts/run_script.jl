@@ -1,5 +1,5 @@
 #!/usr/bin/env julia
-# Run with julia --project=<proj_dir>/Tanking/
+# Run with julia --project=@Tanking.jl
 
 using Tanking
 
