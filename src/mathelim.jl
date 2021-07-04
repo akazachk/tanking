@@ -401,7 +401,7 @@ function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_te
   #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0)) # about five times slower than Gurobi (or worse)
   #model = Model(with_optimizer(GLPK.Optimizer))
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams+1e-3, BestBdStop=num_playoff_teams+1e-3, TimeLimit=10, OutputFlag=0))
-  if (isnothing(env) || !Gurobi.is_valid(env))
+  if !is_valid(env)
     model = Model(
       optimizer_with_attributes(() -> Gurobi.Optimizer(),
         "BestObjStop" => num_playoff_teams+1e-3,
@@ -546,7 +546,7 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
   #model = Model(with_optimizer(GLPK.Optimizer))
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=10, OutputFlag=0))
   #model = Model(with_optimizer(Gurobi.Optimizer, TimeLimit=10, OutputFlag=0))
-  if (isnothing(env) || !Gurobi.is_valid(env))
+  if !is_valid(env)
     model = Model(
       optimizer_with_attributes(() -> Gurobi.Optimizer(),
         "TimeLimit" => 10,
@@ -1130,3 +1130,7 @@ function losingHeuristicHelper!(k, t, schedule, stats, outcome, h2h,
   end
   return num_games_decided
 end # losingHeuristicHelper
+
+function is_valid(env = nothing)
+  return !isnothing(env) && isa(env, Gurobi.Env) && env.ptr_env != C_NULL
+end # is_valid

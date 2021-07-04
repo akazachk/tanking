@@ -20,6 +20,7 @@ import Random
 using DelimitedFiles
 using LaTeXStrings
 using Printf
+using Gurobi # for Gurobi.Env()
 import Distributions.Beta
 include("mathelim.jl") # needed for simulate.jl and utility.jl
 include("utility.jl") # imports MODE definitions, needed for parse.jl and simulate.jl
@@ -28,6 +29,13 @@ include("parse.jl")
 include("simulate.jl")
 
 using Combinatorics # for permutations
+
+global GRB_ENV = nothing
+function set_env()
+  if !is_valid(GRB_ENV)
+    global GRB_ENV = Gurobi.Env()
+  end
+end
 
 ## NBA draft odds (for non-playoff teams, in reverse order)
 # If teams are tied, then those teams receive odds that are the average of the odds for the positions they occupy
@@ -292,7 +300,7 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
   Random.seed!(628) # for reproducibility
   selected_steps = clean_selected_steps(selected_steps)
 	set_mode(mode, selected_steps)
-  GRB_ENV = Gurobi.Env()
+  set_env()
 
 	## Variables that need to be set
 	## end variables that need to be set
@@ -338,6 +346,7 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
       avg_diff_rank_strat, avg_diff_rank_moral,
       num_missing_case = 
         simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, GRB_ENV, false)
+    Gurobi.GRBfreeenv(env)
 	else
     ## Resize things
     num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
@@ -1274,6 +1283,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     math_elim_mode = 0, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
   selected_steps = clean_selected_steps(selected_steps)
+  set_env(GRB_ENV)
 
   ## Simulation parameters
   #mode_list = [BT_ESTIMATED BT_DISTR]; mode_list_name = ["BT.est", "BT.beta"]
@@ -1318,6 +1328,8 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     ## Save data
     if do_simulation
       win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, selected_steps, GRB_ENV, true)
+      Gurobi.GRBfreeenv(env)
+
       println("win_pct = ", win_pct[:,:,avg_stat])
       win_pct_list[mode_ind, :, :, :] = win_pct
       for stat in [avg_stat]
