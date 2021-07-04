@@ -543,7 +543,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         tmp_stats[:,1] = nonplayoff_teams
         tmp_stats[:,2] = draft_rank_of_team[nonplayoff_teams, r]
         sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
-        curr_kend = kendtau_sorted(sorted_ranking[:,1], true_strength, mode=mode)
+        curr_kend = kendtau_sorted(sorted_ranking[:,1], true_strength, mode)
         @views updateStats!(kend_out[step_ind, r, :], curr_kend, num_replications)
         ## DEBUG
         #println("wins = ", stats[:, wins_ind], "\tkend = $curr_kend\tavg_kend = ", kend_out[step_ind, r, avg_stat])
@@ -554,7 +554,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         #tmp_stats[:,1] = nonplayoff_teams_h2h
         #tmp_stats[:,2] = draft_rank_of_team_h2h[nonplayoff_teams, r]
         #sorted_ranking = sortslices(tmp_stats, dims=1, by = x -> x[2], rev=false) # ascending, as already in order
-        #kend_out_h2h[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode=mode) / num_replications
+        #kend_out_h2h[step_ind, r] += kendtau_sorted(sorted_ranking[:,1], true_strength, mode) / num_replications
       end
 
       ## Compute the Kendall tau distance when the NBA randomization is used
@@ -562,7 +562,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         odds = copy(nba_odds_list[r])
         draft_order = runDraftLottery(nonplayoff_teams, odds, length(nonplayoff_teams), nba_num_lottery[r])
         ranking_nba = draft_order[length(draft_order):-1:1]
-        curr_kend = kendtau_sorted(ranking_nba, true_strength, mode=mode)
+        curr_kend = kendtau_sorted(ranking_nba, true_strength, mode)
         @views updateStats!(kend_nba_out[step_ind, r, :], curr_kend, num_replications)
       end
 

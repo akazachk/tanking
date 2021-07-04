@@ -294,7 +294,7 @@ Parameters
   * `selected_steps`: subset of steps we wish to actually get results for; this should be an `Int`, `Int` array, or a `UnitRange`
 """
 function main_simulate(;do_simulation = 1, num_replications = 100000, 
-    do_plotting = true, mode = MODE, results_dir = "../results", 
+    do_plotting = true, mode = MODE, results_dir = "./results", 
     num_rounds = 3, num_steps = num_teams, gamma = 0.71425, 
     math_elim_mode = -2, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
@@ -346,7 +346,9 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
       avg_diff_rank_strat, avg_diff_rank_moral,
       num_missing_case = 
         simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, GRB_ENV, false)
-    Gurobi.GRBfreeenv(env)
+        if is_valid(GRB_ENV)
+          Gurobi.GRBfreeenv(GRB_ENV)
+        end
 	else
     ## Resize things
     num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
@@ -900,7 +902,7 @@ end; # main_simulate
 
 Parse data from 2004-2019, except 2011-12 (lockout year)
 """
-function main_parse(;do_plotting=true, mode=MODE, data_dir="../data", results_dir="../results")
+function main_parse(;do_plotting=true, mode=MODE, data_dir="./data", results_dir="./results")
   Random.seed!(628) # for reproducibility
 	set_mode(mode)
 
@@ -1145,7 +1147,7 @@ NOTE: these results will match theory from closed_form_kendtau, but NOT from sim
 because simulate code uses a *tie-breaking* rule that when two teams have the same win percentage,
 the head-to-head record is used to tie-break
 """
-function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plotting=true, mode=MODE, results_dir="../results",
+function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plotting=true, mode=MODE, results_dir="./results",
     num_teams = 30,
     num_playoff_teams = 16,
     num_rounds_set = [1 2 3 4 5 10 100 1000],
@@ -1278,7 +1280,7 @@ end # rankings_are_noisy
     model_validation
 """
 function model_validation(;do_simulation = true, num_replications = 100000, 
-    data_dir = "../data", results_dir = "../results", do_plotting = true,
+    data_dir = "./data", results_dir = "./results", do_plotting = true,
     num_rounds = 3, num_steps = 2, gamma = 0.71425, 
     math_elim_mode = 0, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
@@ -1328,7 +1330,9 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     ## Save data
     if do_simulation
       win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, selected_steps, GRB_ENV, true)
-      Gurobi.GRBfreeenv(env)
+      if is_valid(GRB_ENV)
+        Gurobi.GRBfreeenv(GRB_ENV)
+      end
 
       println("win_pct = ", win_pct[:,:,avg_stat])
       win_pct_list[mode_ind, :, :, :] = win_pct
@@ -1638,9 +1642,9 @@ end # count_num_win_partitions
 function tanking_unit_tests()
 	test_ranking = 1:num_teams
 	test_strength = 1:num_teams
-	@assert ( kendtau_sorted(test_ranking, test_strength, mode=STRICT) == Int(num_teams * (num_teams-1) / 2) )
+	@assert ( kendtau_sorted(test_ranking, test_strength, STRICT) == Int(num_teams * (num_teams-1) / 2) )
 	test_strength = num_teams:-1:1
-	@assert ( kendtau_sorted(test_ranking, test_strength, mode=STRICT) == 0 )
+	@assert ( kendtau_sorted(test_ranking, test_strength, STRICT) == 0 )
 end # tanking_unit_tests
 
 end # module Tanking

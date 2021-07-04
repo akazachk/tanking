@@ -354,7 +354,11 @@ end # teamIsEffectivelyEliminated
 ---
 Return the (Zermelo-)Kendall-Tau distance between `sorted_ranking` and `true_strength`
 """
-function kendtau_sorted(sorted_ranking::Vector{Any}, true_strength::Vector{Any}=30:-1:1; mode::MODE_TYPES=STRICT, min_rank::Int=1)
+function kendtau_sorted(
+    sorted_ranking::Vector{<:Number},
+    true_strength::Vector{<:Number}=30:-1:1,
+    mode::MODE_TYPES=STRICT,
+    min_rank::Int=1)
 	num_teams = size(sorted_ranking,1)
 	kt = 0
 	for i = min_rank:num_teams
