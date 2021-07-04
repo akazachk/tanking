@@ -5,11 +5,13 @@
 This project contains the code for a simulator of an NBA season aimed at understanding tanking behavior.
 
 ### Requirements
-Julia 1.x. If `PyPlot` is available, the figures in the paper can be plotted using `do_plotting=true` in the commands below.
+For general requirements, check the "compat" section under [`Project.toml`](Project.toml). If `PyPlot` is available, the figures in the paper can be plotted using `do_plotting=true` in the commands below.
 
 On a Mac, for plotting, one needs to install XQuartz.
 
 Gurobi is needed. To install, you need to use `Pkg.build("Gurobi")` in a shell in which the `GUROBI_HOME` variable is defined or `Gurobi` can be found on the `PATH`. E.g., on Mac, `GUROBI_HOME` is set to `/Library/<gurobiversion>/mac64`.
+
+Before running the code, you should [instatiate the environment](https://pkgdocs.julialang.org/v1/environments/). It is further strongly recommended to create a sysimage, the steps for which should be automatically performed if you type `make` from the main project directory on a Linux or Mac.
 
 ### Running the code
 To run a simulation, parse NBA data, and reproduce data regarding noisiness of the reverse order ranking, first change directories to the `julia` subdirectory, then start `julia`, type `]` to enter `pkg` mode, and type `activate ./` to activate the tanking environment. Type `instantiate` to get the required packages. Afterwards, pressing `backspace` will return you to the normal prompt. You can also run `julia --project` to avoid the `activate` step above.
