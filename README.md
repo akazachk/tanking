@@ -18,19 +18,20 @@ To run a simulation, parse NBA data, and reproduce data regarding noisiness of t
 
 The code can be run with the following commands:
 				
-		include("Tanking.jl")
-		Tanking.main_simulate(do_simulation=1, num_replications=100000, do_plotting=false, mode=1, math_elim_mode=-2, gamma=0.71425) 
-		Tanking.main_parse(do_plotting=false, mode=1) 
-		Tanking.rankings_are_noisy(do_simulation=true, num_replications=100000, do_plotting=false, mode=1) 
+		using Tanking
+		Tanking.main_simulate(do_simulation=1, num_replications=100000, do_plotting=false, mode=Tanking.STRICT, math_elim_mode=-2, gamma=0.71425) 
+		Tanking.main_parse(do_plotting=false, mode=Tanking.STRICT)
+		Tanking.rankings_are_noisy(do_simulation=true, num_replications=100000, do_plotting=false, mode=Tanking.STRICT)
 				
 
 ### Options
 1. Option `mode` repesents the base true ranking.
 				
-		mode = 1: true ranking is strict. 1 > 2 > ... > 30
-		mode = 2: true ranking has ties. [1,5] > [6,10] > ... > [26,30]
-		mode = 3: each team gets a strength score (calibrated using an MLE on NBA data) and game winners are determined by (Zermelo-)Bradley-Terry model
-		mode = 4: same as mode = 3, except winners are determined with exponential version of the Bradley-Terry model
+		mode = STRICT: true ranking is strict. 1 > 2 > ... > 30
+		mode = TIES: true ranking has ties. [1,5] > [6,10] > ... > [26,30]
+		mode = BT_DISTR: each team gets a strength score based on random distribution (either Beta(1,1) = uniform, or Beta(2,5)), and game winners are determined by (Zermelo-)Bradley-Terry model
+		mode = BT_EXPONENTIAL: same as mode = 3, except winners are determined with exponential version of the Bradley-Terry model
+		mode = BT_ESTIMATED: each team gets a strength score (calibrated using an MLE on NBA data) and game winners are determined by (Zermelo-)Bradley-Terry model
 				
 2. Number of teams can be changed in the code (`num_teams`).
 3. There are other plotting mechanisms implemented, but not all have been tested thoroughly.
