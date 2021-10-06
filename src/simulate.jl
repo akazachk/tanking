@@ -38,9 +38,9 @@ Parameters
   * num_playoff_teams
   * num_rounds
   * num_replications
-  * num_steps
-  * gamma
-  * breakpoint_list
+  * num_steps: break 0:1 down into num_steps intervals, with num_steps+1 values (the breakpoints), each corresponding to the ratio of tanking teams for that run of the simulation
+  * gamma: win percentage for better team
+  * breakpoint_list: list with values from 0 to 1, for where in the season to track statistics
   * nba_odds_list: list of odds to use by the NBA
   * nba_num_lottery: number of teams for which the lottery decides draft position
   * true_strength
