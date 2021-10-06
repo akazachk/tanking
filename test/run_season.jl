@@ -42,4 +42,15 @@ function run_season(;true_strength=nothing)
   prefix      = ["avg_", "stddev_", "min_", "max_"]
 
   display(win_pct[1, :, avg_stat])
+  print("\n")
+end
+
+if abspath(PROGRAM_FILE) == @__FILE__
+  if length(ARGS) < 1
+    run_season()
+  #elseif length(ARGS) == 1
+  #  run_season(ARGS[1])
+  else
+    print("*** ERROR: Too many arguments provided.\n")
+  end
 end
