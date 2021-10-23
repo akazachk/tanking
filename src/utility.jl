@@ -60,7 +60,7 @@ and then reweighting odds
 
 
 ---
-* odds: length(nonplayoff_teams) array of doubles, typically in increasing order (last place has higher chance)
+* odds: length(nonplayoff_teams) array of doubles, typically in nonincreasing order (last place has higher chance)
 
 ---
 Return the draft order
@@ -73,7 +73,7 @@ function runDraftLottery(nonplayoff_teams, odds, num_teams, num_teams_selected_b
   # Check if we should not use the draft lottery,
   # but rather return the teams in the reverse order
   if num_teams_selected_by_lottery <= 0
-    draft_order = zeros(Int, num_teams)
+    draft_order = zeros(keytype(nonplayoff_teams), num_teams)
     tmp_ind = 1
     for curr_team_ind = length(nonplayoff_teams):-1:1
       if lessThanVal(odds[curr_team_ind], 0)

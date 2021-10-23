@@ -2,7 +2,7 @@ name = "Tanking"
 uuid = "37f2c949-12c5-4b52-b2ab-f149dd9bfb6c"
 authors = ["Aleksandr M. Kazachkov <akazachkov@ufl.edu>"]
 repo = "https://github.com/akazachk/tanking"
-version = "2021.6.0"
+version = "2021.10.0"
 
 [deps]
 Combinatorics = "861a8166-3701-5b0c-9a16-15d98fcdc6aa"
