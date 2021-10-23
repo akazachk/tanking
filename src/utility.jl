@@ -73,12 +73,14 @@ function runDraftLottery(nonplayoff_teams, odds, num_teams, num_teams_selected_b
   # Check if we should not use the draft lottery,
   # but rather return the teams in the reverse order
   if num_teams_selected_by_lottery <= 0
-    draft_order = zeros(keytype(nonplayoff_teams), num_teams)
+    draft_order = zeros(eltype(nonplayoff_teams), num_teams)
     tmp_ind = 1
     for curr_team_ind = length(nonplayoff_teams):-1:1
       if lessThanVal(odds[curr_team_ind], 0)
         continue
       else
+        print("*** DEBUG: draft_order = ")
+        println(draft_order)
         draft_order[tmp_ind] = nonplayoff_teams[curr_team_ind]
         tmp_ind += 1
         if tmp_ind > num_teams
