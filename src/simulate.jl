@@ -559,7 +559,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
 
       ## Compute the Kendall tau distance when the NBA randomization is used
       for r = 1:length(nba_odds_list)
-        odds = copy(nba_odds_list[r])
+        odds = copy(nba_odds_list[r]) # this is because runDraftLottery modifies odds
         draft_order = runDraftLottery(nonplayoff_teams, odds, length(nonplayoff_teams), nba_num_lottery[r])
         ranking_nba = draft_order[length(draft_order):-1:1]
         curr_kend = kendtau_sorted(ranking_nba, true_strength, mode)

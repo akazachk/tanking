@@ -60,7 +60,7 @@ and then reweighting odds
 
 
 ---
-* odds: length(nonplayoff_teams) array of doubles, typically in nonincreasing order (last place has higher chance)
+* odds: this array is *modified* in this function; it is a length(nonplayoff_teams) array of doubles, typically in nondecreasing order (last place has higher chance)
 
 ---
 Return the draft order
