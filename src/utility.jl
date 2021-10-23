@@ -79,8 +79,6 @@ function runDraftLottery(nonplayoff_teams, odds, num_teams, num_teams_selected_b
       if lessThanVal(odds[curr_team_ind], 0)
         continue
       else
-        print("*** DEBUG: draft_order = ")
-        println(draft_order)
         draft_order[tmp_ind] = nonplayoff_teams[curr_team_ind]
         tmp_ind += 1
         if tmp_ind > num_teams
