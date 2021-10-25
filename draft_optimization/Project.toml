@@ -1,0 +1,9 @@
+[deps]
+Conda = "8f4d0f93-b110-5947-807f-2305c1781a2d"
+GR = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
+Gurobi = "2e9cd046-0924-5485-92f1-d5272153d98b"
+JuMP = "4076af6c-e467-56ae-b986-b466b2749572"
+MathOptInterface = "b8f27783-ece8-5eb3-8dc8-9495eed66fee"
+Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
+Tanking = "37f2c949-12c5-4b52-b2ab-f149dd9bfb6c"
