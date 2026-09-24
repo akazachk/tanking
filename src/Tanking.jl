@@ -22,6 +22,18 @@ using LaTeXStrings
 using Printf
 using Gurobi # for Gurobi.Env()
 import Distributions.Beta
+
+## NBA data
+# Directory with game data (data/gamesYYZZ.csv, from basketball-reference.com, and data/winpct.csv)
+DATA_DIR = joinpath(dirname(@__DIR__), "data")
+# Seasons used when parsing NBA data and estimating the Bradley-Terry model;
+# 2011-12 (lockout) and 2019-20 and 2020-21 (COVID-19) are omitted, as teams did not play 82 games
+nba_seasons_2004_2019 = ["0405", "0506", "0607", "0708", "0809", "0910", "1011", "1213", "1314", "1415", "1516", "1617", "1718", "1819"]
+nba_seasons_2021_2026 = ["2122", "2223", "2324", "2425", "2526"]
+nba_seasons = vcat(nba_seasons_2004_2019, nba_seasons_2021_2026)
+nba_season_file(season) = string("games", season, ".csv")
+nba_season_label(season) = string(season[1:2], "-", season[3:4])
+
 include("mathelim.jl") # needed for simulate.jl and utility.jl
 include("utility.jl") # imports MODE definitions, needed for parse.jl and simulate.jl
 include("BT.jl")
@@ -900,14 +912,14 @@ end; # main_simulate
 """
     main_parse
 
-Parse data from 2004-2019, except 2011-12 (lockout year)
+Parse NBA data for the given seasons (default: `nba_seasons`, i.e., 2004-05 to 2025-26,
+except 2011-12 (lockout year) and 2019-20 and 2020-21 (COVID-19))
 """
-function main_parse(;do_plotting=true, mode=MODE, data_dir="./data", results_dir="./results")
+function main_parse(;do_plotting=true, mode=MODE, data_dir=DATA_DIR, results_dir="./results", seasons=nba_seasons)
   Random.seed!(628) # for reproducibility
 	set_mode(mode)
 
-  #years = ["games1314.csv", "games1415.csv", "games1516.csv", "games1617.csv", "games1718.csv", "games1819.csv"]
-  years = ["games0405.csv", "games0506.csv", "games0607.csv", "games0708.csv", "games0809.csv", "games0910.csv", "games1011.csv", "games1213.csv", "games1314.csv", "games1415.csv", "games1516.csv", "games1617.csv", "games1718.csv", "games1819.csv"]
+  years = [nba_season_file(season) for season in seasons]
   num_years = length(years)
 
   num_teams = 30
@@ -936,7 +948,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="./data", results_dir
 		#col_labels = ["red", "orange", "green", "blue", "violet"]
     #labels = [L"2004-05", L"2005-06", L"2006-07", L"2007-08", L"2008-09", L"2009-10", L"2010-11", L"2012-13", L"2013-14", L"2014-15", L"2015-16", L"2016-17", L"2017-18", L"2018-19"]
     col_labels = []
-    labels = [L"04-05", L"05-06", L"06-07", L"07-08", L"08-09", L"09-10", L"10-11", L"12-13", L"13-14", L"14-15", L"15-16", L"16-17", L"17-18", L"18-19"]
+    labels = [latexstring(nba_season_label(season)) for season in seasons]
     @assert ( length(labels) == num_years )
     @assert ( (length(col_labels) == 0) || (length(col_labels) == num_years) )
 
@@ -1280,7 +1292,7 @@ end # rankings_are_noisy
     model_validation
 """
 function model_validation(;do_simulation = true, num_replications = 100000, 
-    data_dir = "./data", results_dir = "./results", do_plotting = true,
+    data_dir = DATA_DIR, results_dir = "./results", do_plotting = true,
     num_rounds = 3, num_steps = 2, gamma = 0.71425, 
     math_elim_mode = 0, selected_steps = nothing)
   Random.seed!(628) # for reproducibility

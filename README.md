@@ -14,7 +14,7 @@ Gurobi is needed. To install, you need to use `Pkg.build("Gurobi")` in a shell i
 Before running the code, you should [instatiate the environment](https://pkgdocs.julialang.org/v1/environments/). It is further strongly recommended to create a sysimage, the steps for which should be automatically performed if you type `make` from the main project directory on a Linux or Mac.
 
 ### Running the code
-To run a simulation, parse NBA data, and reproduce data regarding noisiness of the reverse order ranking, first change directories to the `julia` subdirectory, then start `julia`, type `]` to enter `pkg` mode, and type `activate ./` to activate the tanking environment. Type `instantiate` to get the required packages. Afterwards, pressing `backspace` will return you to the normal prompt. You can also run `julia --project` to avoid the `activate` step above.
+To run a simulation, parse NBA data, and reproduce data regarding noisiness of the reverse order ranking, start `julia` from the main project directory, type `]` to enter `pkg` mode, and type `activate ./` to activate the tanking environment. Type `instantiate` to get the required packages. Afterwards, pressing `backspace` will return you to the normal prompt. You can also run `julia --project` to avoid the `activate` step above.
 
 The code can be run with the following commands:
 				
@@ -23,6 +23,22 @@ The code can be run with the following commands:
 		Tanking.main_parse(do_plotting=false, mode=Tanking.STRICT)
 		Tanking.rankings_are_noisy(do_simulation=true, num_replications=100000, do_plotting=false, mode=Tanking.STRICT)
 				
+All of the experiments (model validation, simulation, parsing NBA data, noisiness of rankings) can also be rerun with a single script, from the main project directory:
+
+		julia --project=. scripts/run_experiments.jl --results-dir=results/rerun
+		julia --project=. scripts/run_experiments.jl --replications=100 --results-dir=results/tmp   # quick test
+
+Run `head -35 scripts/run_experiments.jl` to see all options (e.g., `--gamma=auto` to use the value of gamma that best fits the NBA data, or `--steps` / `--aggregate` to split the simulation across jobs).
+
+### NBA data
+The directory [`data`](data) contains the results of every regular-season game (from [basketball-reference.com](https://www.basketball-reference.com)) in `data/gamesYYZZ.csv` for the seasons 2004-05 through 2025-26, except 2011-12 (lockout) and 2019-20 and 2020-21 (COVID-19), in which teams did not play 82 games. The list of seasons that is used is `Tanking.nba_seasons`; pass `seasons=Tanking.nba_seasons_2004_2019` to `main_parse` or `BT_MLE` to use only the seasons in the original paper. The file `data/winpct.csv` contains the win percentage of the team in each final position (rows) for every season (columns).
+
+To (re)download seasons and regenerate `data/winpct.csv` (a season is named by the year in which it ends):
+
+		python3 scripts/fetch_bbref_games.py 2022 2023 2024 2025 2026
+
+Play-in games, playoff games, and the NBA Cup championship game (which does not count in the standings) are excluded.
+
 
 ### Options
 1. Option `mode` repesents the base true ranking.

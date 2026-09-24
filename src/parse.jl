@@ -10,14 +10,39 @@
 using DelimitedFiles
 #include("utility.jl")
 
-function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], data_dir="../data")
+## Eastern Conference franchises, under every name used since 2004-05; all other teams are in the West
+## (e.g., "Charlotte Bobcats"/"Charlotte Hornets" are East, whereas "New Orleans Hornets" is West)
+const EAST_TEAM_NAMES = Set([
+  "Atlanta Hawks", "Boston Celtics", "Brooklyn Nets", "New Jersey Nets",
+  "Charlotte Bobcats", "Charlotte Hornets", "Chicago Bulls", "Cleveland Cavaliers",
+  "Detroit Pistons", "Indiana Pacers", "Miami Heat", "Milwaukee Bucks",
+  "New York Knicks", "Orlando Magic", "Philadelphia 76ers", "Toronto Raptors",
+  "Washington Wizards"
+])
+
+"""
+    parseNBASeason
+
+Replay an NBA regular season from `data_dir/filename`
+(columns: Date, Time, Team1 = visitor, Score1, Team2 = home, Score2, ...),
+tracking standings and effective elimination.
+
+Canceled games (recorded with equal scores, e.g., BOS-IND on 2013-04-16) are skipped.
+"""
+function parseNBASeason(filename="games1314.csv", breakpoint_list=[3//4,1], data_dir=DATA_DIR)
 	###
 	# Parse real data
 	###
 	#df = CSV.read(filename, types = [String, String, String, Int, String, Int, String, Union{String,Missing}, Int, Union{String,Missing}])
-	df = readdlm(string(data_dir,"/",filename), ',')
+	fullpath = joinpath(data_dir, filename)
+	if !isfile(fullpath)
+		error("NBA data file $fullpath not found; download it with `python3 scripts/fetch_bbref_games.py <season end year>`")
+	end
+	df = readdlm(fullpath, ',')
 	num_header_rows = 1
 	start_row = num_header_rows + 1
+	# NB: the first team listed is the visitor and the second is the home team;
+	# the names below are historical (home advantage is not used anywhere)
 	home_team_ind = 3;
 	away_team_ind = 5;
 	home_score_ind = 4;
@@ -37,16 +62,29 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 	num_teams = 30
 	num_teams_per_conf = 15
 	num_playoff_teams_per_conf = 8
-	east_teams = [1 2 3 4 5 6 9 12 16 17 20 22 23 28 30]
-	west_teams = [7 8 10 11 13 14 15 18 19 21 24 25 26 27 29]
-	is_east = zeros(Bool, num_teams) # initialized to false
-	for i in east_teams
-		is_east[i] = true
-	end
 
-	num_team_games = 82 # ! set based on year
+	num_team_games = 82 # scheduled games per team
 	max_games_remaining = (4/5) * num_team_games # a minimum number of games needs to be played before tanking might happen
 	# end constants
+
+	## Teams and conferences (assigned by name, as alphabetical positions change when teams are renamed/relocated)
+	teams = sort(unique(vcat(df[start_row:num_rows,home_team_ind], df[start_row:num_rows,away_team_ind])))
+	@assert(length(teams) == num_teams, "Expected $num_teams teams in $filename, found $(length(teams))")
+	is_east = [team in EAST_TEAM_NAMES for team in teams]
+	east_teams = findall(is_east)
+	west_teams = findall(.!is_east)
+	@assert(length(east_teams) == num_teams_per_conf && length(west_teams) == num_teams_per_conf,
+	        "Conference sizes are $(length(east_teams)) (East) and $(length(west_teams)) (West) in $filename; update EAST_TEAM_NAMES")
+
+	## Canceled games are recorded with equal scores; count the games each team actually plays
+	is_canceled = [df[row, home_score_ind] == df[row, away_score_ind] for row in start_row:num_rows]
+	games_scheduled = zeros(Int, num_teams)
+	for row = start_row:num_rows
+		if !is_canceled[row - start_row + 1]
+			games_scheduled[searchsortedfirst(teams, df[row, home_team_ind])] += 1
+			games_scheduled[searchsortedfirst(teams, df[row, away_team_ind])] += 1
+		end
+	end
 
 	## Prepare output
 	num_eliminated = 0
@@ -56,7 +94,6 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 	num_games_tanked_at_cutoff = zeros(Int,length(breakpoint_list))
 
 	## Set up data matrices
-	teams = sort(unique(df[start_row:num_rows,home_team_ind]))
   schedule = df[start_row:num_rows,[home_team_ind,away_team_ind]]
   outcome = zeros(Int, num_games_total)
 	#results = Matrix{Bool}(undef, num_teams, num_team_games)
@@ -86,7 +123,7 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 		stats[i,name_ind] = i # name
 		stats[i,wins_ind] = 0 # wins
 		stats[i,losses_ind] = 0 # losses
-		stats[i,games_left_ind] = num_team_games # games left
+		stats[i,games_left_ind] = games_scheduled[i] # games left
     stats[i,elim_ind] = -1 # when team is eliminated (in terms of how many left)
 		stats[i,win_pct_ind] = 0.0 # win pct
 	end
@@ -114,14 +151,17 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 		## Check who wins the game
 		home_score = df[row, home_score_ind]
 		away_score = df[row, away_score_ind]
+		canceled = is_canceled[game_ind]
 		winner = (home_score > away_score) ? hometeam : awayteam
 		loser = (home_score > away_score) ? awayteam : hometeam
-    outcome[game_ind] = winner
-		h2h[winner,loser] += 1
+		if !canceled
+			outcome[game_ind] = winner
+			h2h[winner,loser] += 1
 
-		## Check if this game is tanked
-		if (critical_game[hometeam,1] + critical_game[awayteam,1]) > 0
-			num_games_tanked += 1
+			## Check if this game is tanked
+			if (critical_game[hometeam,1] + critical_game[awayteam,1]) > 0
+				num_games_tanked += 1
+			end
 		end
 
 		## Set for each cutoff the number eliminated and number of games tanked
@@ -132,6 +172,9 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
 			end
 		end
 		num_eliminated_by_game[game_ind] = num_eliminated
+		if canceled
+			continue
+		end
 
 		## Do updates
 		for k in [hometeam, awayteam]
@@ -165,7 +208,7 @@ function parseNBASeason(filename="games1314.xlsx", breakpoint_list=[3//4,1], dat
       else
         # Effective elimination: "If I win all my remaining games, and the cutoff for making the playoffs does not change, will I make the playoffs?"
         cutoff_avg = is_east[k] ? stats[team_in_pos_east[num_playoff_teams_per_conf],win_pct_ind] : stats[team_in_pos_west[num_playoff_teams_per_conf],win_pct_ind]
-        is_eliminated = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
+        is_eliminated = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], games_scheduled[k], cutoff_avg, max_games_remaining)
       end
       if is_eliminated
         stats[k,elim_ind] = stats[k,games_left_ind]

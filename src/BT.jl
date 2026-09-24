@@ -10,10 +10,8 @@ import Distributions.Beta
 Look at number of wins team with rank i won against team of rank j in every year
 to calculate MLE for Bradley-Terry model
 """
-function BT_MLE(;data_dir="../data", num_teams=30)
-  #years = ["games1314.csv", "games1415.csv", "games1516.csv", "games1617.csv", "games1718.csv", "games1819.csv"]
-  years = ["games0405.csv", "games0506.csv", "games0607.csv", "games0708.csv", "games0809.csv", "games0910.csv", "games1011.csv", "games1213.csv", "games1314.csv", "games1415.csv", "games1516.csv", "games1617.csv", "games1718.csv", "games1819.csv"]
-  #years = ["games0708.csv"]
+function BT_MLE(;data_dir=DATA_DIR, num_teams=30, seasons=nba_seasons)
+  years = [nba_season_file(season) for season in seasons]
   num_years = length(years)
 
   num_stats = 6 # name, wins, losses, games_left, elim, win_pct
@@ -100,16 +98,17 @@ function BT_MLE(;data_dir="../data", num_teams=30)
   num_steps = 1000
   while step < num_steps
     p_new = BT_MLE_step(h2h_final, W, p)
+    p_new /= sum(p_new) # normalize before comparing, as p is normalized
 
     # Calculate differences
     sum_diff = 0.0
     for i = 1:num_teams
       sum_diff += abs(p[i] - p_new[i])
     end
+    p = p_new
     if sum_diff < eps
       break
     end
-    p = p_new / sum(p_new)
     step += 1
   end
   #println("Num steps: $step")
@@ -134,7 +133,7 @@ function BT_MLE_step(h2h, W, p)
   return p_new
 end # BT_MLE_step
 
-function BT_avg(;data_dir="../data")
+function BT_avg(;data_dir=DATA_DIR)
   # Get win_pct_nba
   win_pct_nba = readdlm(string(data_dir, "/winpct.csv"), ',')
   num_header_rows = 1
@@ -144,7 +143,7 @@ function BT_avg(;data_dir="../data")
   return p
 end # BT_avg
 
-function test_BT(;data_dir="../data", distr=Beta(2,5), strength=[])
+function test_BT(;data_dir=DATA_DIR, distr=Beta(2,5), strength=[])
   if (length(strength) != num_teams)
     num_repeats = 100000
     strength = sort(rand(distr, num_teams), rev=true)
