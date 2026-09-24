@@ -8,8 +8,10 @@ them to data/gamesYYZZ.csv in the format used by the Tanking package, i.e.,
 where Team1 is the visiting team and Team2 is the home team.
 
 Only regular-season games are kept:
-  * everything after the "Playoffs" separator row is dropped;
-  * play-in games are dropped;
+  * play-in games (marked in the Notes column) are dropped;
+  * games a team plays after its 82nd game are dropped (this is how playoff
+    games are removed; the current pages have no separator row for them,
+    though one is also recognized if present);
   * the NBA Cup (In-Season Tournament) championship game, which does not
     count in the regular-season standings (2023-24 onwards), is dropped.
 Each season is validated (every team plays 82 games, 1230 games total)
@@ -236,7 +238,8 @@ def filter_regular_season(season, games):
     for g in extra:
         if g["date"] < last_regular_date:
             sys.exit(f"[{season}] game after a team's 82nd game occurs before the end of the regular season: {g}")
-        print(f"  [{season}] dropping post-regular-season game: {g['date_str']} {g['visitor']} @ {g['home']} ({g['notes']})", file=sys.stderr)
+    if extra:
+        print(f"  [{season}] dropping {len(extra)} postseason games ({extra[0]['date_str']} to {extra[-1]['date_str']})", file=sys.stderr)
 
     teams = set(count)
     if len(teams) != NUM_TEAMS:
