@@ -32,6 +32,18 @@ nba_seasons_2021_2026 = ["2122", "2223", "2324", "2425", "2526"]
 nba_seasons = vcat(nba_seasons_2004_2019, nba_seasons_2021_2026)
 nba_season_file(season) = string("games", season, ".csv")
 nba_season_label(season) = string(season[1:2], "-", season[3:4])
+nba_season_winpct_header(season) = string(parse(Int, season[1:2]) > 90 ? "19" : "20", season[1:2], "-", season[3:4]) # e.g., "2004-05"
+# Seasons used by default by main_parse, BT_MLE (hence BT_ESTIMATED mode), and model_validation; change with set_seasons!
+selected_nba_seasons = nba_seasons
+"""
+    set_seasons!(seasons)
+
+Set the NBA seasons used by default in main_parse, BT_MLE (and BT_ESTIMATED mode), and model_validation,
+e.g., `set_seasons!(nba_seasons_2004_2019)` for the seasons in the original paper (2004-05 to 2018-19)
+"""
+function set_seasons!(seasons)
+  global selected_nba_seasons = seasons
+end
 
 include("mathelim.jl") # needed for simulate.jl and utility.jl
 include("utility.jl") # imports MODE definitions, needed for parse.jl and simulate.jl
@@ -921,10 +933,10 @@ end; # main_simulate
 """
     main_parse
 
-Parse NBA data for the given seasons (default: `nba_seasons`, i.e., 2004-05 to 2025-26,
+Parse NBA data for the given seasons (default: `selected_nba_seasons`, initially `nba_seasons`, i.e., 2004-05 to 2025-26,
 except 2011-12 (lockout year) and 2019-20 and 2020-21 (COVID-19))
 """
-function main_parse(;do_plotting=true, mode=MODE, data_dir=DATA_DIR, results_dir="./results", seasons=nba_seasons)
+function main_parse(;do_plotting=true, mode=MODE, data_dir=DATA_DIR, results_dir="./results", seasons=selected_nba_seasons)
   Random.seed!(628) # for reproducibility
 	set_mode(mode)
 
@@ -1303,7 +1315,7 @@ end # rankings_are_noisy
 function model_validation(;do_simulation = true, num_replications = 100000, 
     data_dir = DATA_DIR, results_dir = "./results", do_plotting = true,
     num_rounds = 3, num_steps = 2, gamma = 0.71425, 
-    math_elim_mode = 0, selected_steps = nothing)
+    math_elim_mode = 0, selected_steps = nothing, seasons = selected_nba_seasons)
   Random.seed!(628) # for reproducibility
   selected_steps = clean_selected_steps(selected_steps)
   if abs(math_elim_mode) >= 2 && do_simulation
@@ -1336,7 +1348,14 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   ## Data for comparison
   win_pct_nba = readdlm(string(data_dir, "/winpct.csv"), ',') # [year, team]
   num_header_rows = 1
+  # Keep only the columns for the selected seasons
+  season_cols = [findfirst(isequal(nba_season_winpct_header(s)), string.(win_pct_nba[1,:])) for s in seasons]
+  if any(isnothing, season_cols)
+    error("Some of the seasons $seasons are missing from $(data_dir)/winpct.csv; regenerate it with scripts/fetch_bbref_games.py --winpct-only")
+  end
+  win_pct_nba = win_pct_nba[:, season_cols]
   num_years = size(win_pct_nba, 2)
+  println("model_validation: comparing to NBA seasons ", win_pct_nba[1,:])
 
   for mode_ind = 1:num_modes
     curr_mode = mode_ind <= length(mode_list) ? mode_list[mode_ind] : STRICT

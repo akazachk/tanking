@@ -20,14 +20,18 @@
 #   --results-dir=DIR       where results are written (default: results/<today's date>)
 #   --replications=N        number of replications (default: 100000)
 #   --gamma=G               probability the better team wins in STRICT mode (default: 0.71425);
-#                           use --gamma=auto to use the value with the smallest model_validation loss
-#                           (with no tanking), which requires `validate` to be run first (in this call)
+#                           use --gamma=auto to use the value whose largest model_validation loss (over 0, 15, 30
+#                           selfish teams) is smallest, i.e., the minimax rule used for 0.71425
+#                           (requires `validate` to be run first, in the same call)
 #   --math-elim-mode=M      see README (default: -2)
 #   --steps=S               only simulate step S (e.g., 5); to split the simulation across jobs, run
 #                           once for each step (1 to 31), then once with --aggregate (only single-step
 #                           runs can be aggregated)
 #   --aggregate             combine results of runs that used --steps (main_simulate with do_simulation=-1)
 #   --plot                  also create plots (needs PyPlot and LaTeX)
+#   --seasons=S             NBA seasons used by validate, parse, and bt: "all" (default; 2004-05 to 2025-26,
+#                           except 2011-12, 2019-20, 2020-21) or "2004-2019" (the 14 seasons of the original
+#                           paper, 2004-05 to 2018-19); the simulations themselves do not use NBA data
 #
 # Examples
 #   julia --project=. scripts/run_experiments.jl --replications=100 --results-dir=results/tmp
@@ -87,6 +91,15 @@ function main(args)
       selected_steps = str2arr(split(arg, "=", limit=2)[2])
     elseif arg == "--aggregate"
       aggregate = true
+    elseif startswith(arg, "--seasons=")
+      val = split(arg, "=", limit=2)[2]
+      if val == "all"
+        Tanking.set_seasons!(Tanking.nba_seasons)
+      elseif val == "2004-2019"
+        Tanking.set_seasons!(Tanking.nba_seasons_2004_2019)
+      else
+        error("Unknown value for --seasons: $val (use all or 2004-2019)")
+      end
     elseif arg == "--plot"
       do_plotting = true
     elseif arg in ALL_EXPERIMENTS
@@ -106,7 +119,7 @@ function main(args)
 
   mkpath(results_dir)
   println("## Running experiments ", experiments, " with results in ", results_dir)
-  println("## NBA seasons: ", Tanking.nba_seasons)
+  println("## NBA seasons: ", Tanking.selected_nba_seasons)
 
   if "validate" in experiments
     println("\n## model_validation ##")
@@ -115,9 +128,10 @@ function main(args)
         do_plotting=do_plotting, selected_steps=nothing)
     # Rows of loss_list: BT_ESTIMATED first, then one per gamma in gamma_list; column 1 is no tanking
     num_bt_modes = size(loss_list, 1) - length(gamma_list)
-    best_ind = argmin(loss_list[num_bt_modes+1:end, 1])
+    # Minimax rule (as used to choose 0.71425 in the paper): smallest largest loss over the numbers of selfish teams
+    best_ind = argmin(vec(maximum(loss_list[num_bt_modes+1:end, :], dims=2)))
     best_gamma = gamma_list[best_ind]
-    println("Value of gamma with smallest loss (no tanking): ", best_gamma)
+    println("Value of gamma with smallest maximum loss over 0, 15, 30 selfish teams: ", best_gamma)
     open(joinpath(results_dir, "gamma.txt"), "w") do io
       println(io, best_gamma)
     end

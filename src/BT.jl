@@ -10,7 +10,7 @@ import Distributions.Beta
 Look at number of wins team with rank i won against team of rank j in every year
 to calculate MLE for Bradley-Terry model
 """
-function BT_MLE(;data_dir=DATA_DIR, num_teams=30, seasons=nba_seasons)
+function BT_MLE(;data_dir=DATA_DIR, num_teams=30, seasons=selected_nba_seasons)
   years = [nba_season_file(season) for season in seasons]
   num_years = length(years)
 
