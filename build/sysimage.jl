@@ -3,7 +3,6 @@ using PackageCompiler
 using Combinatorics
 using DelimitedFiles
 using Distributions
-using Gurobi
 using JuMP
 using LaTeXStrings
 using Plots
@@ -16,7 +15,6 @@ pkg = [
        :Combinatorics,
        :DelimitedFiles,
        :Distributions,
-       :Gurobi,
        :JuMP,
        :LaTeXStrings,
        :Plots,
@@ -25,6 +23,14 @@ pkg = [
        :Random,
        :StatsPlots
       ]
+
+# Gurobi is optional (only needed for math_elim_mode with abs value >= 2)
+try
+  @eval using Gurobi
+  push!(pkg, :Gurobi)
+catch
+  @warn "Gurobi could not be loaded; building the system image without it"
+end
 
 @info "Building system image..."
 PackageCompiler.create_sysimage(

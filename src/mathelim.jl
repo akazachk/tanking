@@ -15,7 +15,17 @@ using JuMP
 using MathOptInterface
 #using Cbc
 #using GLPK
-using Gurobi
+
+## Gurobi is loaded only when it is first needed (abs(math_elim_mode) >= 2),
+## so that the rest of the code can be run without a Gurobi installation/license.
+## Code that uses Gurobi after it is loaded at runtime must be called via Base.invokelatest
+## (as is done for simulate in Tanking.jl).
+const GUROBI_PKGID = Base.PkgId(Base.UUID("2e9cd046-0924-5485-92f1-d5272153d98b"), "Gurobi")
+gurobi_module() = Base.require(GUROBI_PKGID)
+function gurobi_optimizer(env = nothing)
+  Gurobi = gurobi_module()
+  return is_valid(env) ? Base.invokelatest(Gurobi.Optimizer, env) : Base.invokelatest(Gurobi.Optimizer)
+end
 
 """
     heuristicBestRank
@@ -404,14 +414,14 @@ function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_te
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams+1e-3, BestBdStop=num_playoff_teams+1e-3, TimeLimit=10, OutputFlag=0))
   if !is_valid(env)
     model = Model(
-      optimizer_with_attributes(() -> Gurobi.Optimizer(),
+      optimizer_with_attributes(() -> gurobi_optimizer(),
         "BestObjStop" => num_playoff_teams+1e-3,
         "BestBdStop" => num_playoff_teams+1e-3,
         "TimeLimit" => 10,
         "OutputFlag" => 0))
   else
     model = Model(
-      optimizer_with_attributes(() -> Gurobi.Optimizer(env),
+      optimizer_with_attributes(() -> gurobi_optimizer(env),
         "BestObjStop" => num_playoff_teams+1e-3,
         "BestBdStop" => num_playoff_teams+1e-3,
         "TimeLimit" => 10,
@@ -549,12 +559,12 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
   #model = Model(with_optimizer(Gurobi.Optimizer, TimeLimit=10, OutputFlag=0))
   if !is_valid(env)
     model = Model(
-      optimizer_with_attributes(() -> Gurobi.Optimizer(),
+      optimizer_with_attributes(() -> gurobi_optimizer(),
         "TimeLimit" => 10,
         "OutputFlag" => 0))
   else
     model = Model(
-      optimizer_with_attributes(() -> Gurobi.Optimizer(env),
+      optimizer_with_attributes(() -> gurobi_optimizer(env),
         "TimeLimit" => 10,
         "OutputFlag" => 0))
   end
@@ -1152,5 +1162,5 @@ function losingHeuristicHelper!(k, t, schedule, stats, outcome, h2h,
 end # losingHeuristicHelper
 
 function is_valid(env = nothing)
-  return !isnothing(env) && isa(env, Gurobi.Env) && env.ptr_env != C_NULL
+  return !isnothing(env) && hasproperty(env, :ptr_env) && env.ptr_env != C_NULL # env is a Gurobi.Env
 end # is_valid

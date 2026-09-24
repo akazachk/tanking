@@ -5,11 +5,11 @@
 This project contains the code for a simulator of an NBA season aimed at understanding tanking behavior.
 
 ### Requirements
-For general requirements, check the "compat" section under [`Project.toml`](Project.toml). If `PyPlot` is available, the figures in the paper can be plotted using `do_plotting=true` in the commands below.
+For general requirements, check the "compat" section under [`Project.toml`](Project.toml). The checked-in `Manifest.toml` is in the pre-1.7 format, so use Julia 1.6 (tested with 1.6.7). If `PyPlot` is available, the figures in the paper can be plotted using `do_plotting=true` in the commands below; the pinned `PyPlot` needs matplotlib < 3.9 (e.g., `pip install "matplotlib<3.9"` and set `PYTHON=python3` before instantiating).
 
 On a Mac, for plotting, one needs to install XQuartz.
 
-Gurobi is needed. To install, you need to use `Pkg.build("Gurobi")` in a shell in which the `GUROBI_HOME` variable is defined or `Gurobi` can be found on the `PATH`. E.g., on Mac, `GUROBI_HOME` is set to `/Library/<gurobiversion>/mac64`.
+Gurobi (9.0 or 9.1, for the pinned Gurobi.jl 0.9) is only needed to solve the MIPs for mathematical elimination, i.e., when `abs(math_elim_mode) >= 2` (including the default `math_elim_mode=-2` of `main_simulate`); it is loaded the first time it is needed. Everything else (parsing NBA data, model validation, noisy rankings, and simulations with `math_elim_mode` in -1, 0, 1) runs without it; in that case, `Pkg.instantiate()` reports that Gurobi failed to build/precompile, which can be ignored. To install Gurobi.jl, use `Pkg.build("Gurobi")` in a shell in which the `GUROBI_HOME` variable is defined or `Gurobi` can be found on the `PATH`. E.g., on Mac, `GUROBI_HOME` is set to `/Library/<gurobiversion>/mac64`.
 
 Before running the code, you should [instatiate the environment](https://pkgdocs.julialang.org/v1/environments/). It is further strongly recommended to create a sysimage, the steps for which should be automatically performed if you type `make` from the main project directory on a Linux or Mac.
 
@@ -27,17 +27,18 @@ All of the experiments (model validation, simulation, parsing NBA data, noisines
 
 		julia --project=. scripts/run_experiments.jl --results-dir=results/rerun
 		julia --project=. scripts/run_experiments.jl --replications=100 --results-dir=results/tmp   # quick test
+		julia --project=. scripts/run_experiments.jl --math-elim-mode=0 --results-dir=results/rerun   # without Gurobi
 
 Run `head -35 scripts/run_experiments.jl` to see all options (e.g., `--gamma=auto` to use the value of gamma that best fits the NBA data, or `--steps` / `--aggregate` to split the simulation across jobs).
 
 ### NBA data
 The directory [`data`](data) contains the results of every regular-season game (from [basketball-reference.com](https://www.basketball-reference.com)) in `data/gamesYYZZ.csv` for the seasons 2004-05 through 2025-26, except 2011-12 (lockout) and 2019-20 and 2020-21 (COVID-19), in which teams did not play 82 games. The list of seasons that is used is `Tanking.nba_seasons`; pass `seasons=Tanking.nba_seasons_2004_2019` to `main_parse` or `BT_MLE` to use only the seasons in the original paper. The file `data/winpct.csv` contains the win percentage of the team in each final position (rows) for every season (columns).
 
-The files for 2021-22 through 2025-26 (and the corresponding columns of `data/winpct.csv`) are created by the script below; until they exist, `main_parse` and `BT_MLE` with the default seasons stop with an error naming the missing file. To (re)download seasons and regenerate `data/winpct.csv` (a season is named by the year in which it ends):
+The files for 2021-22 through 2025-26 were downloaded in September 2026; every team's record in them matches the basketball-reference standings. To (re)download seasons and regenerate `data/winpct.csv` (a season is named by the year in which it ends):
 
 		python3 scripts/fetch_bbref_games.py 2022 2023 2024 2025 2026
 
-Play-in games, playoff games, and the NBA Cup championship game (which does not count in the standings) are excluded.
+Play-in games, playoff games, and the NBA Cup championship game (which does not count in the standings) are excluded. Note that `data/winpct.csv` uses each team's actual number of games, so the 2012-13 column differs slightly from the original file for Boston and Indiana (81 games, after their canceled game).
 
 
 ### Options

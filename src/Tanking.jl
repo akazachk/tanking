@@ -20,7 +20,6 @@ import Random
 using DelimitedFiles
 using LaTeXStrings
 using Printf
-using Gurobi # for Gurobi.Env()
 import Distributions.Beta
 
 ## NBA data
@@ -43,9 +42,15 @@ include("simulate.jl")
 using Combinatorics # for permutations
 
 global GRB_ENV = nothing
+"""
+    set_env
+
+Load Gurobi (see `gurobi_module` in mathelim.jl) and create the Gurobi environment `GRB_ENV`, if not done already.
+Only needed when MIPs are solved for mathematical elimination (`abs(math_elim_mode) >= 2`).
+"""
 function set_env()
   if !is_valid(GRB_ENV)
-    global GRB_ENV = Gurobi.Env()
+    global GRB_ENV = Base.invokelatest(gurobi_module().Env)
   end
 end
 
@@ -316,7 +321,9 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
   Random.seed!(628) # for reproducibility
   selected_steps = clean_selected_steps(selected_steps)
 	set_mode(mode, selected_steps)
-  set_env()
+  if abs(math_elim_mode) >= 2 && do_simulation == 1
+    set_env() # Gurobi is only needed to solve MIPs for mathematical elimination
+  end
 
 	## Variables that need to be set
 	## end variables that need to be set
@@ -361,7 +368,8 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
       avg_elim_rank_strat, avg_elim_rank_moral,
       avg_diff_rank_strat, avg_diff_rank_moral,
       num_missing_case = 
-        simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, GRB_ENV, false)
+        # invokelatest, as Gurobi may have been loaded after this function was called
+        Base.invokelatest(simulate, num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, GRB_ENV, false)
         # NB: do not call Gurobi.GRBfreeenv(GRB_ENV) here; the environment is reused by later calls
         # (freeing it by hand leaves GRB_ENV looking valid, and its finalizer would free it again)
 	else
@@ -1298,7 +1306,9 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     math_elim_mode = 0, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
   selected_steps = clean_selected_steps(selected_steps)
-  set_env()
+  if abs(math_elim_mode) >= 2 && do_simulation
+    set_env() # Gurobi is only needed to solve MIPs for mathematical elimination
+  end
 
   ## Simulation parameters
   #mode_list = [BT_ESTIMATED BT_DISTR]; mode_list_name = ["BT.est", "BT.beta"]
@@ -1342,7 +1352,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     ## Retrieve win_pct matrix [step_ind, team_ind, stat]
     ## Save data
     if do_simulation
-      win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, selected_steps, GRB_ENV, true)
+      win_pct = Base.invokelatest(simulate, num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, selected_steps, GRB_ENV, true)
 
       println("win_pct = ", win_pct[:,:,avg_stat])
       win_pct_list[mode_ind, :, :, :] = win_pct
