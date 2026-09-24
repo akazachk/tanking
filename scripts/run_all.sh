@@ -68,6 +68,23 @@ mkdir -p "$LOGDIR"
 NUM_STEPS=31 # 0, 1, ..., 30 selfish teams
 
 log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
+# show_error LOGFILE: show the (first) error message in a log, or its last lines if there is none
+show_error() {
+  if grep -q "ERROR" "$1"; then
+    grep -m1 -A4 "ERROR" "$1" | sed 's/^/    /'
+  else
+    tail -n 10 "$1" | sed 's/^/    /'
+  fi
+}
+# run_step LOGFILE COMMAND...: run COMMAND with output to LOGFILE; on failure, show the end of the log and stop
+run_step() {
+  local logfile=$1; shift
+  if ! "$@" > "$logfile" 2>&1; then
+    log "FAILED; see $logfile:"
+    show_error "$logfile"
+    exit 1
+  fi
+}
 
 {
   echo "date: $(date)"
@@ -87,7 +104,7 @@ if has validate; then
   log "validate: model_validation -> $LOGDIR/validate.log"
   GAMMA_OPT=""
   [[ $GAMMA == auto ]] && GAMMA_OPT="--gamma=auto"
-  $RUN $GAMMA_OPT $PLOT validate > "$LOGDIR/validate.log" 2>&1
+  run_step "$LOGDIR/validate.log" $RUN $GAMMA_OPT $PLOT validate
   log "validate: minimax gamma = $(cat "$OUTDIR/gamma.txt")"
 fi
 if [[ $GAMMA == auto ]]; then
@@ -101,13 +118,18 @@ simulate_experiment() { # $1 = simulate or bt
   local exp=$1
   if (( JOBS > 1 )); then
     log "$exp: $NUM_STEPS steps in $JOBS parallel jobs -> $LOGDIR/${exp}_step*.log"
-    seq 1 $NUM_STEPS | xargs -P "$JOBS" -I{} sh -c \
-      "$RUN --gamma=$GAMMA --math-elim-mode=$MODE --steps={} $exp > $LOGDIR/${exp}_step{}.log 2>&1 || { echo 'step {} failed; see $LOGDIR/${exp}_step{}.log'; exit 255; }"
+    if ! seq 1 $NUM_STEPS | xargs -P "$JOBS" -I{} sh -c \
+      "$RUN --gamma=$GAMMA --math-elim-mode=$MODE --steps={} $exp > $LOGDIR/${exp}_step{}.log 2>&1 || { echo 'step {} failed; see $LOGDIR/${exp}_step{}.log'; exit 255; }"; then
+      failed=$(grep -l "ERROR" "$LOGDIR"/${exp}_step*.log | head -1)
+      log "FAILED; see ${failed:-the step logs in $LOGDIR}:"
+      [[ -n $failed ]] && show_error "$failed"
+      exit 1
+    fi
     log "$exp: aggregating steps -> $LOGDIR/${exp}_aggregate.log"
-    $RUN --gamma=$GAMMA --math-elim-mode=$MODE --aggregate $PLOT $exp > "$LOGDIR/${exp}_aggregate.log" 2>&1
+    run_step "$LOGDIR/${exp}_aggregate.log" $RUN --gamma=$GAMMA --math-elim-mode=$MODE --aggregate $PLOT $exp
   else
     log "$exp: all steps in one process -> $LOGDIR/$exp.log"
-    $RUN --gamma=$GAMMA --math-elim-mode=$MODE $PLOT $exp > "$LOGDIR/$exp.log" 2>&1
+    run_step "$LOGDIR/$exp.log" $RUN --gamma=$GAMMA --math-elim-mode=$MODE $PLOT $exp
   fi
 }
 if has simulate; then simulate_experiment simulate; fi
@@ -115,19 +137,19 @@ if has simulate; then simulate_experiment simulate; fi
 ## 3. NBA data (needs avg_eff_eliminated_strict.csv from the simulation)
 if has parse; then
   log "parse: main_parse -> $LOGDIR/parse.log"
-  $RUN $PLOT parse > "$LOGDIR/parse.log" 2>&1
+  run_step "$LOGDIR/parse.log" $RUN $PLOT parse
 fi
 
 ## 4. Noisy rankings
 if has noisy; then
   log "noisy: rankings_are_noisy -> $LOGDIR/noisy.log"
-  $RUN $PLOT noisy > "$LOGDIR/noisy.log" 2>&1
+  run_step "$LOGDIR/noisy.log" $RUN $PLOT noisy
 fi
 
 ## 5. Sensitivity to tanking after the breakpoint (effective elimination; no Gurobi needed)
 if has sensitivity; then
   log "sensitivity: $SENS_REPS replications, $THREADS threads -> $LOGDIR/sensitivity.log"
-  $JULIA --project=. -t "$THREADS" scripts/run_sensitivity.jl "$SENS_REPS" "$OUTDIR/sensitivity" "1:$NUM_STEPS" 628 "$GAMMA" > "$LOGDIR/sensitivity.log" 2>&1
+  run_step "$LOGDIR/sensitivity.log" $JULIA --project=. -t "$THREADS" scripts/run_sensitivity.jl "$SENS_REPS" "$OUTDIR/sensitivity" "1:$NUM_STEPS" 628 "$GAMMA"
   grep "^Check" "$LOGDIR/sensitivity.log" | sed 's/^/    /'
 fi
 
