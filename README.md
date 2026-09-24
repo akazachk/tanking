@@ -33,7 +33,7 @@ Run `head -35 scripts/run_experiments.jl` to see all options (e.g., `--gamma=aut
 ### NBA data
 The directory [`data`](data) contains the results of every regular-season game (from [basketball-reference.com](https://www.basketball-reference.com)) in `data/gamesYYZZ.csv` for the seasons 2004-05 through 2025-26, except 2011-12 (lockout) and 2019-20 and 2020-21 (COVID-19), in which teams did not play 82 games. The list of seasons that is used is `Tanking.nba_seasons`; pass `seasons=Tanking.nba_seasons_2004_2019` to `main_parse` or `BT_MLE` to use only the seasons in the original paper. The file `data/winpct.csv` contains the win percentage of the team in each final position (rows) for every season (columns).
 
-To (re)download seasons and regenerate `data/winpct.csv` (a season is named by the year in which it ends):
+The files for 2021-22 through 2025-26 (and the corresponding columns of `data/winpct.csv`) are created by the script below; until they exist, `main_parse` and `BT_MLE` with the default seasons stop with an error naming the missing file. To (re)download seasons and regenerate `data/winpct.csv` (a season is named by the year in which it ends):
 
 		python3 scripts/fetch_bbref_games.py 2022 2023 2024 2025 2026
 
