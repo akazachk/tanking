@@ -23,13 +23,22 @@ The code can be run with the following commands:
 		Tanking.main_parse(do_plotting=false, mode=Tanking.STRICT)
 		Tanking.rankings_are_noisy(do_simulation=true, num_replications=100000, do_plotting=false, mode=Tanking.STRICT)
 				
-All of the experiments (model validation, simulation, parsing NBA data, noisiness of rankings) can also be rerun with a single script, from the main project directory:
+### Recreating all experiments and plots
+`scripts/run_all.sh` reruns everything (model validation, the simulation, NBA data, noisy rankings, and the sensitivity run below), with plots, from the main project directory:
+
+		test/test_all.sh                              # quick test first (20 replications, all seasons, needs Gurobi)
+		scripts/run_all.sh -o results/final -j 16     # full run: 100K replications, all seasons, 16 parallel jobs
+
+`test/test_all.sh` runs `scripts/run_all.sh` with few replications (including splitting the simulation over parallel jobs and aggregating it) and then checks every output with `test/check_results.jl` (file sizes, finite values, min <= avg <= max, that MIPs were solved when Gurobi is needed, that the requested NBA seasons were used, and the sensitivity checks); it ends with `PASSED` or `FAILED`. Both scripts take the same options (run with `-h`), e.g., `-s 2004-2019` for the 14 seasons of the original paper, `-g auto` to choose gamma by the minimax rule from model validation, `-m 0` to run without Gurobi, `-N` for no plots. Plots need LaTeX (with `dvipng`). Logs of every step go to `<results dir>/logs`, and the settings to `<results dir>/settings.txt`.
+
+Model validation and the noisy-rankings experiment are single processes; with 100K replications they take much longer than the (parallelized) simulation, so time them with the test run first (e.g., with `-n 100`), and lower `-n` for them by running them separately with `-e validate,noisy` if needed.
+
+The individual experiments can also be run with `scripts/run_experiments.jl`:
 
 		julia --project=. scripts/run_experiments.jl --results-dir=results/rerun
-		julia --project=. scripts/run_experiments.jl --replications=100 --results-dir=results/tmp   # quick test
 		julia --project=. scripts/run_experiments.jl --math-elim-mode=0 --results-dir=results/rerun   # without Gurobi
 
-Run `head -35 scripts/run_experiments.jl` to see all options (e.g., `--gamma=auto` to use the value of gamma that best fits the NBA data, or `--steps` / `--aggregate` to split the simulation across jobs).
+Run `head -40 scripts/run_experiments.jl` to see all options (e.g., `--seasons`, `--gamma=auto`, or `--steps` / `--aggregate` to split the simulation across jobs).
 
 ### Sensitivity to tanking after the breakpoint
 By default, a selfish team tanks in every game after it is eliminated, including games after the breakpoint, so that one simulated season serves all breakpoints. `scripts/run_sensitivity.jl` measures the effect of this on the Kendall tau results: on seasons that are identical up to the breakpoint (common random numbers), it compares the default behavior with one in which no team tanks after the breakpoint (`simulate(...; stop_tanking_after_breakpoint=true, seed_per_replication=seed)`), using effective elimination (`math_elim_mode = 0`, which makes the same tanking decisions as the default `-2`, without Gurobi):

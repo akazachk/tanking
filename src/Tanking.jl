@@ -189,11 +189,8 @@ function set_mode(mode=MODE, extra=nothing)
 end # set_mode
 
 ## For plotting
+# Plot labels use LaTeX (e.g., \mbox), so plotting requires a LaTeX installation (latex, and dvipng for png output)
 DO_PLOTTING=true
-environment = read(`uname`, String)
-if chomp(environment) != "Darwin"
-	DO_PLOTTING=false
-end
 USE_PYPLOT=true
 if !USE_PYPLOT
   using Plots
@@ -203,7 +200,11 @@ else
   using PyPlot
 end
 
-function setup_plotting()
+function setup_plotting(results_dir=nothing)
+  if !isnothing(results_dir)
+    mkpath(results_dir*"/"*ext_folder, mode=0o700)
+    mkpath(results_dir*"/"*lowext_folder, mode=0o700)
+  end
   TITLE_FONTSIZE=10
   AXIS_TITLE_FONTSIZE=10
   TICK_LABEL_FONTSIZE=8
@@ -213,6 +214,9 @@ function setup_plotting()
   upscale = 1 # upscaling in resolution
   if !DO_PLOTTING
     return
+  end
+  if isnothing(Sys.which("latex"))
+    error("Plotting uses LaTeX for the labels, but `latex` was not found; install LaTeX (with dvipng), or use do_plotting=false")
   end
   if !USE_PYPLOT
     #ext = ".svg"
@@ -232,7 +236,11 @@ function setup_plotting()
     #default(titlefont=fntlg, guidefont=fntlg, tickfont=fntsm, legendfont=fntsm)
   else
     #pygui(:qt5) # others do not work on mac
-    pygui(:default)
+    try
+      pygui(:default)
+    catch
+      # No GUI available (e.g., on a cluster); figures are only saved to files
+    end
     #PyCall.PyDict(matplotlib["rcParams"])["font.serif"] = ["Cambria"]
     rc("text", usetex=true)
     rc("font", family="serif")
@@ -522,7 +530,7 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
   num_eliminated = (math_elim_mode > 0) ? math_eliminated : eff_eliminated
 
 	if (do_plotting)
-    setup_plotting()
+    setup_plotting(results_dir)
 
     ## Make directories
     mkpath(results_dir*"/"*ext_folder, mode=0o700)
@@ -962,14 +970,14 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir=DATA_DIR, results_dir
 	avg_eliminated = sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1)
 
 	if (do_plotting)
-    setup_plotting()
+    setup_plotting(results_dir)
 		ind = [3,5,6] # needs to be ascending
 		@assert ( length(breakpoint_list) in ind )
 		#labels = [L"2013-2014", L"2014-2015", L"2015-2016", L"2016-2017", L"2017-2018"]
 		#col_labels = ["red", "orange", "green", "blue", "violet"]
     #labels = [L"2004-05", L"2005-06", L"2006-07", L"2007-08", L"2008-09", L"2009-10", L"2010-11", L"2012-13", L"2013-14", L"2014-15", L"2015-16", L"2016-17", L"2017-18", L"2018-19"]
     col_labels = []
-    labels = [latexstring(nba_season_label(season)) for season in seasons]
+    labels = [latexstring("\\mbox{", season[1:2], "--", season[3:4], "}") for season in seasons] # e.g., 04--05 (en dash)
     @assert ( length(labels) == num_years )
     @assert ( (length(col_labels) == 0) || (length(col_labels) == num_years) )
 
@@ -988,6 +996,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir=DATA_DIR, results_dir
 		miny = 0 #Int(floor(findmin(num_games_tanked)[1]))
 		incy = 50 #(maxy - miny) / 5
 		maxy = incy * Int(ceil(findmax(num_games_tanked)[1] / incy))
+		maxy_axis = incy * Int(ceil(1.25 * findmax(num_games_tanked)[1] / incy)) # leave room for the legend
 		titlestring = L"\mbox{Number of games that could be tanked}"
 		xlabelstring = L"\mbox{Season}"
 		ylabelstring = L"\mbox{Number of possibly tanked games}"
@@ -1005,7 +1014,8 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir=DATA_DIR, results_dir
 			xlabel(xlabelstring)
 			ylabel(ylabelstring)
 			#xticks(1:num_years,["\$13-14\$","\$14-15\$","\$15-16\$","\$16-17\$","\$17-18\$"]) 
-			xticks(1:num_years,labels)
+			xticks(1:num_years, labels, rotation=(num_years > 14 ? 45 : 0))
+			ylim(miny, maxy_axis)
 			yticks(miny:incy:maxy)
 			width = 0.75
 			cumsum = zeros(Int, num_years, 1)
@@ -1025,7 +1035,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir=DATA_DIR, results_dir
 				cumsum += num_games_tanked_stacked[:,i]
 			end
 			#legend(loc="best", title=legendtitlestring)
-			legend(bbox_to_anchor=[1,.9],loc="upper right", title=legendtitlestring)
+			legend(loc="upper center", ncol=length(ind), title=legendtitlestring)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
 			close(fig)
@@ -1247,7 +1257,7 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 	end # if do_simulation
 
 	if do_plotting
-    setup_plotting()
+    setup_plotting(results_dir)
 
 		## Plot noisy ranking
 		minx = 0.5
@@ -1422,6 +1432,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
 
   ## Plot simulated vs real average win pct, with error bars
   if do_plotting
+    setup_plotting(results_dir)
     print("Plotting win_pct\n")
     minx = 1
     incx = 5

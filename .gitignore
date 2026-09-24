@@ -6,3 +6,5 @@
 *.pdf
 *.svg
 *.eps
+results/test_run/
+results/tmp/
