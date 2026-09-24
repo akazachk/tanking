@@ -7,12 +7,14 @@
 #include("utility.jl")
 #include("mathelim.jl")
 
+import Random
 import Random.randperm
 
 #import Gurobi
 #const GRB_ENV = Gurobi.Env()
 
 DEBUG = false
+CHECK_BEST_SOLUTIONS = false # if true, check consistency of the stored best schedules for math elim (slow)
 
 """
 simulate: Simulates a season
@@ -63,6 +65,15 @@ Parameters
   * env: Gurobi environment
   * ONLY_RETURN_WIN_PCT: do not calculate all of the return values, only avg_win_pct
 
+Keyword arguments (the defaults keep the original behavior)
+---
+  * stop_tanking_after_breakpoint: if true, no team tanks in games after the breakpoint
+      (requires a single breakpoint); by default, a selfish team tanks in every game after it is eliminated,
+      so that one simulated season can be used for all breakpoints
+  * seed_per_replication: if an integer, call Random.seed!(seed_per_replication + rep) at the start of
+      replication rep (common random numbers: runs with the same seed have identical seasons up to the breakpoint)
+  * verbose: if false, do not print progress
+
 Returns
 ---
   * kend
@@ -83,7 +94,8 @@ Returns
   * avg_diff_rank_moral
   * num_missing_case
 """
-function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode=-2, selected_steps=nothing, env=nothing, ONLY_RETURN_WIN_PCT=false)
+function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode=-2, selected_steps=nothing, env=nothing, ONLY_RETURN_WIN_PCT=false;
+    stop_tanking_after_breakpoint=false, seed_per_replication=nothing, verbose=true)
 
   ## Set constants
   step_size                       = 1 / num_steps
@@ -99,6 +111,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   max_games_remaining             = (4/5) * num_team_games # a minimum number of games needs to be played before tanking might happen
 
   breakpoint_game_for_draft = [round(breakpoint_list[i] * num_games_total) for i in 1:length(breakpoint_list)]
+  if stop_tanking_after_breakpoint
+    @assert(length(breakpoint_list) == 1, "stop_tanking_after_breakpoint requires a single breakpoint")
+  end
+  last_tanking_game = stop_tanking_after_breakpoint ? breakpoint_game_for_draft[1] : num_games_total
 
   ## Prepare output
   # For each stat, keep: 1. avg, 2. stddev, 3. min, 4. max
@@ -198,9 +214,14 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
   for step_ind in selected_steps
     tank_perc = array_of_tanking_probabilities[step_ind]
     num_repl_for_avg = 0
-    print("Simulating season with $tank_perc ratio of teams tanking\n")
+    if verbose
+      print("Simulating season with $tank_perc ratio of teams tanking\n")
+    end
     for rep = 1:num_replications
       #print("\tReplication $rep/$num_replications, ratio $tank_perc\n")
+      if !isnothing(seed_per_replication)
+        Random.seed!(seed_per_replication + rep)
+      end
       
       ## Prepare to decide strategic teams
       num_tanking = 0
@@ -346,12 +367,17 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           end # loop over breakpoint games
         end # ensure math_elim_mode != 0
 
-        # Decide who wins the game
-        team_i_wins = teamWillWin(i, j, stats, gamma, true_strength, mode, elim_ind, will_tank_ind)
+        # Decide who wins the game (no team tanks after last_tanking_game)
+        tanking_allowed = (game_ind <= last_tanking_game)
+        if tanking_allowed
+          team_i_wins = teamWillWin(i, j, stats, gamma, true_strength, mode, elim_ind, will_tank_ind)
+        else
+          team_i_wins = teamWillWinNoTanking(i, j, gamma, true_strength, mode)
+        end
 
         # Check if any teams tanked this game
-        team_i_is_tanking = teamIsTanking(i, stats, elim_ind, will_tank_ind)
-        team_j_is_tanking = teamIsTanking(j, stats, elim_ind, will_tank_ind)
+        team_i_is_tanking = tanking_allowed && teamIsTanking(i, stats, elim_ind, will_tank_ind)
+        team_j_is_tanking = tanking_allowed && teamIsTanking(j, stats, elim_ind, will_tank_ind)
         if team_i_is_tanking || team_j_is_tanking
           num_games_tanked += 1
         end
@@ -386,6 +412,9 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         if math_elim_mode != 0
           # Update mathematical elimination
           updateHeuristicBestRank!(outcome[game_ind], game_ind, schedule, h2h, best_outcomes, best_h2h, best_num_wins, best_rank)
+          if CHECK_BEST_SOLUTIONS
+            checkBestSolutions(game_ind, schedule, outcome, best_outcomes, best_h2h, best_num_wins, best_rank)
+          end
           fixOutcome!(model, outcome[game_ind], game_ind, schedule, abs(math_elim_mode))
             ### START DEBUG
             if DEBUG
@@ -442,6 +471,9 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
                 num_teams, num_playoff_teams, num_team_games, num_games_total,
                 abs(math_elim_mode), wins_ind, games_left_ind)
             num_mips += mips_used
+            if CHECK_BEST_SOLUTIONS
+              checkBestSolutions(game_ind, schedule, outcome, best_outcomes, best_h2h, best_num_wins, best_rank)
+            end
             if is_math_elim[k]
               num_math_elim += 1
               math_elim_game[k] = num_team_games - stats[k,games_left_ind] # number of games played at elimination

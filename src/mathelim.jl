@@ -521,11 +521,11 @@ Return the following MIP model
     n^*: number of teams in playoffs
  
   Variables:
-    W: number of wins by last team that makes the playoffs
+    W: number of wins by last team that makes the playoffs (the n^*-th largest win total)
     w_i: number of wins by team i
     math_elim_mode == 4: x_{it}: binary; whether team i wins game t
     math_elim_mode == 5: x_{ij}: general integer; number of wins team i has over team j
-    alpha_i: binary; 0 if W >= num wins of team i (i.e., will = 1 for first n^* teams)
+    alpha_i: binary; 0 if W >= num wins of team i (i.e., alpha = 1 for the first n^* - 1 teams, which are exempt from the bound)
  
   Objective:
     min W
@@ -535,7 +535,7 @@ Return the following MIP model
     math_elim_mode == 5: x_{ij} + x_{ji} = g_{ij}       (for all i,j)
     w_i = \\sum x_{i,:}
     W \\ge \\sum x_{i,:} - M \\alpha_i                     (for all i)
-    \\sum_i \\alpha_i = n^*                               (for all i)
+    \\sum_i \\alpha_i = n^* - 1                           (so that W is the n^*-th, not the (n^*+1)-st, largest win total)
  
   Binaries:
     math_elim_mode == 4: x \\in \\{0,1\\}
@@ -574,7 +574,7 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
   @variable(model, alpha[1:num_teams], lower_bound = 0, upper_bound = 1,
       integer=true) # alpha_i = indicator that team i has better rank than n^*
-  con = @constraint(model, alpha_bd, sum(alpha) == num_playoff_teams)
+  con = @constraint(model, alpha_bd, sum(alpha) == num_playoff_teams - 1) # exempt n^* - 1 teams, so W is the n^*-th largest win total
 
   if math_elim_mode == 4
     # x_{it} = indicator that team i wins game t
@@ -942,6 +942,40 @@ function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_team
 end # updateUsingMIPSolution
 
 """
+    checkBestSolutions
+
+Debugging check that, for each team i with a stored best schedule (best_rank[i] > 0), the schedule is consistent:
+every game is won by one of its two teams, games 1 to t have their actual outcomes,
+and best_num_wins, best_h2h, and best_rank match the schedule
+"""
+function checkBestSolutions(t, schedule, outcome, best_outcomes, best_h2h, best_num_wins, best_rank)
+  num_games_total = size(schedule, 1)
+  num_teams = length(best_rank)
+  for i = 1:num_teams
+    if best_rank[i] <= 0
+      continue
+    end
+    wins = zeros(Int, num_teams)
+    h2h = zeros(Int, num_teams, num_teams)
+    for g = 1:num_games_total
+      a, b = schedule[g,1], schedule[g,2]
+      w = best_outcomes[i,g]
+      @assert(w == a || w == b, "team $i, game $g (after game $t): winner $w is not playing ($a vs $b)")
+      if g <= t
+        @assert(w == outcome[g], "team $i, game $g (after game $t): stored winner $w but actual winner $(outcome[g])")
+      end
+      l = (w == a) ? b : a
+      wins[w] += 1
+      h2h[w,l] += 1
+    end
+    @assert(wins == best_num_wins[i,:], "team $i (after game $t): best_num_wins does not match best_outcomes")
+    @assert(h2h == best_h2h[i,:,:], "team $i (after game $t): best_h2h does not match best_outcomes")
+    rank_i = count(x -> x > wins[i], wins) + 1
+    @assert(rank_i == best_rank[i], "team $i (after game $t): best_rank $(best_rank[i]) but rank in schedule is $rank_i")
+  end
+end # checkBestSolutions
+
+"""
 updateOtherUsingBestSolution!: Check whether other teams best schedule can be updated
 
 Updates
@@ -952,11 +986,9 @@ Updates
 """
 function updateOthersUsingBestSolution!(k, t, schedule, num_playoff_teams,
     best_outcomes, best_h2h, best_num_wins, best_rank)
-  num_games_total = length(schedule)
   num_teams = length(best_rank)
 
   num_wins = best_num_wins[k,:]
-  W =  num_wins[num_playoff_teams]
   sorted_teams = sortperm(num_wins, rev=true)
   rank_of_team = Array{Int}(undef, num_teams)
   rank_of_team[sorted_teams[1]] = 1

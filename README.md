@@ -31,6 +31,13 @@ All of the experiments (model validation, simulation, parsing NBA data, noisines
 
 Run `head -35 scripts/run_experiments.jl` to see all options (e.g., `--gamma=auto` to use the value of gamma that best fits the NBA data, or `--steps` / `--aggregate` to split the simulation across jobs).
 
+### Sensitivity to tanking after the breakpoint
+By default, a selfish team tanks in every game after it is eliminated, including games after the breakpoint, so that one simulated season serves all breakpoints. `scripts/run_sensitivity.jl` measures the effect of this on the Kendall tau results: on seasons that are identical up to the breakpoint (common random numbers), it compares the default behavior with one in which no team tanks after the breakpoint (`simulate(...; stop_tanking_after_breakpoint=true, seed_per_replication=seed)`), using effective elimination (`math_elim_mode = 0`, which makes the same tanking decisions as the default `-2`, without Gurobi):
+
+		julia --project=. -t 4 scripts/run_sensitivity.jl 10000 results/sens_test "[1,9,16,24,31]"
+
+Step `s` corresponds to `s-1` selfish teams (default: all 31 steps). The script prints two checks that must be exactly 0 (games tanked up to each breakpoint, and the Kendall tau at the end of the season, are the same in both behaviors), and writes `kend_keep.csv`, `kend_stop.csv`, `kend_diff.csv` (stop minus keep), standard errors `se_*.csv` (for the difference, computed from the paired differences), `games_tanked_*.csv`, and `breakpoints.csv`. Because each replication is seeded separately, the baseline does not reproduce the published numbers exactly, only statistically.
+
 ### NBA data
 The directory [`data`](data) contains the results of every regular-season game (from [basketball-reference.com](https://www.basketball-reference.com)) in `data/gamesYYZZ.csv` for the seasons 2004-05 through 2025-26, except 2011-12 (lockout) and 2019-20 and 2020-21 (COVID-19), in which teams did not play 82 games. The list of seasons that is used is `Tanking.nba_seasons`; pass `seasons=Tanking.nba_seasons_2004_2019` to `main_parse` or `BT_MLE` to use only the seasons in the original paper. The file `data/winpct.csv` contains the win percentage of the team in each final position (rows) for every season (columns).
 
