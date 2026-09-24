@@ -146,6 +146,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
     eff_eliminated_out[:,:,min_stat]  = BIG_NUMBER * ones(num_steps+1, num_games_total)
     num_mips_out[:,min_stat]          = BIG_NUMBER * ones(num_steps+1)
     num_unelim_out[:,min_stat]        = BIG_NUMBER * ones(num_steps+1)
+    num_missing_case_out[:,min_stat]  = BIG_NUMBER * ones(num_steps+1)
     avg_rank_strat_out[:,min_stat]    = BIG_NUMBER * ones(num_steps+1)
     avg_rank_moral_out[:,min_stat]    = BIG_NUMBER * ones(num_steps+1)
     avg_elim_rank_strat_out[:,min_stat] = BIG_NUMBER * ones(num_steps+1)
@@ -301,7 +302,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
         # (4) team j was ranked worse than team i at the breakpoint game delta
         # (5) team j is a contender (has neither been eliminated nor is guaranteed to make the playoffs)
         # (6) some remaining contender was ranked better than team i at the breakpoint game delta
-        if math_elim_mode != 0
+        if math_elim_mode != 0 && !ONLY_RETURN_WIN_PCT # draft ranks are not computed when only returning win pct
           for r = 1:length(breakpoint_game_for_draft)
             delta = breakpoint_game_for_draft[r]
             # Check condition (1)
@@ -449,8 +450,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
           end # check that team is not yet math elim (and that we should check math elim)
           if !is_eff_elim[k]
             is_eff_elim[k] = teamIsEffectivelyEliminated(stats[k,wins_ind], stats[k,games_left_ind], num_team_games, cutoff_avg, max_games_remaining)
-            num_eff_elim += is_eff_elim[k]
-            eff_elim_game[k] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
+            if is_eff_elim[k]
+              num_eff_elim += 1
+              eff_elim_game[k] = num_team_games - stats[k,games_left_ind] # number of games played at elimination
+            end
           end
 
           # If current team is eliminated, and it has not been recorded before, do so
@@ -639,6 +642,7 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       for i in 1:num_teams
         win_pct_out[step_ind, i, stddev_stat] -= win_pct_out[step_ind, i, avg_stat]^2
       end
+      win_pct_out[step_ind, :, stddev_stat] .= varianceToStdDev.(win_pct_out[step_ind, :, stddev_stat])
       continue
     end
 
@@ -664,8 +668,10 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
       kend_out[step_ind, r, stddev_stat]            -= kend_out[step_ind, r, avg_stat]^2
       games_tanked_out[step_ind, r, stddev_stat]    -= games_tanked_out[step_ind, r, avg_stat]^2
       already_tank_out[step_ind, r, stddev_stat]    -= already_tank_out[step_ind, r, avg_stat]^2
-      math_eliminated_out[step_ind, r, stddev_stat] -= math_eliminated_out[step_ind, r, avg_stat]^2
-      eff_eliminated_out[step_ind, r, stddev_stat]  -= eff_eliminated_out[step_ind, r, avg_stat]^2
+    end
+    for g = 1:num_games_total # math_eliminated_out and eff_eliminated_out are indexed by game
+      math_eliminated_out[step_ind, g, stddev_stat] -= math_eliminated_out[step_ind, g, avg_stat]^2
+      eff_eliminated_out[step_ind, g, stddev_stat]  -= eff_eliminated_out[step_ind, g, avg_stat]^2
     end
 
     for r = 1:length(nba_odds_list)
@@ -693,6 +699,20 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
 
     if (tank_perc == 0.0)
       kend_gold_out[stddev_stat] -= kend_gold_out[avg_stat]^2
+      kend_gold_out[stddev_stat] = varianceToStdDev(kend_gold_out[stddev_stat])
+    end
+
+    ## So far we have computed the variance; take the square root to get the standard deviation
+    for A in (kend_out, kend_nba_out, games_tanked_out, already_tank_out, math_eliminated_out, eff_eliminated_out)
+      A[step_ind, :, stddev_stat] .= varianceToStdDev.(A[step_ind, :, stddev_stat])
+    end
+    for A in (kend_lenten_out, num_mips_out, num_unelim_out, avg_rank_strat_out, avg_rank_moral_out,
+              avg_elim_rank_strat_out, avg_elim_rank_moral_out, avg_diff_rank_strat_out, avg_diff_rank_moral_out,
+              num_missing_case_out)
+      A[step_ind, stddev_stat] = varianceToStdDev(A[step_ind, stddev_stat])
+    end
+    if SHOULD_KEEP_H2H_OUT
+      h2h_out[step_ind, :, :, stddev_stat] .= varianceToStdDev.(h2h_out[step_ind, :, :, stddev_stat])
     end
   end # looping over tanking percentages
   ### DEBUG

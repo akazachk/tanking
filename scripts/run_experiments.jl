@@ -23,8 +23,9 @@
 #                           use --gamma=auto to use the value with the smallest model_validation loss
 #                           (with no tanking), which requires `validate` to be run first (in this call)
 #   --math-elim-mode=M      see README (default: -2)
-#   --steps=S               only simulate these steps (e.g., 1:10 or [1,5,30]); for splitting the
-#                           simulation across jobs, after which run with --aggregate
+#   --steps=S               only simulate step S (e.g., 5); to split the simulation across jobs, run
+#                           once for each step (1 to 31), then once with --aggregate (only single-step
+#                           runs can be aggregated)
 #   --aggregate             combine results of runs that used --steps (main_simulate with do_simulation=-1)
 #   --plot                  also create plots (needs PyPlot and LaTeX)
 #

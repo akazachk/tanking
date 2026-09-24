@@ -79,15 +79,15 @@ function heuristicBestRank(k::Int, t::Int, schedule, in_stats, in_outcome, in_h2
   W = stats[k, num_wins_ind]
 
   ## Find whether we can copy an existing schedule
-  for i = 1:num_teams
-    if i == k || best_rank[i] <= 0
+  for src = 1:num_teams
+    if src == k || best_rank[src] <= 0
       continue
     end
-    sorted_teams = sortperm(best_num_wins[i,:], rev=true)
-    W_i = best_num_wins[i,sorted_teams[num_playoff_teams]]
-    if W_i <= W
+    sorted_teams = sortperm(best_num_wins[src,:], rev=true)
+    W_src = best_num_wins[src,sorted_teams[num_playoff_teams]]
+    if W_src <= W
       # Found a schedule to use
-      # Set outcome of all remaining games in which k does not play based on best_outcomes[i,:]
+      # Set outcome of all remaining games in which k does not play based on best_outcomes[src,:]
       for game_ind = t:num_games_total
         # Skip the game if the outcome has already been decided
         if outcome[game_ind] > 0
@@ -99,9 +99,9 @@ function heuristicBestRank(k::Int, t::Int, schedule, in_stats, in_outcome, in_h2
         j = schedule[game_ind,2]
 
         # Assign win
-        outcome[game_ind] = best_outcomes[i,game_ind]
+        outcome[game_ind] = best_outcomes[src,game_ind]
         winner = outcome[game_ind]
-        loser = (winner == i) ? i : j
+        loser = (winner == i) ? j : i
 
         # Do updates
         stats[winner, num_wins_ind] += 1
@@ -233,7 +233,7 @@ function heuristicHelper!(k, t, schedule, stats, outcome, h2h,
     w_i = stats[i, num_wins_ind]
     g_i = stats[i, games_left_ind]
     W_i = w_i + g_i
-    w_j = stats[i, num_wins_ind]
+    w_j = stats[j, num_wins_ind]
     g_j = stats[j, games_left_ind]
     W_j = w_j + g_j
 
@@ -284,21 +284,22 @@ function updateHeuristicBestRank!(winner, t, schedule, h2h,
     ## Note the -1 because we assume that h2h has already been updated
     num_future_wins_by_winner = best_h2h[i,winner,loser] - (h2h[winner,loser] - 1)
     if num_future_wins_by_winner > 0
-      # Find the next game that winner was supposed to win
+      # Find the next game against loser that winner was supposed to win
       game_ind = t+1
       while game_ind <= num_games_total
-        if best_outcomes[i,game_ind] == winner
+        if best_outcomes[i,game_ind] == winner && (schedule[game_ind,1] == loser || schedule[game_ind,2] == loser)
           break
         end
         game_ind += 1
       end
 
       # Set winner as winner of current game, and loser as winner of game_ind
+      # (win totals and head-to-head records in the best schedule are unchanged)
       if game_ind <= num_games_total
         best_outcomes[i,t] = winner
         best_outcomes[i,game_ind] = loser
+        continue # continue iterating through the teams
       end
-      continue # continue iterating through the teams
     end
     
     ## For the remaining teams, the outcome does not match
@@ -825,7 +826,7 @@ function checkMIP(model, cutoff, math_elim_mode)
   elseif status in [MOI.OBJECTIVE_LIMIT, MOI.TIME_LIMIT]
     if status == MOI.TIME_LIMIT
       ## Save the hard LP
-      lp_file = MathOptInterface.LP.Model()
+      lp_file = MOI.FileFormats.LP.Model()
       MOI.copy_to(lp_file, backend(model))
       MOI.write_to_file(lp_file, "hard.lp")
     end
@@ -885,6 +886,14 @@ function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_team
 
       best_outcomes[k, game_ind] = winner
     end
+
+    # Keep best_h2h consistent with best_outcomes (h2h includes games up to t)
+    best_h2h[k,:,:] = h2h
+    for game_ind = t+1:num_games_total
+      winner = best_outcomes[k, game_ind]
+      loser = (winner == schedule[game_ind,1]) ? schedule[game_ind,2] : schedule[game_ind,1]
+      best_h2h[k,winner,loser] += 1
+    end
   elseif math_elim_mode in [3,5] # xij
     for i = 1:num_teams
       for j = 1:num_teams 
@@ -896,6 +905,17 @@ function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_team
         best_h2h[k,i,j] = Int(round(value.(xij)))
         best_h2h[k,j,i] = Int(round(value.(xji)))
       end
+    end
+
+    # Keep best_outcomes consistent with best_h2h: assign the remaining wins in each series to games
+    rem = best_h2h[k,:,:] - h2h
+    for game_ind = t+1:num_games_total
+      i = schedule[game_ind,1]
+      j = schedule[game_ind,2]
+      winner = (rem[i,j] > 0) ? i : j
+      loser = (winner == i) ? j : i
+      rem[winner,loser] -= 1
+      best_outcomes[k, game_ind] = winner
     end
   end
 
@@ -1063,7 +1083,7 @@ function thisTeamLosesRemainingGames!(k, t, schedule, stats, outcome, h2h,
       j = schedule[game_ind, 2]  
     end
       
-    outcome[game_ind] = k
+    outcome[game_ind] = j
     stats[j, num_wins_ind] += 1
     h2h[j,k] += 1
     for i in [k,j]
@@ -1104,7 +1124,7 @@ function losingHeuristicHelper!(k, t, schedule, stats, outcome, h2h,
     w_i = stats[i, num_wins_ind]
     g_i = stats[i, games_left_ind]
     W_i = w_i + g_i
-    w_j = stats[i, num_wins_ind]
+    w_j = stats[j, num_wins_ind]
     g_j = stats[j, games_left_ind]
     W_j = w_j + g_j
 

@@ -32,6 +32,14 @@ end # updateStats
 function updateMoment(m, x, y, n=1)
   return x += (y^m)/n
 end # updateMoment
+
+"""
+    varianceToStdDev
+
+Convert variance, computed as E[X^2] - E[X]^2 (which may be slightly negative due to roundoff), to standard deviation
+"""
+varianceToStdDev(v) = sqrt(max(zero(v), v))
+
 function updateMin(x, y, eps = 1e-7)
   if lessThanVal(y,x,eps)
     return y
@@ -131,8 +139,8 @@ function teamAdvances(i, ranks, num_playoff_teams_per_conf, conf=[])
   else
     mask = map(k->k==conf[i], conf)
     conf_ranks = ranks[mask]
-    conf_ranki = count(k->k<ranks[i], conf_ranks)
-    return conf_ranki <= num_playoff_teams_per_conf
+    num_better = count(k->k<ranks[i], conf_ranks) # number of teams in the conference ranked above team i
+    return num_better < num_playoff_teams_per_conf
   end
 end # teamAdvances
 

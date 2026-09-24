@@ -139,6 +139,9 @@ function set_mode(mode=MODE, extra=nothing)
   elseif isa(extra,String)
     extra = filter(x -> !isspace(x), extra) # remove spaces
     global ranking_type = string(ranking_type,extra)
+  elseif isa(extra,Integer)
+    # Same format as a one-element array, so that results can be aggregated using do_simulation = -1
+    global ranking_type = string(ranking_type,"[",extra,"]")
   elseif isa(extra,UnitRange)
     global ranking_type = string(ranking_type,extra)
   elseif isa(extra,Array) && length(extra) > 0
@@ -281,6 +284,7 @@ Simulate a season and plot output
 Parameters
 ---
   * `do_simulation`: when 0, read data from files in results_dir, when -1, assumes data is in disaggregated form
+      (i.e., from separate runs, each with a single step in `selected_steps`)
   * `num_replications`: how many times to simulate each data point
   * `do_plotting`: if false, only gather data, without plotting it
   * `mode`: which kind of true ranking is used;
@@ -358,9 +362,8 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
       avg_diff_rank_strat, avg_diff_rank_moral,
       num_missing_case = 
         simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, GRB_ENV, false)
-        if is_valid(GRB_ENV)
-          Gurobi.GRBfreeenv(GRB_ENV)
-        end
+        # NB: do not call Gurobi.GRBfreeenv(GRB_ENV) here; the environment is reused by later calls
+        # (freeing it by hand leaves GRB_ENV looking valid, and its finalizer would free it again)
 	else
     ## Resize things
     num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
@@ -406,21 +409,19 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
     elseif do_simulation == -1
       contents = readdir(results_dir)
       for file in contents
-        # Skip non-csv files
-        if !(file[end-3:end] == ".csv")
-          #print("File $file does not end with .csv. Continuing.\n")
+        # Only consider files of the form <name><ranking_type>[<step>].csv, where ranking_type matches the current mode
+        # (these are written by runs in which selected_steps is a single step)
+        m = match(r"^(.*)\[(\d+)\]\.csv$", file)
+        if isnothing(m) || !endswith(m.captures[1], ranking_type)
           continue
         end
+        step = parse(Int, m.captures[2])
 
-        # Identify file that is being read (if fail, skip)
-        step = 0
-        try
-          step = parse(Int, split(file, r"\[|\]")[2])
-        catch
-          #print("File $file cannot be parsed to identify step. Continuing.\n")
+        # The Gold ranking is only computed in the step without tanking
+        if startswith(file, "kend_gold") && step == 1
+          kend_gold = readdlm(string(results_dir,'/',file), ',')
           continue
         end
-        @assert(isa(step,Int))
 
         # Find which stat is being handled
         # Skip file if none found
@@ -1297,7 +1298,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     math_elim_mode = 0, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
   selected_steps = clean_selected_steps(selected_steps)
-  set_env(GRB_ENV)
+  set_env()
 
   ## Simulation parameters
   #mode_list = [BT_ESTIMATED BT_DISTR]; mode_list_name = ["BT.est", "BT.beta"]
@@ -1307,7 +1308,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
   #gamma_list = [0.7, 0.71, 0.715, 0.72, 0.75]
   #gamma_list = [0.7, 0.75]
-  gamma_list = [0.7 0.71 0.711 0.7115 0.712 0.7125 0.713 0.7135 0.71375 0.714 0.71425 0.7145 0.715 0.72 0.725 0.75]
+  gamma_list = [0.7, 0.71, 0.711, 0.7115, 0.712, 0.7125, 0.713, 0.7135, 0.71375, 0.714, 0.71425, 0.7145, 0.715, 0.72, 0.725, 0.75]
   num_modes = length(mode_list) + length(gamma_list)
 
   ## Stats we keep
@@ -1342,9 +1343,6 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     ## Save data
     if do_simulation
       win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, selected_steps, GRB_ENV, true)
-      if is_valid(GRB_ENV)
-        Gurobi.GRBfreeenv(GRB_ENV)
-      end
 
       println("win_pct = ", win_pct[:,:,avg_stat])
       win_pct_list[mode_ind, :, :, :] = win_pct
@@ -1426,7 +1424,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         for r = 1:length(gammas_to_plot)
           tmp = findfirst(isequal(gammas_to_plot[r]), gamma_list)
           if !isa(tmp, Nothing)
-            gammas_to_plot_ind[r] = tmp[2]
+            gammas_to_plot_ind[r] = length(mode_list) + tmp # index into win_pct_list
           end
         end
         num_modes_to_plot = length(mode_list) + length(gammas_to_plot)
@@ -1449,7 +1447,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
           if curr_ind <= 0
             continue
           end
-          curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[curr_ind])
+          curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[curr_ind - length(mode_list)])
           plot(1:num_teams, win_pct_list[curr_ind,tank_ind,:,avg_stat], label=curr_label, linestyle=curr_style, marker=curr_marker, markersize=curr_size)
         end
         curr_label = "NBA average"
@@ -1513,6 +1511,8 @@ function model_validation(;do_simulation = true, num_replications = 100000,
       end
     end
   end
+  # Rows of loss_list: one per mode in mode_list, then one per value in gamma_list
+  return loss_list, gamma_list
 end # model_validation
 
 """
