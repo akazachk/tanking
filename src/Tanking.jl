@@ -1325,7 +1325,9 @@ end # rankings_are_noisy
 function model_validation(;do_simulation = true, num_replications = 100000, 
     data_dir = DATA_DIR, results_dir = "./results", do_plotting = true,
     num_rounds = 3, num_steps = 2, gamma = 0.71425, 
-    math_elim_mode = 0, selected_steps = nothing, seasons = selected_nba_seasons)
+    math_elim_mode = 0, selected_steps = nothing, seasons = selected_nba_seasons,
+    gamma_list = [0.7, 0.71, 0.711, 0.7115, 0.712, 0.7125, 0.713, 0.7135, 0.71375, 0.714, 0.71425, 0.7145,
+                  0.715, 0.71525, 0.7155, 0.71575, 0.716, 0.7165, 0.717, 0.7175, 0.718, 0.72, 0.725, 0.75])
   Random.seed!(628) # for reproducibility
   selected_steps = clean_selected_steps(selected_steps)
   if abs(math_elim_mode) >= 2 && do_simulation
@@ -1340,7 +1342,9 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
   #gamma_list = [0.7, 0.71, 0.715, 0.72, 0.75]
   #gamma_list = [0.7, 0.75]
-  gamma_list = [0.7, 0.71, 0.711, 0.7115, 0.712, 0.7125, 0.713, 0.7135, 0.71375, 0.714, 0.71425, 0.7145, 0.715, 0.72, 0.725, 0.75]
+  # gamma_list (keyword argument): grid refined around the minimax values for the 2004-2019 seasons (about 0.714)
+  # and for all seasons through 2025-26 (about 0.7155)
+  @assert(issorted(gamma_list), "gamma_list must be sorted")
   num_modes = length(mode_list) + length(gamma_list)
 
   ## Stats we keep
@@ -1429,6 +1433,19 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   minimax_ind = argmin(vec(maximum(loss_list[length(mode_list)+1:end, :], dims=2)))
   minimax_gamma = gamma_list[minimax_ind]
   println("model_validation: minimax gamma = $minimax_gamma")
+  ## The minimax value lies where the largest loss switches from one number of selfish teams to another;
+  ## warn if the grid is too coarse around it, i.e., the next grid value on the side where the largest loss
+  ## is attained by a different number of selfish teams is more than 0.0005 away
+  gamma_losses = loss_list[length(mode_list)+1:end, :]
+  binding = argmax(gamma_losses[minimax_ind, :])
+  for nbr in (minimax_ind - 1, minimax_ind + 1)
+    if 1 <= nbr <= length(gamma_list) && argmax(gamma_losses[nbr, :]) != binding && abs(gamma_list[nbr] - minimax_gamma) > 0.0005 + 1e-9
+      @warn "The minimax gamma lies between $(min(gamma_list[nbr], minimax_gamma)) and $(max(gamma_list[nbr], minimax_gamma)); add values in this interval to gamma_list for a more precise choice"
+    end
+  end
+  if minimax_ind == 1 || minimax_ind == length(gamma_list)
+    @warn "The minimax gamma $minimax_gamma is at the end of gamma_list; extend gamma_list"
+  end
           
   ## Get avg nba data
   win_pct_nba_avg = sum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2)[:,1] / num_years
@@ -1465,8 +1482,8 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         tmp[1] += 1
         xticks(tmp)
         yticks(Array(miny:incy:maxy))
-        # Plot the minimax gamma, and the value used in the paper (0.71425) for reference if it differs
-        gammas_to_plot = unique([minimax_gamma, 0.71425])
+        # Plot the gamma chosen by the minimax rule
+        gammas_to_plot = [minimax_gamma]
         gammas_to_plot_ind = zeros(Int, length(gammas_to_plot))
         for r = 1:length(gammas_to_plot)
           tmp = findfirst(isequal(gammas_to_plot[r]), gamma_list)
@@ -1495,9 +1512,6 @@ function model_validation(;do_simulation = true, num_replications = 100000,
             continue
           end
           curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[curr_ind - length(mode_list)])
-          if r > length(mode_list) && length(gammas_to_plot) > 1
-            curr_label = string(curr_label, (gamma_list[curr_ind - length(mode_list)] == minimax_gamma) ? " (minimax)" : " (paper)")
-          end
           plot(1:num_teams, win_pct_list[curr_ind,tank_ind,:,avg_stat], label=curr_label, linestyle=curr_style, marker=curr_marker, markersize=curr_size)
         end
         curr_label = "NBA average"
@@ -1534,8 +1548,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
 			ylabel(ylabelstring)
 			#xticks(Array(minx:incx:maxx))
       gamma_list_name = [string(gamma_list[i]) for i = 1:length(gamma_list)]
-      xticks(1:num_modes, vcat(mode_list_name, gamma_list_name),rotation=-30)
+      xticks(1:num_modes, vcat(mode_list_name, gamma_list_name), rotation=90, fontsize=(num_modes > 17 ? 6 : 8))
 			yticks(Array(miny:incy:maxy))
+      # Mark the gamma chosen by the minimax rule
+      axvline(length(mode_list) + minimax_ind, color="gray", linestyle="dotted", linewidth=1,
+          label=latexstring("\\mbox{minimax } \\gamma=", minimax_gamma))
       for r = 1:num_steps+1
         curr_num = Int(num_teams * (r-1) / num_steps)
         curr_label = string("$curr_num selfish teams")

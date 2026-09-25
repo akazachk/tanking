@@ -139,6 +139,11 @@ function main(dir)
     for f in ["model_validation_strict.csv", "gamma.txt"]
       check(isfile(joinpath(dir, f)), "missing $(joinpath(dir, f))")
     end
+    if haskey(settings, "gamma (auto)") && isfile(joinpath(dir, "gamma.txt"))
+      g = strip(read(joinpath(dir, "gamma.txt"), String))
+      check(settings["gamma (auto)"] == g, "gamma used ($(settings["gamma (auto)"])) differs from gamma.txt ($g)")
+      println("  validate: gamma chosen by model validation = $g")
+    end
     log = joinpath(dir, "logs", "validate.log")
     if check(isfile(log), "missing $log")
       text = read(log, String)

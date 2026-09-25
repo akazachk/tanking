@@ -9,7 +9,8 @@
 #   -n N       replications for model validation, the simulation, and noisy rankings (default: 100000)
 #   -S N       replications for the sensitivity run (default: 10000)
 #   -s SEASONS NBA seasons for model validation, NBA parsing, and Bradley-Terry: all (default) or 2004-2019
-#   -g GAMMA   gamma for the simulation (default: 0.71425), or "auto" for the minimax choice from model validation
+#   -g GAMMA   gamma for the simulation and sensitivity run: "auto" (default), the value chosen by model validation
+#              (minimax rule; needs the validate experiment, or DIR/gamma.txt from an earlier run), or a number
 #   -m MODE    math_elim_mode for the simulation (default: -2, which needs Gurobi)
 #   -j JOBS    number of parallel jobs for the simulation (default: 1); with JOBS > 1, each of the
 #              31 steps is simulated in its own process and the results are then aggregated
@@ -37,7 +38,7 @@ OUTDIR="results/run_$(date +%Y-%m-%d)"
 REPS=100000
 SENS_REPS=10000
 SEASONS=all
-GAMMA=0.71425
+GAMMA=auto
 MODE=-2
 JOBS=1
 THREADS=4
@@ -106,6 +107,9 @@ if has validate; then
   [[ $GAMMA == auto ]] && GAMMA_OPT="--gamma=auto"
   run_step "$LOGDIR/validate.log" $RUN $GAMMA_OPT $PLOT validate
   log "validate: minimax gamma = $(cat "$OUTDIR/gamma.txt")"
+  if grep -q "Warning:" "$LOGDIR/validate.log"; then
+    grep -o "Warning: .*" "$LOGDIR/validate.log" | sed 's/^/    /'
+  fi
 fi
 if [[ $GAMMA == auto ]]; then
   [[ -f $OUTDIR/gamma.txt ]] || { echo "gamma=auto needs the validate experiment (or $OUTDIR/gamma.txt)"; exit 1; }

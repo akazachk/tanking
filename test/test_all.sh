@@ -5,7 +5,7 @@
 #
 #   test/test_all.sh [run_all.sh options]
 #
-# Defaults: all NBA seasons, math_elim_mode = -2 (needs Gurobi), 20 replications (50 for the
+# Defaults: all NBA seasons, gamma chosen by model validation, math_elim_mode = -2 (needs Gurobi), 20 replications (50 for the
 # sensitivity run), 4 parallel jobs (which also tests splitting the simulation and aggregating it),
 # plots on, results in results/test_run. Any option is passed on to scripts/run_all.sh and overrides
 # these defaults, e.g.,
