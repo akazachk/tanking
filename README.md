@@ -5,7 +5,7 @@
 This project contains the code for a simulator of an NBA season aimed at understanding tanking behavior.
 
 ### Requirements
-For general requirements, check the "compat" section under [`Project.toml`](Project.toml). The checked-in `Manifest.toml` is in the pre-1.7 format, so use Julia 1.6 (tested with 1.6.7). If `PyPlot` is available, the figures in the paper can be plotted using `do_plotting=true` in the commands below; the pinned `PyPlot` needs matplotlib < 3.9 (e.g., `pip install "matplotlib<3.9"` and set `PYTHON=python3` before instantiating).
+For general requirements, check the "compat" section under [`Project.toml`](Project.toml). The checked-in `Manifest.toml` pins package versions from 2021 that only work with **Julia 1.6** (tested with 1.6.7); later versions fail to precompile them (e.g., `Method overwriting is not permitted during Module precompilation` for OffsetArrays). With [juliaup](https://github.com/JuliaLang/juliaup): `juliaup add 1.6`, then use `julia +1.6` (for the scripts below, `JULIA="julia +1.6" scripts/run_all.sh ...`). The pinned Gurobi.jl (0.9) needs the Gurobi 9.0 or 9.1 library (`GUROBI_HOME` pointing to it when building). If `PyPlot` is available, the figures in the paper can be plotted using `do_plotting=true` in the commands below; the pinned `PyPlot` needs matplotlib < 3.9 (e.g., `pip install "matplotlib<3.9"` and set `PYTHON=python3` before instantiating).
 
 On a Mac, for plotting, one needs to install XQuartz.
 

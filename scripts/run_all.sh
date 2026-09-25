@@ -21,7 +21,8 @@
 #   -N         do not create plots (plots need PyPlot and LaTeX)
 #
 # Environment variables
-#   JULIA      julia command (default: julia); e.g., JULIA="julia --sysimage=build/JuliaTanking.so"
+#   JULIA      julia command (default: julia); must be Julia 1.6 (the pinned packages do not work with later
+#              versions), e.g., JULIA="julia +1.6" with juliaup, or JULIA="julia --sysimage=build/JuliaTanking.so"
 #   TANKING_GUROBI_THREADS  threads per Gurobi MIP (default: 1 when JOBS > 1, so parallel jobs do not
 #              oversubscribe the cores; otherwise Gurobi's default, all cores)
 #
@@ -40,6 +41,12 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 JULIA=${JULIA:-julia}
+JULIA_VERSION=$($JULIA --version 2>/dev/null | awk 'NR==1 {print $3}' || true)
+if [[ $JULIA_VERSION != 1.6.* ]]; then
+  echo "This project needs Julia 1.6 (found '${JULIA_VERSION:-no julia}' from '$JULIA')."
+  echo "With juliaup: juliaup add 1.6, then run with JULIA=\"julia +1.6\" $0 ..."
+  exit 1
+fi
 
 OUTDIR="results/$(date +%Y-%m-%d)"
 REPS=100000
@@ -113,6 +120,7 @@ run_step() {
 {
   echo "date: $(date)"
   echo "git commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  echo "julia: $JULIA_VERSION ($JULIA)"
   echo "replications: $REPS (sensitivity: $SENS_REPS)"
   echo "seasons: $SEASONS"
   echo "gamma: $GAMMA"
