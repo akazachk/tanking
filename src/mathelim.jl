@@ -24,7 +24,13 @@ const GUROBI_PKGID = Base.PkgId(Base.UUID("2e9cd046-0924-5485-92f1-d5272153d98b"
 gurobi_module() = Base.require(GUROBI_PKGID)
 function gurobi_optimizer(env = nothing)
   Gurobi = gurobi_module()
-  return is_valid(env) ? Base.invokelatest(Gurobi.Optimizer, env) : Base.invokelatest(Gurobi.Optimizer)
+  optimizer = is_valid(env) ? Base.invokelatest(Gurobi.Optimizer, env) : Base.invokelatest(Gurobi.Optimizer)
+  # Limit the number of threads Gurobi uses per MIP (e.g., 1 when running several simulations in parallel);
+  # by default, Gurobi uses as many threads as there are cores
+  if haskey(ENV, "TANKING_GUROBI_THREADS")
+    Base.invokelatest(MOI.set, optimizer, MOI.RawParameter("Threads"), parse(Int, ENV["TANKING_GUROBI_THREADS"]))
+  end
+  return optimizer
 end
 
 """

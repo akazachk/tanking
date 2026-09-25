@@ -5,7 +5,7 @@
 #   scripts/run_all.sh [options]
 #
 # Options
-#   -o DIR     results directory (default: results/run_<today>)
+#   -o DIR     results directory (default: results/<yyyy-mm-dd>, the date when the run starts)
 #   -n N       replications for model validation, the simulation, and noisy rankings (default: 100000)
 #   -S N       replications for the sensitivity run (default: 10000)
 #   -s SEASONS NBA seasons for model validation, NBA parsing, and Bradley-Terry: all (default) or 2004-2019
@@ -14,13 +14,19 @@
 #   -m MODE    math_elim_mode for the simulation (default: -2, which needs Gurobi)
 #   -j JOBS    number of parallel jobs for the simulation (default: 1); with JOBS > 1, each of the
 #              31 steps is simulated in its own process and the results are then aggregated
-#   -t THREADS threads for the sensitivity run (default: 4)
+#   -t THREADS threads for the sensitivity run (default: the number of jobs, or 4 if JOBS = 1)
 #   -e LIST    comma-separated experiments to run, from
 #              validate,simulate,parse,noisy,sensitivity,bt (default: validate,simulate,parse,noisy,sensitivity)
 #   -N         do not create plots (plots need PyPlot and LaTeX)
 #
 # Environment variables
 #   JULIA      julia command (default: julia); e.g., JULIA="julia --sysimage=build/JuliaTanking.so"
+#   TANKING_GUROBI_THREADS  threads per Gurobi MIP (default: 1 when JOBS > 1, so parallel jobs do not
+#              oversubscribe the cores; otherwise Gurobi's default, all cores)
+#
+# To use only some cores (e.g., the performance cores), run the script under taskset; all processes it
+# starts inherit the CPU affinity:
+#   taskset -c 0,2,4,6,8,10,12,14 scripts/run_all.sh -j 8
 #
 # Output: results in DIR (plots in DIR/pdf and DIR/png), sensitivity results in DIR/sensitivity,
 # logs of every step in DIR/logs, and a summary of the settings in DIR/settings.txt.
@@ -34,14 +40,14 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 JULIA=${JULIA:-julia}
 
-OUTDIR="results/run_$(date +%Y-%m-%d)"
+OUTDIR="results/$(date +%Y-%m-%d)"
 REPS=100000
 SENS_REPS=10000
 SEASONS=all
 GAMMA=auto
 MODE=-2
 JOBS=1
-THREADS=4
+THREADS=
 EXPERIMENTS=validate,simulate,parse,noisy,sensitivity
 PLOT=--plot
 
@@ -57,11 +63,15 @@ while getopts "o:n:S:s:g:m:j:t:e:Nh" opt; do
     t) THREADS=$OPTARG ;;
     e) EXPERIMENTS=$OPTARG ;;
     N) PLOT= ;;
-    h) sed -n '2,32p' "$0"; exit 0 ;;
-    *) sed -n '2,32p' "$0"; exit 1 ;;
+    h) sed -n '2,/^set -euo/p' "$0" | sed '$d'; exit 0 ;;
+    *) sed -n '2,/^set -euo/p' "$0" | sed '$d'; exit 1 ;;
   esac
 done
 
+[[ -n $THREADS ]] || THREADS=$(( JOBS > 1 ? JOBS : 4 ))
+if (( JOBS > 1 )) && [[ -z ${TANKING_GUROBI_THREADS:-} ]]; then
+  export TANKING_GUROBI_THREADS=1
+fi
 has() { [[ ",$EXPERIMENTS," == *",$1,"* ]]; }
 RUN="$JULIA --project=. scripts/run_experiments.jl --results-dir=$OUTDIR --replications=$REPS --seasons=$SEASONS"
 LOGDIR="$OUTDIR/logs"
@@ -94,7 +104,8 @@ run_step() {
   echo "seasons: $SEASONS"
   echo "gamma: $GAMMA"
   echo "math_elim_mode: $MODE"
-  echo "jobs: $JOBS, threads: $THREADS"
+  echo "jobs: $JOBS, threads: $THREADS, Gurobi threads per MIP: ${TANKING_GUROBI_THREADS:-default}"
+  echo "CPU affinity: $(taskset -pc $$ 2>/dev/null | sed 's/.*: //' || echo unknown)"
   echo "experiments: $EXPERIMENTS"
   echo "plots: ${PLOT:-no}"
 } > "$OUTDIR/settings.txt"
