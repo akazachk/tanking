@@ -1319,16 +1319,37 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 	end # if do_plotting
 end # rankings_are_noisy
 
+## Values of gamma compared in model_validation: grid refined around the minimax values
+## for the 2004-2019 seasons (about 0.714) and for all seasons through 2025-26 (about 0.7155)
+MODEL_VALIDATION_GAMMAS = [0.7, 0.71, 0.711, 0.7115, 0.712, 0.7125, 0.713, 0.7135, 0.71375, 0.714, 0.71425, 0.7145,
+    0.715, 0.71525, 0.7155, 0.71575, 0.716, 0.7165, 0.717, 0.7175, 0.718, 0.72, 0.725, 0.75]
+MODEL_VALIDATION_MODES = [BT_ESTIMATED] # compared in addition to STRICT mode with each gamma
+
+"""
+    num_validation_models(gamma_list = MODEL_VALIDATION_GAMMAS)
+
+Number of models compared in model_validation (the values of `only_model`): the modes in
+MODEL_VALIDATION_MODES (Bradley-Terry), then STRICT mode with each value in gamma_list
+"""
+num_validation_models(gamma_list = MODEL_VALIDATION_GAMMAS) = length(MODEL_VALIDATION_MODES) + length(gamma_list)
+
 """
     model_validation
+
+Compare the win percentage by final rank in simulated seasons (for 0, 15, and 30 selfish teams) with NBA data,
+for the Bradley-Terry model estimated from NBA data and for STRICT mode with each gamma in gamma_list,
+and choose gamma by the minimax rule. Returns (loss_list, gamma_list, minimax_gamma).
+
+To split the simulations over parallel jobs: call with `only_model = k` for k = 1, ..., num_validation_models()
+(each writes the win pct file for model k and returns nothing), then with `do_simulation = false`,
+which reads these files and computes the losses, the choice of gamma, and the plots.
+Each model uses its own random seed, so the results do not depend on how the work is split.
 """
 function model_validation(;do_simulation = true, num_replications = 100000, 
     data_dir = DATA_DIR, results_dir = "./results", do_plotting = true,
     num_rounds = 3, num_steps = 2, gamma = 0.71425, 
     math_elim_mode = 0, selected_steps = nothing, seasons = selected_nba_seasons,
-    gamma_list = [0.7, 0.71, 0.711, 0.7115, 0.712, 0.7125, 0.713, 0.7135, 0.71375, 0.714, 0.71425, 0.7145,
-                  0.715, 0.71525, 0.7155, 0.71575, 0.716, 0.7165, 0.717, 0.7175, 0.718, 0.72, 0.725, 0.75])
-  Random.seed!(628) # for reproducibility
+    gamma_list = MODEL_VALIDATION_GAMMAS, only_model = nothing)
   selected_steps = clean_selected_steps(selected_steps)
   if abs(math_elim_mode) >= 2 && do_simulation
     set_env() # Gurobi is only needed to solve MIPs for mathematical elimination
@@ -1336,7 +1357,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
 
   ## Simulation parameters
   #mode_list = [BT_ESTIMATED BT_DISTR]; mode_list_name = ["BT.est", "BT.beta"]
-  mode_list = [BT_ESTIMATED]; mode_list_name = ["BT"]
+  mode_list = MODEL_VALIDATION_MODES; mode_list_name = ["BT"]
   #mode_list = []; mode_list_name = []
   @assert(length(mode_list) == length(mode_list_name))
   #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
@@ -1371,7 +1392,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   num_years = size(win_pct_nba, 2)
   println("model_validation: comparing to NBA seasons ", win_pct_nba[1,:])
 
-  for mode_ind = 1:num_modes
+  if !isnothing(only_model)
+    @assert(do_simulation && 1 <= only_model <= num_modes, "only_model must be in 1:$num_modes and requires do_simulation")
+  end
+  for mode_ind in (isnothing(only_model) ? (1:num_modes) : [only_model])
+    Random.seed!(628 + mode_ind) # for reproducibility, independently of how the models are split over jobs
     curr_mode = mode_ind <= length(mode_list) ? mode_list[mode_ind] : STRICT
     curr_gamma = mode_ind <= length(mode_list) ? gamma : gamma_list[mode_ind - length(mode_list)]
     if curr_mode == STRICT
@@ -1423,6 +1448,10 @@ function model_validation(;do_simulation = true, num_replications = 100000,
       println("Step ", step_ind - 1, ": Loss from mode ", curr_mode, ": ", loss_list[mode_ind, step_ind])
     end # loop over steps
   end # iterate over modes in mode_list
+
+  if !isnothing(only_model)
+    return # the losses, choice of gamma, and plots are computed once all models have been simulated
+  end
 
   ## Save loss stats
   curr_name = "model_validation"

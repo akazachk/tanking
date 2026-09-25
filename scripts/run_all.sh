@@ -12,8 +12,9 @@
 #   -g GAMMA   gamma for the simulation and sensitivity run: "auto" (default), the value chosen by model validation
 #              (minimax rule; needs the validate experiment, or DIR/gamma.txt from an earlier run), or a number
 #   -m MODE    math_elim_mode for the simulation (default: -2, which needs Gurobi)
-#   -j JOBS    number of parallel jobs for the simulation (default: 1); with JOBS > 1, each of the
-#              31 steps is simulated in its own process and the results are then aggregated
+#   -j JOBS    number of parallel jobs (default: 1); with JOBS > 1, each model in model validation
+#              (Bradley-Terry and each gamma) and each of the 31 steps of the simulation is run in its
+#              own process, and the results are then combined
 #   -t THREADS threads for the sensitivity run (default: the number of jobs, or 4 if JOBS = 1)
 #   -e LIST    comma-separated experiments to run, from
 #              validate,simulate,parse,noisy,sensitivity,bt (default: validate,simulate,parse,noisy,sensitivity)
@@ -87,6 +88,18 @@ show_error() {
     tail -n 10 "$1" | sed 's/^/    /'
   fi
 }
+# run_parallel COUNT LOGPREFIX COMMAND: run COMMAND for {} = 1..COUNT in $JOBS parallel jobs, with output
+# to LOGPREFIX{}.log; on failure, show the error from a failed job's log and stop
+run_parallel() {
+  local count=$1 logprefix=$2 cmd=$3
+  if ! seq 1 "$count" | xargs -P "$JOBS" -I{} sh -c \
+      "$cmd > ${logprefix}{}.log 2>&1 || { echo 'job {} failed; see ${logprefix}{}.log'; exit 255; }"; then
+    failed=$(grep -l "ERROR" "${logprefix}"*.log | head -1)
+    log "FAILED; see ${failed:-the logs ${logprefix}*.log}:"
+    [[ -n $failed ]] && show_error "$failed"
+    exit 1
+  fi
+}
 # run_step LOGFILE COMMAND...: run COMMAND with output to LOGFILE; on failure, show the end of the log and stop
 run_step() {
   local logfile=$1; shift
@@ -113,10 +126,19 @@ log "Settings:"; sed 's/^/    /' "$OUTDIR/settings.txt"
 
 ## 1. Model validation (choice of gamma)
 if has validate; then
-  log "validate: model_validation -> $LOGDIR/validate.log"
   GAMMA_OPT=""
   [[ $GAMMA == auto ]] && GAMMA_OPT="--gamma=auto"
-  run_step "$LOGDIR/validate.log" $RUN $GAMMA_OPT $PLOT validate
+  if (( JOBS > 1 )); then
+    NUM_MODELS=$($JULIA --project=. -e 'using Tanking; print(Tanking.num_validation_models())' 2>/dev/null | tail -1)
+    [[ $NUM_MODELS =~ ^[0-9]+$ ]] || { log "FAILED to get the number of validation models (got: $NUM_MODELS)"; exit 1; }
+    log "validate: $NUM_MODELS models in $JOBS parallel jobs -> $LOGDIR/validate_model*.log"
+    run_parallel "$NUM_MODELS" "$LOGDIR/validate_model" "$RUN --model={} validate"
+    log "validate: combining models -> $LOGDIR/validate.log"
+    run_step "$LOGDIR/validate.log" $RUN $GAMMA_OPT --aggregate $PLOT validate
+  else
+    log "validate: model_validation -> $LOGDIR/validate.log"
+    run_step "$LOGDIR/validate.log" $RUN $GAMMA_OPT $PLOT validate
+  fi
   log "validate: minimax gamma = $(cat "$OUTDIR/gamma.txt")"
   if grep -q "Warning:" "$LOGDIR/validate.log"; then
     grep -o "Warning: .*" "$LOGDIR/validate.log" | sed 's/^/    /'
@@ -133,13 +155,7 @@ simulate_experiment() { # $1 = simulate or bt
   local exp=$1
   if (( JOBS > 1 )); then
     log "$exp: $NUM_STEPS steps in $JOBS parallel jobs -> $LOGDIR/${exp}_step*.log"
-    if ! seq 1 $NUM_STEPS | xargs -P "$JOBS" -I{} sh -c \
-      "$RUN --gamma=$GAMMA --math-elim-mode=$MODE --steps={} $exp > $LOGDIR/${exp}_step{}.log 2>&1 || { echo 'step {} failed; see $LOGDIR/${exp}_step{}.log'; exit 255; }"; then
-      failed=$(grep -l "ERROR" "$LOGDIR"/${exp}_step*.log | head -1)
-      log "FAILED; see ${failed:-the step logs in $LOGDIR}:"
-      [[ -n $failed ]] && show_error "$failed"
-      exit 1
-    fi
+    run_parallel "$NUM_STEPS" "$LOGDIR/${exp}_step" "$RUN --gamma=$GAMMA --math-elim-mode=$MODE --steps={} $exp"
     log "$exp: aggregating steps -> $LOGDIR/${exp}_aggregate.log"
     run_step "$LOGDIR/${exp}_aggregate.log" $RUN --gamma=$GAMMA --math-elim-mode=$MODE --aggregate $PLOT $exp
   else
