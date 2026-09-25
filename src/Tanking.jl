@@ -1332,6 +1332,28 @@ MODEL_VALIDATION_GAMMAS = [0.7, 0.71, 0.711, 0.7115, 0.712, 0.7125, 0.713, 0.713
 MODEL_VALIDATION_MODES = [BT_ESTIMATED] # compared in addition to STRICT mode with each gamma
 
 """
+    num_selfish_at_step(r, num_steps, num_teams)
+
+Number of selfish teams at step r (1, ..., num_steps+1) of a simulation with num_steps steps.
+It is exact when num_steps == num_teams; otherwise each team is selfish independently with probability
+(r-1)/num_steps (see `simulate`), so for intermediate steps it is the average number of selfish teams.
+"""
+num_selfish_at_step(r, num_steps, num_teams) = Int(round(num_teams * (r-1) / num_steps))
+
+"""
+    selfish_label(r, num_steps, num_teams)
+
+Label for step r, e.g., "0 selfish teams", "15 selfish teams (on average)", "30 selfish teams"
+"""
+function selfish_label(r, num_steps, num_teams)
+  label = string(num_selfish_at_step(r, num_steps, num_teams), " selfish teams")
+  if num_steps != num_teams && 1 < r < num_steps + 1
+    label = string(label, " (on average)")
+  end
+  return label
+end
+
+"""
     num_validation_models(gamma_list = MODEL_VALIDATION_GAMMAS)
 
 Number of models compared in model_validation (the values of `only_model`): the modes in
@@ -1505,11 +1527,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     fname_stub = "win_pct"
     if USE_PYPLOT
       for tank_ind in 1:num_steps+1 #[1,num_steps+1]
-        tank_name = string("_",tank_ind-1,"tank")
+        tank_name = string("_", num_selfish_at_step(tank_ind, num_steps, num_teams), "selfish") # e.g., _15selfish
         fname = string(results_dir,"/",ext_folder,"/",fname_stub,tank_name,ext)
         fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,tank_name,lowext)
         fig = figure(frameon=false)
-        title(titlestring)
+        title(latexstring("\\mbox{Win percentage by rank: ", selfish_label(tank_ind, num_steps, num_teams), "}"))
         xlabel(xlabelstring)
         ylabel(ylabelstring)
         #xticks(Array(minx:incx:maxx))
@@ -1589,8 +1611,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
       axvline(length(mode_list) + minimax_ind, color="gray", linestyle="dotted", linewidth=1,
           label=latexstring("\\mbox{minimax } \\gamma=", minimax_gamma))
       for r = 1:num_steps+1
-        curr_num = Int(num_teams * (r-1) / num_steps)
-        curr_label = string("$curr_num selfish teams")
+        curr_label = selfish_label(r, num_steps, num_teams)
         #plot(1:num_modes, loss_list[:,r], label=curr_label, color=col[r], linestyle=style[r], marker="", markersize=5)
         plot(1:num_modes, loss_list[:,r], label=curr_label, color=col[r], linestyle="none", marker=shape[r], markersize=shapesize[r])
       end

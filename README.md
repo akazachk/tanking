@@ -34,6 +34,8 @@ The code can be run with the following commands:
 
 `test/test_mip.jl` tests the mathematical-elimination MIPs without a Gurobi license, using the open-source solver HiGHS (`julia --project=test test/test_mip.jl`, from the main project directory; the `test` environment adds HiGHS): every elimination check is solved with both exact formulations (binary and general integer), which must agree, and the stored best schedules are checked for consistency.
 
+Model validation compares the simulated win percentage by rank with the NBA data for 0, 15 (on average: each team is selfish with probability 1/2), and 30 selfish teams (plots `win_pct_{0,15,30}selfish`, and the model-error plot `model_loss`). `settings.txt` in the results directory records the start and finish times, the duration, the git commit, and any uncommitted changes to the code.
+
 With `-j` > 1, model validation (one job per model) and the simulation (one job per step) run in parallel; the noisy-rankings experiment is a single process, so time it with a test run first (e.g., `-n 100`) and, if needed, run it separately with fewer replications (`-e noisy -n ...`).
 
 The individual experiments can also be run with `scripts/run_experiments.jl`:

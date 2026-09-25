@@ -154,7 +154,7 @@ function main(dir)
       end
     end
     if plots
-      for f in ["model_loss", "win_pct_0tank"]
+      for f in ["model_loss", "win_pct_0selfish", "win_pct_15selfish", "win_pct_30selfish"]
         check(isfile(joinpath(dir, "pdf", f * "_strict.pdf")), "missing plot pdf/$(f)_strict.pdf")
       end
     end

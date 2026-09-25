@@ -118,9 +118,13 @@ run_step() {
   fi
 }
 
+START_TIME=$(date +%s)
+# Uncommitted changes to tracked files (other than results) mean the commit alone does not identify the code
+GIT_CHANGES=$(git status --porcelain --untracked-files=no -- . ':!results' 2>/dev/null | awk '{print $2}' | tr '\n' ' ')
 {
   echo "date: $(date)"
   echo "git commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
+  echo "git uncommitted changes: ${GIT_CHANGES:-none}"
   echo "julia: $JULIA_VERSION ($JULIA)"
   echo "replications: $REPS (sensitivity: $SENS_REPS)"
   echo "seasons: $SEASONS"
@@ -132,6 +136,9 @@ run_step() {
   echo "plots: ${PLOT:-no}"
 } > "$OUTDIR/settings.txt"
 log "Settings:"; sed 's/^/    /' "$OUTDIR/settings.txt"
+if [[ -n $GIT_CHANGES ]]; then
+  log "WARNING: uncommitted changes in $GIT_CHANGES; the git commit above does not identify the code exactly"
+fi
 
 ## 1. Model validation (choice of gamma)
 if has validate; then
@@ -196,4 +203,10 @@ fi
 ## 6. Bradley-Terry model estimated from the NBA seasons
 if has bt; then simulate_experiment bt; fi
 
-log "Done. Results in $OUTDIR"
+ELAPSED=$(( $(date +%s) - START_TIME ))
+DURATION=$(printf '%dd %02dh %02dm %02ds' $((ELAPSED/86400)) $((ELAPSED%86400/3600)) $((ELAPSED%3600/60)) $((ELAPSED%60)))
+{
+  echo "finished: $(date)"
+  echo "duration: $DURATION"
+} >> "$OUTDIR/settings.txt"
+log "Done in $DURATION. Results in $OUTDIR"
