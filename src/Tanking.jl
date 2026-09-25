@@ -1423,6 +1423,12 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   ## Save loss stats
   curr_name = "model_validation"
   writedlm(string(results_dir, "/", curr_name, csvext), loss_list, ',')
+
+  ## Choose gamma by the minimax rule (as used to select 0.71425 in the paper):
+  ## smallest largest loss over the numbers of selfish teams (all steps)
+  minimax_ind = argmin(vec(maximum(loss_list[length(mode_list)+1:end, :], dims=2)))
+  minimax_gamma = gamma_list[minimax_ind]
+  println("model_validation: minimax gamma = $minimax_gamma")
           
   ## Get avg nba data
   win_pct_nba_avg = sum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2)[:,1] / num_years
@@ -1459,7 +1465,8 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         tmp[1] += 1
         xticks(tmp)
         yticks(Array(miny:incy:maxy))
-        gammas_to_plot = [0.71425]
+        # Plot the minimax gamma, and the value used in the paper (0.71425) for reference if it differs
+        gammas_to_plot = unique([minimax_gamma, 0.71425])
         gammas_to_plot_ind = zeros(Int, length(gammas_to_plot))
         for r = 1:length(gammas_to_plot)
           tmp = findfirst(isequal(gammas_to_plot[r]), gamma_list)
@@ -1488,6 +1495,9 @@ function model_validation(;do_simulation = true, num_replications = 100000,
             continue
           end
           curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[curr_ind - length(mode_list)])
+          if r > length(mode_list) && length(gammas_to_plot) > 1
+            curr_label = string(curr_label, (gamma_list[curr_ind - length(mode_list)] == minimax_gamma) ? " (minimax)" : " (paper)")
+          end
           plot(1:num_teams, win_pct_list[curr_ind,tank_ind,:,avg_stat], label=curr_label, linestyle=curr_style, marker=curr_marker, markersize=curr_size)
         end
         curr_label = "NBA average"
@@ -1552,7 +1562,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     end
   end
   # Rows of loss_list: one per mode in mode_list, then one per value in gamma_list
-  return loss_list, gamma_list
+  return loss_list, gamma_list, minimax_gamma
 end # model_validation
 
 """

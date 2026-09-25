@@ -123,14 +123,11 @@ function main(args)
 
   if "validate" in experiments
     println("\n## model_validation ##")
-    @time loss_list, gamma_list = Tanking.model_validation(do_simulation=true,
+    # best_gamma: chosen by the minimax rule (smallest largest loss over 0, 15, 30 selfish teams),
+    # as used to choose 0.71425 in the paper; it is also the value drawn in the win-pct plots
+    @time loss_list, gamma_list, best_gamma = Tanking.model_validation(do_simulation=true,
         num_replications=num_replications, results_dir=results_dir,
         do_plotting=do_plotting, selected_steps=nothing)
-    # Rows of loss_list: BT_ESTIMATED first, then one per gamma in gamma_list; column 1 is no tanking
-    num_bt_modes = size(loss_list, 1) - length(gamma_list)
-    # Minimax rule (as used to choose 0.71425 in the paper): smallest largest loss over the numbers of selfish teams
-    best_ind = argmin(vec(maximum(loss_list[num_bt_modes+1:end, :], dims=2)))
-    best_gamma = gamma_list[best_ind]
     println("Value of gamma with smallest maximum loss over 0, 15, 30 selfish teams: ", best_gamma)
     open(joinpath(results_dir, "gamma.txt"), "w") do io
       println(io, best_gamma)
