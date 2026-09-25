@@ -1,6 +1,6 @@
 #!/usr/bin/env julia
 #
-# Rerun the experiments of the paper, using the NBA seasons listed in
+# Rerun the experiments for "On Tanking and Competitive Balance" (Kazachkov and Vardi), using the NBA seasons listed in
 # `Tanking.nba_seasons` (2004-05 to 2025-26, except 2011-12, 2019-20, 2020-21).
 #
 # Usage (from the project root):
@@ -19,10 +19,9 @@
 # Options
 #   --results-dir=DIR       where results are written (default: results/<today's date>)
 #   --replications=N        number of replications (default: 100000)
-#   --gamma=G               probability the better team wins in STRICT mode (default: 0.71425);
-#                           use --gamma=auto to use the value whose largest model_validation loss (over 0, 15, 30
-#                           selfish teams) is smallest, i.e., the minimax rule used for 0.71425
-#                           (requires `validate` to be run first, in the same call)
+#   --gamma=G               probability the better team wins in STRICT mode; by default (or --gamma=auto),
+#                           the value chosen by validate (minimax rule) in this call, or else the value
+#                           saved in <results dir>/gamma.txt by an earlier validate run
 #   --math-elim-mode=M      see README (default: -2)
 #   --steps=S               only simulate step S (e.g., 5); to split the simulation across jobs, run
 #                           once for each step (1 to 31), then once with --aggregate (only single-step
@@ -33,8 +32,8 @@
 #   --aggregate             combine results of runs that used --steps (simulate, bt) or --model (validate)
 #   --plot                  also create plots (needs PyPlot and LaTeX)
 #   --seasons=S             NBA seasons used by validate, parse, and bt: "all" (default; 2004-05 to 2025-26,
-#                           except 2011-12, 2019-20, 2020-21) or "2004-2019" (the 14 seasons of the original
-#                           paper, 2004-05 to 2018-19); the simulations themselves do not use NBA data
+#                           except 2011-12, 2019-20, 2020-21) or "2004-2019" (the 14 seasons used in the 2020
+#                           experiments, 2004-05 to 2018-19); the simulations themselves do not use NBA data
 #
 # Examples
 #   julia --project=. scripts/run_experiments.jl --replications=100 --results-dir=results/tmp
@@ -74,7 +73,7 @@ const DEFAULT_EXPERIMENTS = ["validate", "simulate", "parse", "noisy"]
 function main(args)
   results_dir = joinpath("results", string(Dates.today()))
   num_replications = 100000
-  gamma_arg = "0.71425"
+  gamma_arg = nothing
   math_elim_mode = -2
   selected_steps = nothing
   aggregate = false
@@ -118,10 +117,20 @@ function main(args)
     experiments = DEFAULT_EXPERIMENTS
   end
   experiments = [e for e in ALL_EXPERIMENTS if e in experiments] # run in canonical order
-  if gamma_arg == "auto" && !("validate" in experiments)
-    error("--gamma=auto requires the validate experiment")
+  # gamma (needed by simulate): given with --gamma; otherwise (or with --gamma=auto) the value chosen by
+  # validate in this call, or else the value saved in results_dir/gamma.txt by an earlier validate run
+  gamma_file = joinpath(results_dir, "gamma.txt")
+  if gamma_arg == "auto" && !("validate" in experiments) && !isfile(gamma_file)
+    error("--gamma=auto requires the validate experiment or $gamma_file")
   end
-  gamma = gamma_arg == "auto" ? nothing : parse(Float64, gamma_arg)
+  gamma = (isnothing(gamma_arg) || gamma_arg == "auto") ? nothing : parse(Float64, gamma_arg)
+  if isnothing(gamma) && !("validate" in experiments) && isfile(gamma_file)
+    gamma = parse(Float64, strip(read(gamma_file, String)))
+    println("## Using gamma = $gamma from $gamma_file")
+  end
+  if isnothing(gamma) && !("validate" in experiments) && "simulate" in experiments
+    error("simulate needs gamma: pass --gamma=G, run validate first, or provide $gamma_file")
+  end
 
   mkpath(results_dir)
   println("## Running experiments ", experiments, " with results in ", results_dir)
@@ -134,7 +143,7 @@ function main(args)
   elseif "validate" in experiments
     println("\n## model_validation ##")
     # best_gamma: chosen by the minimax rule (smallest largest loss over 0, 15, 30 selfish teams),
-    # as used to choose 0.71425 in the paper; it is also the value drawn in the win-pct plots
+    # (the rule used to choose gamma in the 2020 experiments); it is also the value drawn in the win-pct plots
     # With --aggregate, the simulated win pct of each model is read from the files written by --model runs
     @time loss_list, gamma_list, best_gamma = Tanking.model_validation(do_simulation=!aggregate,
         num_replications=num_replications, results_dir=results_dir,

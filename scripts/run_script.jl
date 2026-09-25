@@ -1,5 +1,9 @@
 #!/usr/bin/env julia
 # Run with julia --project=@Tanking.jl
+#
+# LEGACY: the cluster script used for the 2020 experiments (gamma = 0.71425, chosen by model validation
+# on the 2004-05 to 2018-19 seasons). To rerun the experiments, use scripts/run_all.sh, which chooses gamma by
+# model validation on the current data.
 
 using Tanking
 

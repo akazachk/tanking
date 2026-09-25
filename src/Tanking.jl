@@ -39,7 +39,7 @@ selected_nba_seasons = nba_seasons
     set_seasons!(seasons)
 
 Set the NBA seasons used by default in main_parse, BT_MLE (and BT_ESTIMATED mode), and model_validation,
-e.g., `set_seasons!(nba_seasons_2004_2019)` for the seasons in the original paper (2004-05 to 2018-19)
+e.g., `set_seasons!(nba_seasons_2004_2019)` for the seasons used in the 2020 experiments (2004-05 to 2018-19)
 """
 function set_seasons!(seasons)
   global selected_nba_seasons = seasons
@@ -336,10 +336,13 @@ Parameters
 """
 function main_simulate(;do_simulation = 1, num_replications = 100000, 
     do_plotting = true, mode = MODE, results_dir = "./results", 
-    num_rounds = 3, num_steps = num_teams, gamma = 0.71425, 
+    num_rounds = 3, num_steps = num_teams, gamma = nothing, 
     math_elim_mode = -2, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
   selected_steps = clean_selected_steps(selected_steps)
+  if do_simulation == 1 && (mode == STRICT || mode == TIES) && isnothing(gamma)
+    error("main_simulate: pass gamma (e.g., the value chosen by model_validation, saved in gamma.txt by scripts/run_experiments.jl)")
+  end
 	set_mode(mode, selected_steps)
   if abs(math_elim_mode) >= 2 && do_simulation == 1
     set_env() # Gurobi is only needed to solve MIPs for mathematical elimination
@@ -1323,7 +1326,8 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 end # rankings_are_noisy
 
 ## Values of gamma compared in model_validation: grid refined around the minimax values
-## for the 2004-2019 seasons (about 0.714) and for all seasons through 2025-26 (about 0.7155)
+## for the 2004-05 to 2018-19 seasons (0.71425 in the 2020 experiments) and for all seasons through 2025-26
+## (about 0.7155, estimated from the saved 2020 simulations; TODO: update with the value from the rerun)
 MODEL_VALIDATION_GAMMAS = [0.7, 0.71, 0.711, 0.7115, 0.712, 0.7125, 0.713, 0.7135, 0.71375, 0.714, 0.71425, 0.7145,
     0.715, 0.71525, 0.7155, 0.71575, 0.716, 0.7165, 0.717, 0.7175, 0.718, 0.72, 0.725, 0.75]
 MODEL_VALIDATION_MODES = [BT_ESTIMATED] # compared in addition to STRICT mode with each gamma
@@ -1350,7 +1354,7 @@ Each model uses its own random seed, so the results do not depend on how the wor
 """
 function model_validation(;do_simulation = true, num_replications = 100000, 
     data_dir = DATA_DIR, results_dir = "./results", do_plotting = true,
-    num_rounds = 3, num_steps = 2, gamma = 0.71425, 
+    num_rounds = 3, num_steps = 2, gamma = nothing, # gamma is not used (the Bradley-Terry model has no gamma)
     math_elim_mode = 0, selected_steps = nothing, seasons = selected_nba_seasons,
     gamma_list = MODEL_VALIDATION_GAMMAS, only_model = nothing)
   selected_steps = clean_selected_steps(selected_steps)
@@ -1366,8 +1370,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
   #gamma_list = [0.7, 0.71, 0.715, 0.72, 0.75]
   #gamma_list = [0.7, 0.75]
-  # gamma_list (keyword argument): grid refined around the minimax values for the 2004-2019 seasons (about 0.714)
-  # and for all seasons through 2025-26 (about 0.7155)
+  # gamma_list (keyword argument): see MODEL_VALIDATION_GAMMAS
   @assert(issorted(gamma_list), "gamma_list must be sorted")
   num_modes = length(mode_list) + length(gamma_list)
 
@@ -1460,7 +1463,8 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   curr_name = "model_validation"
   writedlm(string(results_dir, "/", curr_name, csvext), loss_list, ',')
 
-  ## Choose gamma by the minimax rule (as used to select 0.71425 in the paper):
+  ## Choose gamma by the minimax rule (the rule used in the 2020 experiments, which selected 0.71425
+  ## for the 2004-05 to 2018-19 seasons):
   ## smallest largest loss over the numbers of selfish teams (all steps)
   minimax_ind = argmin(vec(maximum(loss_list[length(mode_list)+1:end, :], dims=2)))
   minimax_gamma = gamma_list[minimax_ind]
@@ -1620,7 +1624,7 @@ end # model_validation
 function closed_form_kendtau(;
     num_teams = 30,
     num_playoff_teams = 16,
-    gamma = 0.71425,
+    gamma,
     num_rounds = 3,
     mode = MODE)
   Random.seed!(628) # for reproducibility

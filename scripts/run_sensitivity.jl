@@ -14,7 +14,9 @@
 #   julia --project=. [-t <threads>] scripts/run_sensitivity.jl <num_replications> <results_dir> [steps] [seed] [gamma]
 # e.g.
 #   julia --project=. -t 4 scripts/run_sensitivity.jl 10000 results/sens_test "[1,9,16,24,31]"
-# Step s corresponds to s-1 selfish teams (default: all steps 1:31). Default seed: 628. Default gamma: 0.71425.
+# Step s corresponds to s-1 selfish teams (default: all steps 1:31). Default seed: 628.
+# gamma: if not given, it is read from gamma.txt (written by model validation) in <results_dir> or its parent
+# directory (e.g., results/<date>/gamma.txt for results_dir = results/<date>/sensitivity).
 #
 # Output (rows: steps, columns: breakpoints; first column is the number of selfish teams):
 #   kend_keep.csv, kend_stop.csv, kend_diff.csv (= stop - keep): average Kendall tau distance
@@ -62,7 +64,20 @@ function main(args)
   results_dir = args[2]
   steps = length(args) >= 3 ? str2arr(args[3]) : collect(1:Tanking.num_teams+1)
   seed = length(args) >= 4 ? parse(Int, args[4]) : 628
-  gamma = length(args) >= 5 ? parse(Float64, args[5]) : 0.71425
+  gamma = nothing
+  if length(args) >= 5
+    gamma = parse(Float64, args[5])
+  else
+    for dir in (results_dir, dirname(normpath(results_dir)))
+      file = joinpath(dir, "gamma.txt")
+      if isfile(file)
+        gamma = parse(Float64, strip(read(file, String)))
+        println("Using gamma = $gamma from $file")
+        break
+      end
+    end
+    isnothing(gamma) && error("No gamma given and no gamma.txt found in $results_dir or its parent; pass gamma as the 5th argument")
+  end
   mkpath(results_dir)
   Tanking.set_mode(Tanking.STRICT)
 

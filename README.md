@@ -19,7 +19,8 @@ To run a simulation, parse NBA data, and reproduce data regarding noisiness of t
 The code can be run with the following commands:
 				
 		using Tanking
-		Tanking.main_simulate(do_simulation=1, num_replications=100000, do_plotting=false, mode=Tanking.STRICT, math_elim_mode=-2, gamma=0.71425) 
+		loss, gammas, gamma = Tanking.model_validation(num_replications=100000, do_plotting=false)   # gamma chosen by the minimax rule
+		Tanking.main_simulate(do_simulation=1, num_replications=100000, do_plotting=false, mode=Tanking.STRICT, math_elim_mode=-2, gamma=gamma) 
 		Tanking.main_parse(do_plotting=false, mode=Tanking.STRICT)
 		Tanking.rankings_are_noisy(do_simulation=true, num_replications=100000, do_plotting=false, mode=Tanking.STRICT)
 				
@@ -29,7 +30,7 @@ The code can be run with the following commands:
 		test/test_all.sh                              # quick test first (20 replications, all seasons, needs Gurobi)
 		scripts/run_all.sh -o results/final -j 16     # full run: 100K replications, all seasons, 16 parallel jobs
 
-`test/test_all.sh` runs `scripts/run_all.sh` with few replications (including splitting the simulation over parallel jobs and aggregating it) and then checks every output with `test/check_results.jl` (file sizes, finite values, min <= avg <= max, that MIPs were solved when Gurobi is needed, that the requested NBA seasons were used, and the sensitivity checks); it ends with `PASSED` or `FAILED`. Both scripts take the same options (run with `-h`), e.g., `-s 2004-2019` for the 14 seasons of the original paper, `-g 0.71425` to fix gamma instead of using the value chosen by model validation (the default, `-g auto`: the value in the grid whose largest error over 0, 15, and 30 selfish teams is smallest; it is saved in `gamma.txt`, and a warning is shown if the grid is too coarse around it), `-m 0` to run without Gurobi, `-N` for no plots. Plots need LaTeX (with `dvipng`). Logs of every step go to `<results dir>/logs`, and the settings to `<results dir>/settings.txt`.
+`test/test_all.sh` runs `scripts/run_all.sh` with few replications (including splitting the simulation over parallel jobs and aggregating it) and then checks every output with `test/check_results.jl` (file sizes, finite values, min <= avg <= max, that MIPs were solved when Gurobi is needed, that the requested NBA seasons were used, and the sensitivity checks); it ends with `PASSED` or `FAILED`. Both scripts take the same options (run with `-h`), e.g., `-s 2004-2019` for the 14 seasons used in the 2020 experiments, `-g <value>` to fix gamma instead of using the value chosen by model validation (e.g., `-g 0.71425`, the value used in the 2020 experiments) (the default, `-g auto`: the value in the grid whose largest error over 0, 15, and 30 selfish teams is smallest; it is saved in `gamma.txt`, and a warning is shown if the grid is too coarse around it), `-m 0` to run without Gurobi, `-N` for no plots. Plots need LaTeX (with `dvipng`). Logs of every step go to `<results dir>/logs`, and the settings to `<results dir>/settings.txt`.
 
 Model validation and the noisy-rankings experiment are single processes; with 100K replications they take much longer than the (parallelized) simulation, so time them with the test run first (e.g., with `-n 100`), and lower `-n` for them by running them separately with `-e validate,noisy` if needed.
 
@@ -45,10 +46,10 @@ By default, a selfish team tanks in every game after it is eliminated, including
 
 		julia --project=. -t 4 scripts/run_sensitivity.jl 10000 results/sens_test "[1,9,16,24,31]"
 
-Step `s` corresponds to `s-1` selfish teams (default: all 31 steps). The script prints two checks that must be exactly 0 (games tanked up to each breakpoint, and the Kendall tau at the end of the season, are the same in both behaviors), and writes `kend_keep.csv`, `kend_stop.csv`, `kend_diff.csv` (stop minus keep), standard errors `se_*.csv` (for the difference, computed from the paired differences), `games_tanked_*.csv`, and `breakpoints.csv`. Because each replication is seeded separately, the baseline does not reproduce the published numbers exactly, only statistically.
+Step `s` corresponds to `s-1` selfish teams (default: all 31 steps). The script prints two checks that must be exactly 0 (games tanked up to each breakpoint, and the Kendall tau at the end of the season, are the same in both behaviors), and writes `kend_keep.csv`, `kend_stop.csv`, `kend_diff.csv` (stop minus keep), standard errors `se_*.csv` (for the difference, computed from the paired differences), `games_tanked_*.csv`, and `breakpoints.csv`. Because each replication is seeded separately, the baseline does not reproduce the 2020 experiment results (in `results/2020-*`) exactly, only statistically.
 
 ### NBA data
-The directory [`data`](data) contains the results of every regular-season game (from [basketball-reference.com](https://www.basketball-reference.com)) in `data/gamesYYZZ.csv` for the seasons 2004-05 through 2025-26, except 2011-12 (lockout) and 2019-20 and 2020-21 (COVID-19), in which teams did not play 82 games. The list of seasons that is used is `Tanking.nba_seasons`; pass `seasons=Tanking.nba_seasons_2004_2019` to `main_parse` or `BT_MLE` to use only the seasons in the original paper. The file `data/winpct.csv` contains the win percentage of the team in each final position (rows) for every season (columns).
+The directory [`data`](data) contains the results of every regular-season game (from [basketball-reference.com](https://www.basketball-reference.com)) in `data/gamesYYZZ.csv` for the seasons 2004-05 through 2025-26, except 2011-12 (lockout) and 2019-20 and 2020-21 (COVID-19), in which teams did not play 82 games. The list of seasons that is used is `Tanking.nba_seasons`; pass `seasons=Tanking.nba_seasons_2004_2019` to `main_parse` or `BT_MLE` to use only the seasons used in the 2020 experiments. The file `data/winpct.csv` contains the win percentage of the team in each final position (rows) for every season (columns).
 
 The files for 2021-22 through 2025-26 were downloaded in September 2026; every team's record in them matches the basketball-reference standings. To (re)download seasons and regenerate `data/winpct.csv` (a season is named by the year in which it ends):
 
