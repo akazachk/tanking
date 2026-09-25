@@ -73,6 +73,8 @@ Keyword arguments (the defaults keep the original behavior)
   * seed_per_replication: if an integer, call Random.seed!(seed_per_replication + rep) at the start of
       replication rep (common random numbers: runs with the same seed have identical seasons up to the breakpoint)
   * verbose: if false, do not print progress
+  * seed_per_step: if an integer, call Random.seed!(seed_per_step + step_ind) at the start of each step,
+      so that the results of a step do not depend on which other steps are simulated in the same call
 
 Returns
 ---
@@ -95,7 +97,7 @@ Returns
   * num_missing_case
 """
 function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode=-2, selected_steps=nothing, env=nothing, ONLY_RETURN_WIN_PCT=false;
-    stop_tanking_after_breakpoint=false, seed_per_replication=nothing, verbose=true)
+    stop_tanking_after_breakpoint=false, seed_per_replication=nothing, verbose=true, seed_per_step=nothing)
 
   ## Set constants
   step_size                       = 1 / num_steps
@@ -212,6 +214,9 @@ function simulate(num_teams, num_playoff_teams, num_rounds, num_replications, nu
     decide_tanking_with_prob = false
   end
   for step_ind in selected_steps
+    if !isnothing(seed_per_step)
+      Random.seed!(seed_per_step + step_ind)
+    end
     tank_perc = array_of_tanking_probabilities[step_ind]
     num_repl_for_avg = 0
     if verbose
