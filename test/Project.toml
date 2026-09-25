@@ -1,2 +1,6 @@
 [deps]
+HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
 Tanking = "37f2c949-12c5-4b52-b2ab-f149dd9bfb6c"
+
+[sources]
+Tanking = {path = ".."}

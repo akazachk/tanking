@@ -317,7 +317,7 @@ function teamIsMathematicallyEliminated!(k, t, schedule, stats, outcome, h2h,
               ### START DEBUG
               if false
                 ## Save the hard LP
-                lp_file = MathOptFormat.LP.Model()
+                lp_file = MOI.FileFormats.LP.Model()
                 MOI.copy_to(lp_file, backend(model))
                 name = string("model", math_elim_mode, ".lp")
                 MOI.write_to_file(lp_file, name)

@@ -16,19 +16,39 @@ using MathOptInterface
 #using Cbc
 #using GLPK
 
-## Gurobi is loaded only when it is first needed (abs(math_elim_mode) >= 2),
-## so that the rest of the code can be run without a Gurobi installation/license.
-## Code that uses Gurobi after it is loaded at runtime must be called via Base.invokelatest
-## (as is done for simulate in Tanking.jl).
-const GUROBI_PKGID = Base.PkgId(Base.UUID("2e9cd046-0924-5485-92f1-d5272153d98b"), "Gurobi")
-gurobi_module() = Base.require(GUROBI_PKGID)
+## Gurobi.jl (>= 1.0) uses the Gurobi library from Gurobi_jll (here Gurobi 13) unless the environment variable
+## GUROBI_JL_USE_GUROBI_JLL=false is set when building it (then GUROBI_HOME must point to a local installation).
+## Loading Gurobi does not need a license; a Gurobi environment (and hence a license) is only created when
+## MIPs are solved for mathematical elimination (abs(math_elim_mode) >= 2), so the rest of the code runs without one.
+import Gurobi
+
+## For testing without a Gurobi license: if MIP_OPTIMIZER[] is set to an optimizer constructor
+## (e.g., `Tanking.MIP_OPTIMIZER[] = HiGHS.Optimizer`), it is used instead of Gurobi, with a 10 s time limit and
+## no Gurobi-specific parameters (MIPs are then solved to optimality instead of stopping early at the playoff cutoff)
+const MIP_OPTIMIZER = Ref{Any}(nothing)
+
+"""
+    newMIPModel(env, gurobi_attributes...)
+
+JuMP model with Gurobi (using `env` if valid) and the given Gurobi parameters, or with MIP_OPTIMIZER[] if set
+"""
+function newMIPModel(env, gurobi_attributes...)
+  if !isnothing(MIP_OPTIMIZER[])
+    model = Model(MIP_OPTIMIZER[])
+    set_silent(model)
+    set_time_limit_sec(model, 10.0)
+    return model
+  end
+  factory = is_valid(env) ? (() -> gurobi_optimizer(env)) : (() -> gurobi_optimizer())
+  return Model(optimizer_with_attributes(factory, gurobi_attributes...))
+end
+
 function gurobi_optimizer(env = nothing)
-  Gurobi = gurobi_module()
-  optimizer = is_valid(env) ? Base.invokelatest(Gurobi.Optimizer, env) : Base.invokelatest(Gurobi.Optimizer)
+  optimizer = is_valid(env) ? Gurobi.Optimizer(env) : Gurobi.Optimizer()
   # Limit the number of threads Gurobi uses per MIP (e.g., 1 when running several simulations in parallel);
   # by default, Gurobi uses as many threads as there are cores
   if haskey(ENV, "TANKING_GUROBI_THREADS")
-    Base.invokelatest(MOI.set, optimizer, MOI.RawParameter("Threads"), parse(Int, ENV["TANKING_GUROBI_THREADS"]))
+    MOI.set(optimizer, MOI.RawOptimizerAttribute("Threads"), parse(Int, ENV["TANKING_GUROBI_THREADS"]))
   end
   return optimizer
 end
@@ -418,21 +438,11 @@ function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_te
   #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0)) # about five times slower than Gurobi (or worse)
   #model = Model(with_optimizer(GLPK.Optimizer))
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams+1e-3, BestBdStop=num_playoff_teams+1e-3, TimeLimit=10, OutputFlag=0))
-  if !is_valid(env)
-    model = Model(
-      optimizer_with_attributes(() -> gurobi_optimizer(),
-        "BestObjStop" => num_playoff_teams+1e-3,
-        "BestBdStop" => num_playoff_teams+1e-3,
-        "TimeLimit" => 10,
-        "OutputFlag" => 0))
-  else
-    model = Model(
-      optimizer_with_attributes(() -> gurobi_optimizer(env),
-        "BestObjStop" => num_playoff_teams+1e-3,
-        "BestBdStop" => num_playoff_teams+1e-3,
-        "TimeLimit" => 10,
-        "OutputFlag" => 0))
-  end
+  model = newMIPModel(env,
+      "BestObjStop" => num_playoff_teams+1e-3,
+      "BestBdStop" => num_playoff_teams+1e-3,
+      "TimeLimit" => 10,
+      "OutputFlag" => 0)
   
   ## Set up variables and constraints
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
@@ -563,17 +573,9 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
   #model = Model(with_optimizer(GLPK.Optimizer))
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=10, OutputFlag=0))
   #model = Model(with_optimizer(Gurobi.Optimizer, TimeLimit=10, OutputFlag=0))
-  if !is_valid(env)
-    model = Model(
-      optimizer_with_attributes(() -> gurobi_optimizer(),
-        "TimeLimit" => 10,
-        "OutputFlag" => 0))
-  else
-    model = Model(
-      optimizer_with_attributes(() -> gurobi_optimizer(env),
-        "TimeLimit" => 10,
-        "OutputFlag" => 0))
-  end
+  model = newMIPModel(env,
+      "TimeLimit" => 10,
+      "OutputFlag" => 0)
   
   ## Set up variables and constraints
   @variable(model, W >= 0)
