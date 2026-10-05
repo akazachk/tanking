@@ -20,8 +20,31 @@ import Random
 using DelimitedFiles
 using LaTeXStrings
 using Printf
-using Gurobi # for Gurobi.Env()
 import Distributions.Beta
+
+## NBA data
+# Directory with game data (data/gamesYYZZ.csv, from basketball-reference.com, and data/winpct.csv)
+DATA_DIR = joinpath(dirname(@__DIR__), "data")
+# Seasons used when parsing NBA data and estimating the Bradley-Terry model;
+# 2011-12 (lockout) and 2019-20 and 2020-21 (COVID-19) are omitted, as teams did not play 82 games
+nba_seasons_2004_2019 = ["0405", "0506", "0607", "0708", "0809", "0910", "1011", "1213", "1314", "1415", "1516", "1617", "1718", "1819"]
+nba_seasons_2021_2026 = ["2122", "2223", "2324", "2425", "2526"]
+nba_seasons = vcat(nba_seasons_2004_2019, nba_seasons_2021_2026)
+nba_season_file(season) = string("games", season, ".csv")
+nba_season_label(season) = string(season[1:2], "-", season[3:4])
+nba_season_winpct_header(season) = string(parse(Int, season[1:2]) > 90 ? "19" : "20", season[1:2], "-", season[3:4]) # e.g., "2004-05"
+# Seasons used by default by main_parse, BT_MLE (hence BT_ESTIMATED mode), and model_validation; change with set_seasons!
+selected_nba_seasons = nba_seasons
+"""
+    set_seasons!(seasons)
+
+Set the NBA seasons used by default in main_parse, BT_MLE (and BT_ESTIMATED mode), and model_validation,
+e.g., `set_seasons!(nba_seasons_2004_2019)` for the seasons used in the 2020 experiments (2004-05 to 2018-19)
+"""
+function set_seasons!(seasons)
+  global selected_nba_seasons = seasons
+end
+
 include("mathelim.jl") # needed for simulate.jl and utility.jl
 include("utility.jl") # imports MODE definitions, needed for parse.jl and simulate.jl
 include("BT.jl")
@@ -31,9 +54,17 @@ include("simulate.jl")
 using Combinatorics # for permutations
 
 global GRB_ENV = nothing
+"""
+    set_env
+
+Create the Gurobi environment `GRB_ENV` (which needs a Gurobi license), if not done already.
+Only needed when MIPs are solved for mathematical elimination (`abs(math_elim_mode) >= 2`).
+"""
 function set_env()
   if !is_valid(GRB_ENV)
-    global GRB_ENV = Gurobi.Env()
+    # OutputFlag = 0: models created from this environment do not log (e.g., "Set parameter ..." for every
+    # parameter of every model, which made the logs of a full run several hundred MB)
+    global GRB_ENV = Gurobi.Env(Dict{String,Any}("OutputFlag" => 0))
   end
 end
 
@@ -127,6 +158,9 @@ function set_mode(mode=MODE, extra=nothing)
   elseif isa(extra,String)
     extra = filter(x -> !isspace(x), extra) # remove spaces
     global ranking_type = string(ranking_type,extra)
+  elseif isa(extra,Integer)
+    # Same format as a one-element array, so that results can be aggregated using do_simulation = -1
+    global ranking_type = string(ranking_type,"[",extra,"]")
   elseif isa(extra,UnitRange)
     global ranking_type = string(ranking_type,extra)
   elseif isa(extra,Array) && length(extra) > 0
@@ -157,11 +191,8 @@ function set_mode(mode=MODE, extra=nothing)
 end # set_mode
 
 ## For plotting
+# Plot labels use LaTeX (e.g., \mbox), so plotting requires a LaTeX installation (latex, and dvipng for png output)
 DO_PLOTTING=true
-environment = read(`uname`, String)
-if chomp(environment) != "Darwin"
-	DO_PLOTTING=false
-end
 USE_PYPLOT=true
 if !USE_PYPLOT
   using Plots
@@ -171,7 +202,11 @@ else
   using PyPlot
 end
 
-function setup_plotting()
+function setup_plotting(results_dir=nothing)
+  if !isnothing(results_dir)
+    mkpath(results_dir*"/"*ext_folder, mode=0o700)
+    mkpath(results_dir*"/"*lowext_folder, mode=0o700)
+  end
   TITLE_FONTSIZE=10
   AXIS_TITLE_FONTSIZE=10
   TICK_LABEL_FONTSIZE=8
@@ -181,6 +216,9 @@ function setup_plotting()
   upscale = 1 # upscaling in resolution
   if !DO_PLOTTING
     return
+  end
+  if isnothing(Sys.which("latex"))
+    error("Plotting uses LaTeX for the labels, but `latex` was not found; install LaTeX (with dvipng), or use do_plotting=false")
   end
   if !USE_PYPLOT
     #ext = ".svg"
@@ -200,7 +238,11 @@ function setup_plotting()
     #default(titlefont=fntlg, guidefont=fntlg, tickfont=fntsm, legendfont=fntsm)
   else
     #pygui(:qt5) # others do not work on mac
-    pygui(:default)
+    try
+      pygui(:default)
+    catch
+      # No GUI available (e.g., on a cluster); figures are only saved to files
+    end
     #PyCall.PyDict(matplotlib["rcParams"])["font.serif"] = ["Cambria"]
     rc("text", usetex=true)
     rc("font", family="serif")
@@ -269,6 +311,7 @@ Simulate a season and plot output
 Parameters
 ---
   * `do_simulation`: when 0, read data from files in results_dir, when -1, assumes data is in disaggregated form
+      (i.e., from separate runs, each with a single step in `selected_steps`)
   * `num_replications`: how many times to simulate each data point
   * `do_plotting`: if false, only gather data, without plotting it
   * `mode`: which kind of true ranking is used;
@@ -295,12 +338,17 @@ Parameters
 """
 function main_simulate(;do_simulation = 1, num_replications = 100000, 
     do_plotting = true, mode = MODE, results_dir = "./results", 
-    num_rounds = 3, num_steps = num_teams, gamma = 0.71425, 
+    num_rounds = 3, num_steps = num_teams, gamma = nothing, 
     math_elim_mode = -2, selected_steps = nothing)
   Random.seed!(628) # for reproducibility
   selected_steps = clean_selected_steps(selected_steps)
+  if do_simulation == 1 && (mode == STRICT || mode == TIES) && isnothing(gamma)
+    error("main_simulate: pass gamma (e.g., the value chosen by model_validation, saved in gamma.txt by scripts/run_experiments.jl)")
+  end
 	set_mode(mode, selected_steps)
-  set_env()
+  if abs(math_elim_mode) >= 2 && do_simulation == 1
+    set_env() # Gurobi is only needed to solve MIPs for mathematical elimination
+  end
 
 	## Variables that need to be set
 	## end variables that need to be set
@@ -345,10 +393,12 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
       avg_elim_rank_strat, avg_elim_rank_moral,
       avg_diff_rank_strat, avg_diff_rank_moral,
       num_missing_case = 
-        simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, GRB_ENV, false)
-        if is_valid(GRB_ENV)
-          Gurobi.GRBfreeenv(GRB_ENV)
-        end
+        # seed_per_step: each step is seeded separately (628 + step), so results are the same whether the steps
+        # are simulated in one process or split over jobs with selected_steps
+        simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, mode, math_elim_mode, selected_steps, GRB_ENV, false;
+            seed_per_step=628)
+        # NB: do not call Gurobi.GRBfreeenv(GRB_ENV) here; the environment is reused by later calls
+        # (freeing it by hand leaves GRB_ENV looking valid, and its finalizer would free it again)
 	else
     ## Resize things
     num_games_per_round = Int(num_teams * (num_teams - 1) / 2)
@@ -394,21 +444,19 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
     elseif do_simulation == -1
       contents = readdir(results_dir)
       for file in contents
-        # Skip non-csv files
-        if !(file[end-3:end] == ".csv")
-          #print("File $file does not end with .csv. Continuing.\n")
+        # Only consider files of the form <name><ranking_type>[<step>].csv, where ranking_type matches the current mode
+        # (these are written by runs in which selected_steps is a single step)
+        m = match(r"^(.*)\[(\d+)\]\.csv$", file)
+        if isnothing(m) || !endswith(m.captures[1], ranking_type)
           continue
         end
+        step = parse(Int, m.captures[2])
 
-        # Identify file that is being read (if fail, skip)
-        step = 0
-        try
-          step = parse(Int, split(file, r"\[|\]")[2])
-        catch
-          #print("File $file cannot be parsed to identify step. Continuing.\n")
+        # The Gold ranking is only computed in the step without tanking
+        if startswith(file, "kend_gold") && step == 1
+          kend_gold = readdlm(string(results_dir,'/',file), ',')
           continue
         end
-        @assert(isa(step,Int))
 
         # Find which stat is being handled
         # Skip file if none found
@@ -489,7 +537,7 @@ function main_simulate(;do_simulation = 1, num_replications = 100000,
   num_eliminated = (math_elim_mode > 0) ? math_eliminated : eff_eliminated
 
 	if (do_plotting)
-    setup_plotting()
+    setup_plotting(results_dir)
 
     ## Make directories
     mkpath(results_dir*"/"*ext_folder, mode=0o700)
@@ -900,14 +948,14 @@ end; # main_simulate
 """
     main_parse
 
-Parse data from 2004-2019, except 2011-12 (lockout year)
+Parse NBA data for the given seasons (default: `selected_nba_seasons`, initially `nba_seasons`, i.e., 2004-05 to 2025-26,
+except 2011-12 (lockout year) and 2019-20 and 2020-21 (COVID-19))
 """
-function main_parse(;do_plotting=true, mode=MODE, data_dir="./data", results_dir="./results")
+function main_parse(;do_plotting=true, mode=MODE, data_dir=DATA_DIR, results_dir="./results", seasons=selected_nba_seasons)
   Random.seed!(628) # for reproducibility
 	set_mode(mode)
 
-  #years = ["games1314.csv", "games1415.csv", "games1516.csv", "games1617.csv", "games1718.csv", "games1819.csv"]
-  years = ["games0405.csv", "games0506.csv", "games0607.csv", "games0708.csv", "games0809.csv", "games0910.csv", "games1011.csv", "games1213.csv", "games1314.csv", "games1415.csv", "games1516.csv", "games1617.csv", "games1718.csv", "games1819.csv"]
+  years = [nba_season_file(season) for season in seasons]
   num_years = length(years)
 
   num_teams = 30
@@ -929,14 +977,14 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="./data", results_dir
 	avg_eliminated = sum(avg_eliminated, dims=1)[1,:] / (num_steps + 1)
 
 	if (do_plotting)
-    setup_plotting()
+    setup_plotting(results_dir)
 		ind = [3,5,6] # needs to be ascending
 		@assert ( length(breakpoint_list) in ind )
 		#labels = [L"2013-2014", L"2014-2015", L"2015-2016", L"2016-2017", L"2017-2018"]
 		#col_labels = ["red", "orange", "green", "blue", "violet"]
     #labels = [L"2004-05", L"2005-06", L"2006-07", L"2007-08", L"2008-09", L"2009-10", L"2010-11", L"2012-13", L"2013-14", L"2014-15", L"2015-16", L"2016-17", L"2017-18", L"2018-19"]
     col_labels = []
-    labels = [L"04-05", L"05-06", L"06-07", L"07-08", L"08-09", L"09-10", L"10-11", L"12-13", L"13-14", L"14-15", L"15-16", L"16-17", L"17-18", L"18-19"]
+    labels = [latexstring("\\mbox{", season[1:2], "--", season[3:4], "}") for season in seasons] # e.g., 04--05 (en dash)
     @assert ( length(labels) == num_years )
     @assert ( (length(col_labels) == 0) || (length(col_labels) == num_years) )
 
@@ -955,6 +1003,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="./data", results_dir
 		miny = 0 #Int(floor(findmin(num_games_tanked)[1]))
 		incy = 50 #(maxy - miny) / 5
 		maxy = incy * Int(ceil(findmax(num_games_tanked)[1] / incy))
+		maxy_axis = incy * Int(ceil(1.25 * findmax(num_games_tanked)[1] / incy)) # leave room for the legend
 		titlestring = L"\mbox{Number of games that could be tanked}"
 		xlabelstring = L"\mbox{Season}"
 		ylabelstring = L"\mbox{Number of possibly tanked games}"
@@ -972,7 +1021,8 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="./data", results_dir
 			xlabel(xlabelstring)
 			ylabel(ylabelstring)
 			#xticks(1:num_years,["\$13-14\$","\$14-15\$","\$15-16\$","\$16-17\$","\$17-18\$"]) 
-			xticks(1:num_years,labels)
+			xticks(1:num_years, labels, rotation=(num_years > 14 ? 45 : 0))
+			ylim(miny, maxy_axis)
 			yticks(miny:incy:maxy)
 			width = 0.75
 			cumsum = zeros(Int, num_years, 1)
@@ -992,7 +1042,7 @@ function main_parse(;do_plotting=true, mode=MODE, data_dir="./data", results_dir
 				cumsum += num_games_tanked_stacked[:,i]
 			end
 			#legend(loc="best", title=legendtitlestring)
-			legend(bbox_to_anchor=[1,.9],loc="upper right", title=legendtitlestring)
+			legend(loc="upper center", ncol=length(ind), title=legendtitlestring)
 			PyPlot.savefig(fname)
 			PyPlot.savefig(fname_low)
 			close(fig)
@@ -1214,7 +1264,7 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 	end # if do_simulation
 
 	if do_plotting
-    setup_plotting()
+    setup_plotting(results_dir)
 
 		## Plot noisy ranking
 		minx = 0.5
@@ -1276,26 +1326,75 @@ function rankings_are_noisy(;do_simulation=true, num_replications=1000, do_plott
 	end # if do_plotting
 end # rankings_are_noisy
 
+## Values of gamma compared in model_validation: grid refined around the minimax values
+## for the 2004-05 to 2018-19 seasons (0.71425 in the 2020 experiments) and for all seasons through 2025-26
+## (about 0.7155, estimated from the saved 2020 simulations; TODO: update with the value from the rerun)
+MODEL_VALIDATION_GAMMAS = [0.7, 0.71, 0.711, 0.7115, 0.712, 0.7125, 0.713, 0.7135, 0.71375, 0.714, 0.71425, 0.7145,
+    0.715, 0.71525, 0.7155, 0.71575, 0.716, 0.7165, 0.717, 0.7175, 0.718, 0.72, 0.725, 0.75]
+MODEL_VALIDATION_MODES = [BT_ESTIMATED] # compared in addition to STRICT mode with each gamma
+
+"""
+    num_selfish_at_step(r, num_steps, num_teams)
+
+Number of selfish teams at step r (1, ..., num_steps+1) of a simulation with num_steps steps.
+It is exact when num_steps == num_teams; otherwise each team is selfish independently with probability
+(r-1)/num_steps (see `simulate`), so for intermediate steps it is the average number of selfish teams.
+"""
+num_selfish_at_step(r, num_steps, num_teams) = Int(round(num_teams * (r-1) / num_steps))
+
+"""
+    selfish_label(r, num_steps, num_teams)
+
+Label for step r, e.g., "0 selfish teams", "15 selfish teams (on average)", "30 selfish teams"
+"""
+function selfish_label(r, num_steps, num_teams)
+  label = string(num_selfish_at_step(r, num_steps, num_teams), " selfish teams")
+  if num_steps != num_teams && 1 < r < num_steps + 1
+    label = string(label, " (on average)")
+  end
+  return label
+end
+
+"""
+    num_validation_models(gamma_list = MODEL_VALIDATION_GAMMAS)
+
+Number of models compared in model_validation (the values of `only_model`): the modes in
+MODEL_VALIDATION_MODES (Bradley-Terry), then STRICT mode with each value in gamma_list
+"""
+num_validation_models(gamma_list = MODEL_VALIDATION_GAMMAS) = length(MODEL_VALIDATION_MODES) + length(gamma_list)
+
 """
     model_validation
+
+Compare the win percentage by final rank in simulated seasons (for 0, 15, and 30 selfish teams) with NBA data,
+for the Bradley-Terry model estimated from NBA data and for STRICT mode with each gamma in gamma_list,
+and choose gamma by the minimax rule. Returns (loss_list, gamma_list, minimax_gamma).
+
+To split the simulations over parallel jobs: call with `only_model = k` for k = 1, ..., num_validation_models()
+(each writes the win pct file for model k and returns nothing), then with `do_simulation = false`,
+which reads these files and computes the losses, the choice of gamma, and the plots.
+Each model uses its own random seed, so the results do not depend on how the work is split.
 """
 function model_validation(;do_simulation = true, num_replications = 100000, 
-    data_dir = "./data", results_dir = "./results", do_plotting = true,
-    num_rounds = 3, num_steps = 2, gamma = 0.71425, 
-    math_elim_mode = 0, selected_steps = nothing)
-  Random.seed!(628) # for reproducibility
+    data_dir = DATA_DIR, results_dir = "./results", do_plotting = true,
+    num_rounds = 3, num_steps = 2, gamma = nothing, # gamma is not used (the Bradley-Terry model has no gamma)
+    math_elim_mode = 0, selected_steps = nothing, seasons = selected_nba_seasons,
+    gamma_list = MODEL_VALIDATION_GAMMAS, only_model = nothing)
   selected_steps = clean_selected_steps(selected_steps)
-  set_env(GRB_ENV)
+  if abs(math_elim_mode) >= 2 && do_simulation
+    set_env() # Gurobi is only needed to solve MIPs for mathematical elimination
+  end
 
   ## Simulation parameters
   #mode_list = [BT_ESTIMATED BT_DISTR]; mode_list_name = ["BT.est", "BT.beta"]
-  mode_list = [BT_ESTIMATED]; mode_list_name = ["BT"]
+  mode_list = MODEL_VALIDATION_MODES; mode_list_name = ["BT"]
   #mode_list = []; mode_list_name = []
   @assert(length(mode_list) == length(mode_list_name))
   #gamma_list = [0.50 0.55 0.60 0.65 0.70 0.7125 0.725 0.7375 0.75 0.80 0.85 0.90 0.95 1.00]
   #gamma_list = [0.7, 0.71, 0.715, 0.72, 0.75]
   #gamma_list = [0.7, 0.75]
-  gamma_list = [0.7 0.71 0.711 0.7115 0.712 0.7125 0.713 0.7135 0.71375 0.714 0.71425 0.7145 0.715 0.72 0.725 0.75]
+  # gamma_list (keyword argument): see MODEL_VALIDATION_GAMMAS
+  @assert(issorted(gamma_list), "gamma_list must be sorted")
   num_modes = length(mode_list) + length(gamma_list)
 
   ## Stats we keep
@@ -1313,9 +1412,20 @@ function model_validation(;do_simulation = true, num_replications = 100000,
   ## Data for comparison
   win_pct_nba = readdlm(string(data_dir, "/winpct.csv"), ',') # [year, team]
   num_header_rows = 1
+  # Keep only the columns for the selected seasons
+  season_cols = [findfirst(isequal(nba_season_winpct_header(s)), string.(win_pct_nba[1,:])) for s in seasons]
+  if any(isnothing, season_cols)
+    error("Some of the seasons $seasons are missing from $(data_dir)/winpct.csv; regenerate it with scripts/fetch_bbref_games.py --winpct-only")
+  end
+  win_pct_nba = win_pct_nba[:, season_cols]
   num_years = size(win_pct_nba, 2)
+  println("model_validation: comparing to NBA seasons ", win_pct_nba[1,:])
 
-  for mode_ind = 1:num_modes
+  if !isnothing(only_model)
+    @assert(do_simulation && 1 <= only_model <= num_modes, "only_model must be in 1:$num_modes and requires do_simulation")
+  end
+  for mode_ind in (isnothing(only_model) ? (1:num_modes) : [only_model])
+    Random.seed!(628 + mode_ind) # for reproducibility, independently of how the models are split over jobs
     curr_mode = mode_ind <= length(mode_list) ? mode_list[mode_ind] : STRICT
     curr_gamma = mode_ind <= length(mode_list) ? gamma : gamma_list[mode_ind - length(mode_list)]
     if curr_mode == STRICT
@@ -1330,9 +1440,6 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     ## Save data
     if do_simulation
       win_pct = simulate(num_teams, num_playoff_teams, num_rounds, num_replications, num_steps, curr_gamma, breakpoint_list, nba_odds_list, nba_num_lottery, true_strength, curr_mode, math_elim_mode, selected_steps, GRB_ENV, true)
-      if is_valid(GRB_ENV)
-        Gurobi.GRBfreeenv(GRB_ENV)
-      end
 
       println("win_pct = ", win_pct[:,:,avg_stat])
       win_pct_list[mode_ind, :, :, :] = win_pct
@@ -1371,9 +1478,33 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     end # loop over steps
   end # iterate over modes in mode_list
 
+  if !isnothing(only_model)
+    return # the losses, choice of gamma, and plots are computed once all models have been simulated
+  end
+
   ## Save loss stats
   curr_name = "model_validation"
   writedlm(string(results_dir, "/", curr_name, csvext), loss_list, ',')
+
+  ## Choose gamma by the minimax rule (the rule used in the 2020 experiments, which selected 0.71425
+  ## for the 2004-05 to 2018-19 seasons):
+  ## smallest largest loss over the numbers of selfish teams (all steps)
+  minimax_ind = argmin(vec(maximum(loss_list[length(mode_list)+1:end, :], dims=2)))
+  minimax_gamma = gamma_list[minimax_ind]
+  println("model_validation: minimax gamma = $minimax_gamma")
+  ## The minimax value lies where the largest loss switches from one number of selfish teams to another;
+  ## warn if the grid is too coarse around it, i.e., the next grid value on the side where the largest loss
+  ## is attained by a different number of selfish teams is more than 0.0005 away
+  gamma_losses = loss_list[length(mode_list)+1:end, :]
+  binding = argmax(gamma_losses[minimax_ind, :])
+  for nbr in (minimax_ind - 1, minimax_ind + 1)
+    if 1 <= nbr <= length(gamma_list) && argmax(gamma_losses[nbr, :]) != binding && abs(gamma_list[nbr] - minimax_gamma) > 0.0005 + 1e-9
+      @warn "The minimax gamma lies between $(min(gamma_list[nbr], minimax_gamma)) and $(max(gamma_list[nbr], minimax_gamma)); add values in this interval to gamma_list for a more precise choice"
+    end
+  end
+  if minimax_ind == 1 || minimax_ind == length(gamma_list)
+    @warn "The minimax gamma $minimax_gamma is at the end of gamma_list; extend gamma_list"
+  end
           
   ## Get avg nba data
   win_pct_nba_avg = sum(win_pct_nba[num_header_rows+1:num_header_rows+num_teams,:], dims=2)[:,1] / num_years
@@ -1383,6 +1514,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
 
   ## Plot simulated vs real average win pct, with error bars
   if do_plotting
+    setup_plotting(results_dir)
     print("Plotting win_pct\n")
     minx = 1
     incx = 5
@@ -1397,11 +1529,11 @@ function model_validation(;do_simulation = true, num_replications = 100000,
     fname_stub = "win_pct"
     if USE_PYPLOT
       for tank_ind in 1:num_steps+1 #[1,num_steps+1]
-        tank_name = string("_",tank_ind-1,"tank")
+        tank_name = string("_", num_selfish_at_step(tank_ind, num_steps, num_teams), "selfish") # e.g., _15selfish
         fname = string(results_dir,"/",ext_folder,"/",fname_stub,tank_name,ext)
         fname_low = string(results_dir,"/",lowext_folder,"/",fname_stub,tank_name,lowext)
         fig = figure(frameon=false)
-        title(titlestring)
+        title(latexstring("\\mbox{Win percentage by rank: ", selfish_label(tank_ind, num_steps, num_teams), "}"))
         xlabel(xlabelstring)
         ylabel(ylabelstring)
         #xticks(Array(minx:incx:maxx))
@@ -1409,12 +1541,13 @@ function model_validation(;do_simulation = true, num_replications = 100000,
         tmp[1] += 1
         xticks(tmp)
         yticks(Array(miny:incy:maxy))
-        gammas_to_plot = [0.71425]
+        # Plot the gamma chosen by the minimax rule
+        gammas_to_plot = [minimax_gamma]
         gammas_to_plot_ind = zeros(Int, length(gammas_to_plot))
         for r = 1:length(gammas_to_plot)
           tmp = findfirst(isequal(gammas_to_plot[r]), gamma_list)
           if !isa(tmp, Nothing)
-            gammas_to_plot_ind[r] = tmp[2]
+            gammas_to_plot_ind[r] = length(mode_list) + tmp # index into win_pct_list
           end
         end
         num_modes_to_plot = length(mode_list) + length(gammas_to_plot)
@@ -1437,7 +1570,7 @@ function model_validation(;do_simulation = true, num_replications = 100000,
           if curr_ind <= 0
             continue
           end
-          curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[curr_ind])
+          curr_label = (r <= length(mode_list)) ? mode_list_name[r] : latexstring("\\gamma=",gamma_list[curr_ind - length(mode_list)])
           plot(1:num_teams, win_pct_list[curr_ind,tank_ind,:,avg_stat], label=curr_label, linestyle=curr_style, marker=curr_marker, markersize=curr_size)
         end
         curr_label = "NBA average"
@@ -1474,11 +1607,13 @@ function model_validation(;do_simulation = true, num_replications = 100000,
 			ylabel(ylabelstring)
 			#xticks(Array(minx:incx:maxx))
       gamma_list_name = [string(gamma_list[i]) for i = 1:length(gamma_list)]
-      xticks(1:num_modes, vcat(mode_list_name, gamma_list_name),rotation=-30)
+      xticks(1:num_modes, vcat(mode_list_name, gamma_list_name), rotation=90, fontsize=(num_modes > 17 ? 6 : 8))
 			yticks(Array(miny:incy:maxy))
+      # Mark the gamma chosen by the minimax rule
+      axvline(length(mode_list) + minimax_ind, color="gray", linestyle="dotted", linewidth=1,
+          label=latexstring("\\mbox{minimax } \\gamma=", minimax_gamma))
       for r = 1:num_steps+1
-        curr_num = Int(num_teams * (r-1) / num_steps)
-        curr_label = string("$curr_num selfish teams")
+        curr_label = selfish_label(r, num_steps, num_teams)
         #plot(1:num_modes, loss_list[:,r], label=curr_label, color=col[r], linestyle=style[r], marker="", markersize=5)
         plot(1:num_modes, loss_list[:,r], label=curr_label, color=col[r], linestyle="none", marker=shape[r], markersize=shapesize[r])
       end
@@ -1501,6 +1636,8 @@ function model_validation(;do_simulation = true, num_replications = 100000,
       end
     end
   end
+  # Rows of loss_list: one per mode in mode_list, then one per value in gamma_list
+  return loss_list, gamma_list, minimax_gamma
 end # model_validation
 
 """
@@ -1509,7 +1646,7 @@ end # model_validation
 function closed_form_kendtau(;
     num_teams = 30,
     num_playoff_teams = 16,
-    gamma = 0.71425,
+    gamma,
     num_rounds = 3,
     mode = MODE)
   Random.seed!(628) # for reproducibility

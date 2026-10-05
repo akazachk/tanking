@@ -1,17 +1,5 @@
 using PackageCompiler
 
-using Combinatorics
-using DelimitedFiles
-using Distributions
-using Gurobi
-using JuMP
-using LaTeXStrings
-using Plots
-using Printf
-using PyCall
-using Random
-using StatsPlots
-
 pkg = [
        :Combinatorics,
        :DelimitedFiles,
@@ -19,11 +7,12 @@ pkg = [
        :Gurobi,
        :JuMP,
        :LaTeXStrings,
-       :Plots,
+       :MathOptInterface,
        :Printf,
        :PyCall,
+       :PyPlot,
        :Random,
-       :StatsPlots
+       :Tanking
       ]
 
 @info "Building system image..."

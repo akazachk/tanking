@@ -6,14 +6,15 @@ global GRB_ENV = Gurobi.Env()
 #import Random # "import" keeps namespace clean
 #Random.seed!(628) # for reproducibility; NOTE: should be set once somewhere before this function is run
 
-function run_season(;true_strength=nothing)
+# gamma: probability the better team wins; use the value chosen by model validation (results/<date>/gamma.txt),
+# e.g., run_season(gamma=0.71425) for the value used in the 2020 experiments
+function run_season(;gamma, true_strength=nothing)
 
   num_teams = 30
   num_playoff_teams = Int(2^ceil(log(2, num_teams / 2)))
   num_rounds = 3
   num_replications = 1
   num_steps = 1
-  gamma = 0.71425
   breakpoint_list = [1.]
   nba_odds_old = [.250, .199, .156, .119, .088, .063, .043, .028, .017, .011, .008, .007, .006, .005]
   nba_odds_old = nba_odds_old[14:-1:1]
@@ -46,11 +47,10 @@ function run_season(;true_strength=nothing)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
-  if length(ARGS) < 1
-    run_season()
-  #elseif length(ARGS) == 1
-  #  run_season(ARGS[1])
+  # Usage: julia --project=. run_season.jl <gamma>
+  if length(ARGS) == 1
+    run_season(gamma=parse(Float64, ARGS[1]))
   else
-    print("*** ERROR: Too many arguments provided.\n")
+    print("*** ERROR: provide gamma (e.g., from results/<date>/gamma.txt) as the only argument.\n")
   end
 end

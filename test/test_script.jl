@@ -1,5 +1,8 @@
 #!/usr/bin/env julia
 # Run with julia --project=@Tanking.jl/test
+#
+# Used by the Makefile to record precompile statements for the sysimage (one replication); the value of gamma
+# (0.71425, from the 2020 experiments) does not matter here. To test the pipeline, use test/test_all.sh.
 
 using Tanking
 

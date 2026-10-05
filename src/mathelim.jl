@@ -15,7 +15,44 @@ using JuMP
 using MathOptInterface
 #using Cbc
 #using GLPK
-using Gurobi
+
+## Gurobi.jl (>= 1.0) uses the Gurobi library from Gurobi_jll (here Gurobi 13) unless the environment variable
+## GUROBI_JL_USE_GUROBI_JLL=false is set when building it (then GUROBI_HOME must point to a local installation).
+## Loading Gurobi does not need a license; a Gurobi environment (and hence a license) is only created when
+## MIPs are solved for mathematical elimination (abs(math_elim_mode) >= 2), so the rest of the code runs without one.
+import Gurobi
+
+## For testing without a Gurobi license: if MIP_OPTIMIZER[] is set to an optimizer constructor
+## (e.g., `Tanking.MIP_OPTIMIZER[] = HiGHS.Optimizer`), it is used instead of Gurobi, with a 10 s time limit and
+## no Gurobi-specific parameters (MIPs are then solved to optimality instead of stopping early at the playoff cutoff)
+const MIP_OPTIMIZER = Ref{Any}(nothing)
+
+"""
+    newMIPModel(env, gurobi_attributes...)
+
+JuMP model with Gurobi (using `env` if valid) and the given Gurobi parameters, or with MIP_OPTIMIZER[] if set
+"""
+function newMIPModel(env, gurobi_attributes...)
+  if !isnothing(MIP_OPTIMIZER[])
+    model = Model(MIP_OPTIMIZER[])
+    set_silent(model)
+    set_time_limit_sec(model, 10.0)
+    return model
+  end
+  factory = is_valid(env) ? (() -> gurobi_optimizer(env)) : (() -> gurobi_optimizer())
+  return Model(optimizer_with_attributes(factory, gurobi_attributes...))
+end
+
+function gurobi_optimizer(env = nothing)
+  optimizer = is_valid(env) ? Gurobi.Optimizer(env) : Gurobi.Optimizer()
+  MOI.set(optimizer, MOI.Silent(), true) # before setting other parameters, so that Gurobi does not log them
+  # Limit the number of threads Gurobi uses per MIP (e.g., 1 when running several simulations in parallel);
+  # by default, Gurobi uses as many threads as there are cores
+  if haskey(ENV, "TANKING_GUROBI_THREADS")
+    MOI.set(optimizer, MOI.RawOptimizerAttribute("Threads"), parse(Int, ENV["TANKING_GUROBI_THREADS"]))
+  end
+  return optimizer
+end
 
 """
     heuristicBestRank
@@ -79,15 +116,15 @@ function heuristicBestRank(k::Int, t::Int, schedule, in_stats, in_outcome, in_h2
   W = stats[k, num_wins_ind]
 
   ## Find whether we can copy an existing schedule
-  for i = 1:num_teams
-    if i == k || best_rank[i] <= 0
+  for src = 1:num_teams
+    if src == k || best_rank[src] <= 0
       continue
     end
-    sorted_teams = sortperm(best_num_wins[i,:], rev=true)
-    W_i = best_num_wins[i,sorted_teams[num_playoff_teams]]
-    if W_i <= W
+    sorted_teams = sortperm(best_num_wins[src,:], rev=true)
+    W_src = best_num_wins[src,sorted_teams[num_playoff_teams]]
+    if W_src <= W
       # Found a schedule to use
-      # Set outcome of all remaining games in which k does not play based on best_outcomes[i,:]
+      # Set outcome of all remaining games in which k does not play based on best_outcomes[src,:]
       for game_ind = t:num_games_total
         # Skip the game if the outcome has already been decided
         if outcome[game_ind] > 0
@@ -99,9 +136,9 @@ function heuristicBestRank(k::Int, t::Int, schedule, in_stats, in_outcome, in_h2
         j = schedule[game_ind,2]
 
         # Assign win
-        outcome[game_ind] = best_outcomes[i,game_ind]
+        outcome[game_ind] = best_outcomes[src,game_ind]
         winner = outcome[game_ind]
-        loser = (winner == i) ? i : j
+        loser = (winner == i) ? j : i
 
         # Do updates
         stats[winner, num_wins_ind] += 1
@@ -233,7 +270,7 @@ function heuristicHelper!(k, t, schedule, stats, outcome, h2h,
     w_i = stats[i, num_wins_ind]
     g_i = stats[i, games_left_ind]
     W_i = w_i + g_i
-    w_j = stats[i, num_wins_ind]
+    w_j = stats[j, num_wins_ind]
     g_j = stats[j, games_left_ind]
     W_j = w_j + g_j
 
@@ -284,21 +321,22 @@ function updateHeuristicBestRank!(winner, t, schedule, h2h,
     ## Note the -1 because we assume that h2h has already been updated
     num_future_wins_by_winner = best_h2h[i,winner,loser] - (h2h[winner,loser] - 1)
     if num_future_wins_by_winner > 0
-      # Find the next game that winner was supposed to win
+      # Find the next game against loser that winner was supposed to win
       game_ind = t+1
       while game_ind <= num_games_total
-        if best_outcomes[i,game_ind] == winner
+        if best_outcomes[i,game_ind] == winner && (schedule[game_ind,1] == loser || schedule[game_ind,2] == loser)
           break
         end
         game_ind += 1
       end
 
       # Set winner as winner of current game, and loser as winner of game_ind
+      # (win totals and head-to-head records in the best schedule are unchanged)
       if game_ind <= num_games_total
         best_outcomes[i,t] = winner
         best_outcomes[i,game_ind] = loser
+        continue # continue iterating through the teams
       end
-      continue # continue iterating through the teams
     end
     
     ## For the remaining teams, the outcome does not match
@@ -401,21 +439,11 @@ function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_te
   #model = Model(with_optimizer(Cbc.Optimizer, logLevel=0)) # about five times slower than Gurobi (or worse)
   #model = Model(with_optimizer(GLPK.Optimizer))
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams+1e-3, BestBdStop=num_playoff_teams+1e-3, TimeLimit=10, OutputFlag=0))
-  if !is_valid(env)
-    model = Model(
-      optimizer_with_attributes(() -> Gurobi.Optimizer(),
-        "BestObjStop" => num_playoff_teams+1e-3,
-        "BestBdStop" => num_playoff_teams+1e-3,
-        "TimeLimit" => 10,
-        "OutputFlag" => 0))
-  else
-    model = Model(
-      optimizer_with_attributes(() -> Gurobi.Optimizer(env),
-        "BestObjStop" => num_playoff_teams+1e-3,
-        "BestBdStop" => num_playoff_teams+1e-3,
-        "TimeLimit" => 10,
-        "OutputFlag" => 0))
-  end
+  model = newMIPModel(env,
+      "OutputFlag" => 0, # first, so that setting the other parameters is not logged
+      "BestObjStop" => num_playoff_teams+1e-3,
+      "BestBdStop" => num_playoff_teams+1e-3,
+      "TimeLimit" => 10)
   
   ## Set up variables and constraints
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
@@ -510,11 +538,11 @@ Return the following MIP model
     n^*: number of teams in playoffs
  
   Variables:
-    W: number of wins by last team that makes the playoffs
+    W: number of wins by last team that makes the playoffs (the n^*-th largest win total)
     w_i: number of wins by team i
     math_elim_mode == 4: x_{it}: binary; whether team i wins game t
     math_elim_mode == 5: x_{ij}: general integer; number of wins team i has over team j
-    alpha_i: binary; 0 if W >= num wins of team i (i.e., will = 1 for first n^* teams)
+    alpha_i: binary; 0 if W >= num wins of team i (i.e., alpha = 1 for the first n^* - 1 teams, which are exempt from the bound)
  
   Objective:
     min W
@@ -524,7 +552,7 @@ Return the following MIP model
     math_elim_mode == 5: x_{ij} + x_{ji} = g_{ij}       (for all i,j)
     w_i = \\sum x_{i,:}
     W \\ge \\sum x_{i,:} - M \\alpha_i                     (for all i)
-    \\sum_i \\alpha_i = n^*                               (for all i)
+    \\sum_i \\alpha_i = n^* - 1                           (so that W is the n^*-th, not the (n^*+1)-st, largest win total)
  
   Binaries:
     math_elim_mode == 4: x \\in \\{0,1\\}
@@ -546,24 +574,16 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
   #model = Model(with_optimizer(GLPK.Optimizer))
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=10, OutputFlag=0))
   #model = Model(with_optimizer(Gurobi.Optimizer, TimeLimit=10, OutputFlag=0))
-  if !is_valid(env)
-    model = Model(
-      optimizer_with_attributes(() -> Gurobi.Optimizer(),
-        "TimeLimit" => 10,
-        "OutputFlag" => 0))
-  else
-    model = Model(
-      optimizer_with_attributes(() -> Gurobi.Optimizer(env),
-        "TimeLimit" => 10,
-        "OutputFlag" => 0))
-  end
+  model = newMIPModel(env,
+      "OutputFlag" => 0, # first, so that setting the other parameters is not logged
+      "TimeLimit" => 10)
   
   ## Set up variables and constraints
   @variable(model, W >= 0)
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
   @variable(model, alpha[1:num_teams], lower_bound = 0, upper_bound = 1,
       integer=true) # alpha_i = indicator that team i has better rank than n^*
-  con = @constraint(model, alpha_bd, sum(alpha) == num_playoff_teams)
+  con = @constraint(model, alpha_bd, sum(alpha) == num_playoff_teams - 1) # exempt n^* - 1 teams, so W is the n^*-th largest win total
 
   if math_elim_mode == 4
     # x_{it} = indicator that team i wins game t
@@ -825,7 +845,7 @@ function checkMIP(model, cutoff, math_elim_mode)
   elseif status in [MOI.OBJECTIVE_LIMIT, MOI.TIME_LIMIT]
     if status == MOI.TIME_LIMIT
       ## Save the hard LP
-      lp_file = MathOptInterface.LP.Model()
+      lp_file = MOI.FileFormats.LP.Model()
       MOI.copy_to(lp_file, backend(model))
       MOI.write_to_file(lp_file, "hard.lp")
     end
@@ -885,6 +905,14 @@ function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_team
 
       best_outcomes[k, game_ind] = winner
     end
+
+    # Keep best_h2h consistent with best_outcomes (h2h includes games up to t)
+    best_h2h[k,:,:] = h2h
+    for game_ind = t+1:num_games_total
+      winner = best_outcomes[k, game_ind]
+      loser = (winner == schedule[game_ind,1]) ? schedule[game_ind,2] : schedule[game_ind,1]
+      best_h2h[k,winner,loser] += 1
+    end
   elseif math_elim_mode in [3,5] # xij
     for i = 1:num_teams
       for j = 1:num_teams 
@@ -896,6 +924,17 @@ function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_team
         best_h2h[k,i,j] = Int(round(value.(xij)))
         best_h2h[k,j,i] = Int(round(value.(xji)))
       end
+    end
+
+    # Keep best_outcomes consistent with best_h2h: assign the remaining wins in each series to games
+    rem = best_h2h[k,:,:] - h2h
+    for game_ind = t+1:num_games_total
+      i = schedule[game_ind,1]
+      j = schedule[game_ind,2]
+      winner = (rem[i,j] > 0) ? i : j
+      loser = (winner == i) ? j : i
+      rem[winner,loser] -= 1
+      best_outcomes[k, game_ind] = winner
     end
   end
 
@@ -912,6 +951,40 @@ function updateUsingMIPSolution!(model, k, t, schedule, h2h, W, num_playoff_team
 end # updateUsingMIPSolution
 
 """
+    checkBestSolutions
+
+Debugging check that, for each team i with a stored best schedule (best_rank[i] > 0), the schedule is consistent:
+every game is won by one of its two teams, games 1 to t have their actual outcomes,
+and best_num_wins, best_h2h, and best_rank match the schedule
+"""
+function checkBestSolutions(t, schedule, outcome, best_outcomes, best_h2h, best_num_wins, best_rank)
+  num_games_total = size(schedule, 1)
+  num_teams = length(best_rank)
+  for i = 1:num_teams
+    if best_rank[i] <= 0
+      continue
+    end
+    wins = zeros(Int, num_teams)
+    h2h = zeros(Int, num_teams, num_teams)
+    for g = 1:num_games_total
+      a, b = schedule[g,1], schedule[g,2]
+      w = best_outcomes[i,g]
+      @assert(w == a || w == b, "team $i, game $g (after game $t): winner $w is not playing ($a vs $b)")
+      if g <= t
+        @assert(w == outcome[g], "team $i, game $g (after game $t): stored winner $w but actual winner $(outcome[g])")
+      end
+      l = (w == a) ? b : a
+      wins[w] += 1
+      h2h[w,l] += 1
+    end
+    @assert(wins == best_num_wins[i,:], "team $i (after game $t): best_num_wins does not match best_outcomes")
+    @assert(h2h == best_h2h[i,:,:], "team $i (after game $t): best_h2h does not match best_outcomes")
+    rank_i = count(x -> x > wins[i], wins) + 1
+    @assert(rank_i == best_rank[i], "team $i (after game $t): best_rank $(best_rank[i]) but rank in schedule is $rank_i")
+  end
+end # checkBestSolutions
+
+"""
 updateOtherUsingBestSolution!: Check whether other teams best schedule can be updated
 
 Updates
@@ -922,11 +995,9 @@ Updates
 """
 function updateOthersUsingBestSolution!(k, t, schedule, num_playoff_teams,
     best_outcomes, best_h2h, best_num_wins, best_rank)
-  num_games_total = length(schedule)
   num_teams = length(best_rank)
 
   num_wins = best_num_wins[k,:]
-  W =  num_wins[num_playoff_teams]
   sorted_teams = sortperm(num_wins, rev=true)
   rank_of_team = Array{Int}(undef, num_teams)
   rank_of_team[sorted_teams[1]] = 1
@@ -1063,7 +1134,7 @@ function thisTeamLosesRemainingGames!(k, t, schedule, stats, outcome, h2h,
       j = schedule[game_ind, 2]  
     end
       
-    outcome[game_ind] = k
+    outcome[game_ind] = j
     stats[j, num_wins_ind] += 1
     h2h[j,k] += 1
     for i in [k,j]
@@ -1104,7 +1175,7 @@ function losingHeuristicHelper!(k, t, schedule, stats, outcome, h2h,
     w_i = stats[i, num_wins_ind]
     g_i = stats[i, games_left_ind]
     W_i = w_i + g_i
-    w_j = stats[i, num_wins_ind]
+    w_j = stats[j, num_wins_ind]
     g_j = stats[j, games_left_ind]
     W_j = w_j + g_j
 
@@ -1132,5 +1203,5 @@ function losingHeuristicHelper!(k, t, schedule, stats, outcome, h2h,
 end # losingHeuristicHelper
 
 function is_valid(env = nothing)
-  return !isnothing(env) && isa(env, Gurobi.Env) && env.ptr_env != C_NULL
+  return !isnothing(env) && hasproperty(env, :ptr_env) && env.ptr_env != C_NULL # env is a Gurobi.Env
 end # is_valid
