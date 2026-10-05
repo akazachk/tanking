@@ -19,6 +19,8 @@
 #   -e LIST    comma-separated experiments to run, from
 #              validate,simulate,parse,noisy,sensitivity,bt (default: validate,simulate,parse,noisy,sensitivity)
 #   -N         do not create plots (plots need PyPlot and LaTeX)
+#   -k         keep the per-step files of the parallel simulation (e.g., avg_kend_strict[5].csv); by default
+#              they are deleted once they have been combined into the main files (e.g., avg_kend_strict.csv)
 #
 # Environment variables
 #   JULIA      julia command (default: julia); must be Julia 1.13 or later (Manifest.toml was resolved with 1.13),
@@ -60,7 +62,8 @@ THREADS=
 EXPERIMENTS=validate,simulate,parse,noisy,sensitivity
 PLOT=--plot
 
-while getopts "o:n:S:s:g:m:j:t:e:Nh" opt; do
+KEEP_STEP_FILES=no
+while getopts "o:n:S:s:g:m:j:t:e:Nkh" opt; do
   case $opt in
     o) OUTDIR=$OPTARG ;;
     n) REPS=$OPTARG ;;
@@ -72,6 +75,7 @@ while getopts "o:n:S:s:g:m:j:t:e:Nh" opt; do
     t) THREADS=$OPTARG ;;
     e) EXPERIMENTS=$OPTARG ;;
     N) PLOT= ;;
+    k) KEEP_STEP_FILES=yes ;;
     h) sed -n '2,/^set -euo/p' "$0" | sed '$d'; exit 0 ;;
     *) sed -n '2,/^set -euo/p' "$0" | sed '$d'; exit 1 ;;
   esac
@@ -174,6 +178,13 @@ simulate_experiment() { # $1 = simulate or bt
     run_parallel "$NUM_STEPS" "$LOGDIR/${exp}_step" "$RUN --gamma=$GAMMA --math-elim-mode=$MODE --steps={} $exp"
     log "$exp: aggregating steps -> $LOGDIR/${exp}_aggregate.log"
     run_step "$LOGDIR/${exp}_aggregate.log" $RUN --gamma=$GAMMA --math-elim-mode=$MODE --aggregate $PLOT $exp
+    # The per-step files (e.g., avg_kend_strict[5].csv) are only needed to combine the steps
+    local suffix=$([[ $exp == bt ]] && echo "_BT_est" || echo "_strict")
+    if [[ $KEEP_STEP_FILES == no && -f $OUTDIR/avg_kend${suffix}.csv && -f $OUTDIR/kend_gold${suffix}.csv ]]; then
+      local num_files=$(find "$OUTDIR" -maxdepth 1 -name "*${suffix}\[*\].csv" | wc -l)
+      find "$OUTDIR" -maxdepth 1 -name "*${suffix}\[*\].csv" -delete
+      log "$exp: deleted $num_files per-step files (use -k to keep them)"
+    fi
   else
     log "$exp: all steps in one process -> $LOGDIR/$exp.log"
     run_step "$LOGDIR/$exp.log" $RUN --gamma=$GAMMA --math-elim-mode=$MODE $PLOT $exp
