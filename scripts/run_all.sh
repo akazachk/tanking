@@ -123,6 +123,10 @@ run_step() {
 }
 
 START_TIME=$(date +%s)
+# Gurobi library actually loaded: the one bundled with Gurobi_jll (pinned by Manifest.toml) or a local installation
+GUROBI_INFO=$($JULIA --project=. -e 'import Gurobi; lib = string(Gurobi.libgurobi);
+  print(Gurobi._GUROBI_VERSION, " (", occursin("artifacts", lib) ? "Gurobi_jll" : "local installation", ": ", lib, ")")' 2>/dev/null | tail -1 || true)
+GUROBI_INFO=${GUROBI_INFO:-unknown}
 # Uncommitted changes to tracked files (other than results) mean the commit alone does not identify the code
 GIT_CHANGES=$(git status --porcelain --untracked-files=no -- . ':!results' 2>/dev/null | awk '{print $2}' | tr '\n' ' ')
 {
@@ -130,6 +134,7 @@ GIT_CHANGES=$(git status --porcelain --untracked-files=no -- . ':!results' 2>/de
   echo "git commit: $(git rev-parse HEAD 2>/dev/null || echo unknown)"
   echo "git uncommitted changes: ${GIT_CHANGES:-none}"
   echo "julia: $JULIA_VERSION ($JULIA)"
+  echo "gurobi: $GUROBI_INFO"
   echo "replications: $REPS (sensitivity: $SENS_REPS)"
   echo "seasons: $SEASONS"
   echo "gamma: $GAMMA"
