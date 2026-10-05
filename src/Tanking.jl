@@ -62,7 +62,9 @@ Only needed when MIPs are solved for mathematical elimination (`abs(math_elim_mo
 """
 function set_env()
   if !is_valid(GRB_ENV)
-    global GRB_ENV = Gurobi.Env()
+    # OutputFlag = 0: models created from this environment do not log (e.g., "Set parameter ..." for every
+    # parameter of every model, which made the logs of a full run several hundred MB)
+    global GRB_ENV = Gurobi.Env(Dict{String,Any}("OutputFlag" => 0))
   end
 end
 

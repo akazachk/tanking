@@ -45,6 +45,7 @@ end
 
 function gurobi_optimizer(env = nothing)
   optimizer = is_valid(env) ? Gurobi.Optimizer(env) : Gurobi.Optimizer()
+  MOI.set(optimizer, MOI.Silent(), true) # before setting other parameters, so that Gurobi does not log them
   # Limit the number of threads Gurobi uses per MIP (e.g., 1 when running several simulations in parallel);
   # by default, Gurobi uses as many threads as there are cores
   if haskey(ENV, "TANKING_GUROBI_THREADS")
@@ -439,10 +440,10 @@ function setupMIPByTeam(schedule, h2h_left, num_teams, num_playoff_teams, num_te
   #model = Model(with_optimizer(GLPK.Optimizer))
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams+1e-3, BestBdStop=num_playoff_teams+1e-3, TimeLimit=10, OutputFlag=0))
   model = newMIPModel(env,
+      "OutputFlag" => 0, # first, so that setting the other parameters is not logged
       "BestObjStop" => num_playoff_teams+1e-3,
       "BestBdStop" => num_playoff_teams+1e-3,
-      "TimeLimit" => 10,
-      "OutputFlag" => 0)
+      "TimeLimit" => 10)
   
   ## Set up variables and constraints
   @variable(model, w[1:num_teams]) # w_i = num wins of team i at end of season
@@ -574,8 +575,8 @@ function setupMIPByCutoff(schedule, h2h_left, num_teams, num_playoff_teams, num_
   #model = Model(with_optimizer(Gurobi.Optimizer, BestObjStop=num_playoff_teams, BestBdStop=num_playoff_teams, TimeLimit=10, OutputFlag=0))
   #model = Model(with_optimizer(Gurobi.Optimizer, TimeLimit=10, OutputFlag=0))
   model = newMIPModel(env,
-      "TimeLimit" => 10,
-      "OutputFlag" => 0)
+      "OutputFlag" => 0, # first, so that setting the other parameters is not logged
+      "TimeLimit" => 10)
   
   ## Set up variables and constraints
   @variable(model, W >= 0)
